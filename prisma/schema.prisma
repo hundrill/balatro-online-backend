@@ -1,0 +1,54 @@
+// Prisma schema for BalatroOnline backend
+// 데이터베이스: MySQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          Int      @id @default(autoincrement())
+  email       String   @unique
+  passwordHash String
+  nickname    String   @unique
+  createdAt   DateTime @default(now())
+  rooms       RoomUser[]
+}
+
+model Channel {
+  id        Int    @id @default(autoincrement())
+  name      String @unique
+  rooms     Room[]
+}
+
+model Room {
+  id        Int      @id @default(autoincrement())
+  channel   Channel  @relation(fields: [channelId], references: [id])
+  channelId Int
+  name      String
+  status    String   // waiting, playing, finished
+  createdAt DateTime @default(now())
+  users     RoomUser[]
+  histories GameHistory[]
+}
+
+model RoomUser {
+  id      Int   @id @default(autoincrement())
+  room    Room  @relation(fields: [roomId], references: [id])
+  roomId  Int
+  user    User  @relation(fields: [userId], references: [id])
+  userId  Int
+  seat    Int
+}
+
+model GameHistory {
+  id        Int      @id @default(autoincrement())
+  room      Room     @relation(fields: [roomId], references: [id])
+  roomId    Int
+  startedAt DateTime
+  endedAt   DateTime?
+} 
