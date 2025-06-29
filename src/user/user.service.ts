@@ -3,21 +3,25 @@ import { PrismaService } from '../prisma.service';
 
 @Injectable()
 export class UserService {
-    constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
-    async findAll() {
-        return this.prisma.user.findMany();
-    }
+  async findAll() {
+    return this.prisma.user.findMany();
+  }
 
-    async findById(id: number) {
-        return this.prisma.user.findUnique({ where: { id } });
-    }
+  async findById(id: number) {
+    return this.prisma.user.findUnique({ where: { id } });
+  }
 
-    async findByEmail(email: string) {
-        return this.prisma.user.findUnique({ where: { email } });
-    }
+  async findByEmail(email: string) {
+    return this.prisma.user.findUnique({ where: { email } });
+  }
 
-    async create(data: { email: string; passwordHash: string; nickname: string }) {
-        return this.prisma.user.create({ data });
-    }
-} 
+  async create(data: {
+    email: string;
+    passwordHash: string;
+    nickname: string;
+  }) {
+    return this.prisma.user.create({ data });
+  }
+}

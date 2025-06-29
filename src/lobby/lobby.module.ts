@@ -5,8 +5,8 @@ import { ChannelModule } from '../channel/channel.module';
 import { RoomModule } from '../room/room.module';
 
 @Module({
-    imports: [ChannelModule, RoomModule],
-    providers: [LobbyService],
-    controllers: [LobbyController],
+  imports: [ChannelModule, RoomModule],
+  providers: [LobbyService],
+  controllers: [LobbyController],
 })
-export class LobbyModule { } 
+export class LobbyModule {}

@@ -1,12 +1,44 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Logger } from '@nestjs/common';
 import { AppService } from './app.service';
 
 @Controller()
 export class AppController {
-  constructor(private readonly appService: AppService) {}
+  private readonly logger = new Logger(AppController.name);
+
+  constructor(private readonly appService: AppService) { }
 
   @Get()
   getHello(): string {
     return this.appService.getHello();
+  }
+
+  @Get('health')
+  async getHealth() {
+    try {
+      this.logger.log('Health check requested');
+
+      const healthStatus = {
+        status: 'ok',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+        memory: (() => {
+          try {
+            return process.memoryUsage();
+          } catch {
+            return 'unavailable';
+          }
+        })(),
+      };
+
+      this.logger.log(`Health check completed: ${healthStatus.status}`);
+      return healthStatus;
+    } catch (error) {
+      this.logger.error('Health check failed', error.stack);
+      return {
+        status: 'error',
+        timestamp: new Date().toISOString(),
+        error: error.message || 'Unknown error',
+      };
+    }
   }
 }

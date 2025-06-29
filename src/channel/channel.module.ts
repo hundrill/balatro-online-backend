@@ -3,8 +3,8 @@ import { ChannelService } from './channel.service';
 import { ChannelController } from './channel.controller';
 
 @Module({
-    providers: [ChannelService],
-    controllers: [ChannelController],
-    exports: [ChannelService],
+  providers: [ChannelService],
+  controllers: [ChannelController],
+  exports: [ChannelService],
 })
-export class ChannelModule { } 
+export class ChannelModule {}

@@ -3,10 +3,10 @@ import { LobbyService } from './lobby.service';
 
 @Controller('lobby')
 export class LobbyController {
-    constructor(private readonly lobbyService: LobbyService) { }
+  constructor(private readonly lobbyService: LobbyService) {}
 
-    @Get()
-    async getLobbyInfo() {
-        return this.lobbyService.getLobbyInfo();
-    }
-} 
+  @Get()
+  async getLobbyInfo() {
+    return this.lobbyService.getLobbyInfo();
+  }
+}

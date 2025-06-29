@@ -3,8 +3,8 @@ import { GameHistoryService } from './game-history.service';
 import { GameHistoryController } from './game-history.controller';
 
 @Module({
-    providers: [GameHistoryService],
-    controllers: [GameHistoryController],
-    exports: [GameHistoryService],
+  providers: [GameHistoryService],
+  controllers: [GameHistoryController],
+  exports: [GameHistoryService],
 })
-export class GameHistoryModule { } 
+export class GameHistoryModule {}

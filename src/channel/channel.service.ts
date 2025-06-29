@@ -3,13 +3,13 @@ import { PrismaService } from '../prisma.service';
 
 @Injectable()
 export class ChannelService {
-    constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
-    async findAll() {
-        return this.prisma.channel.findMany();
-    }
+  async findAll() {
+    return this.prisma.channel.findMany();
+  }
 
-    async create(name: string) {
-        return this.prisma.channel.create({ data: { name } });
-    }
-} 
+  async create(name: string) {
+    return this.prisma.channel.create({ data: { name } });
+  }
+}

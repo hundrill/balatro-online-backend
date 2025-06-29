@@ -26,7 +26,11 @@ describe('AppController (e2e)', () => {
   it('/auth/register (POST) - 회원가입', async () => {
     const res = await request(app.getHttpServer())
       .post('/auth/register')
-      .send({ email: 'test1@example.com', password: 'test1234', nickname: 'testuser1' });
+      .send({
+        email: 'test1@example.com',
+        password: 'test1234',
+        nickname: 'testuser1',
+      });
     expect(res.status).toBe(201);
     expect(res.body).toHaveProperty('id');
   });
