@@ -7,7 +7,12 @@ export class RedisService implements OnModuleDestroy {
   private readonly logger = new Logger(RedisService.name);
 
   constructor() {
-    const redisOptions: any = {
+    const redisOptions: {
+      host: string;
+      port: number;
+      maxRetriesPerRequest: number;
+      password?: string;
+    } = {
       host: process.env.REDIS_HOST || 'localhost',
       port: parseInt(process.env.REDIS_PORT || '6379'),
       maxRetriesPerRequest: 3,
@@ -30,8 +35,12 @@ export class RedisService implements OnModuleDestroy {
       this.logger.log('Redis client ready');
     });
 
-    this.client.on('error', (error) => {
-      this.logger.error('Redis client error', error.stack);
+    this.client.on('error', (error: unknown) => {
+      if (error instanceof Error) {
+        this.logger.error('Redis client error', error.stack);
+      } else {
+        this.logger.error('Redis client error', String(error));
+      }
     });
 
     this.client.on('close', () => {
@@ -51,8 +60,12 @@ export class RedisService implements OnModuleDestroy {
     try {
       await this.client.ping();
       return true;
-    } catch (error) {
-      this.logger.error('Redis connection check failed', error.stack);
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        this.logger.error('Redis connection check failed', error.stack);
+      } else {
+        this.logger.error('Redis connection check failed', String(error));
+      }
       return false;
     }
   }
@@ -62,8 +75,12 @@ export class RedisService implements OnModuleDestroy {
       this.logger.log('Disconnecting Redis client...');
       await this.client.quit();
       this.logger.log('Redis client disconnected');
-    } catch (error) {
-      this.logger.error('Error disconnecting Redis client', error.stack);
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        this.logger.error('Error disconnecting Redis client', error.stack);
+      } else {
+        this.logger.error('Error disconnecting Redis client', String(error));
+      }
     }
   }
 }

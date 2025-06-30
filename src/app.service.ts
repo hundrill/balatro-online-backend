@@ -3,7 +3,7 @@ import { RedisService } from './redis/redis.service';
 
 @Injectable()
 export class AppService implements OnModuleInit {
-  constructor(private readonly redisService: RedisService) { }
+  constructor(private readonly redisService: RedisService) {}
 
   async onModuleInit() {
     const client = this.redisService.getClient();

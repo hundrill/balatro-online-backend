@@ -23,10 +23,14 @@ async function bootstrap() {
 
     logger.log(`Balatro Online Backend is running on port ${port}`);
     logger.log('Environment: ' + (process.env.NODE_ENV || 'development'));
-  } catch (error) {
-    logger.error('Failed to start Balatro Online Backend', error.stack);
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      logger.error('Failed to start Balatro Online Backend', error.stack);
+    } else {
+      logger.error('Failed to start Balatro Online Backend', String(error));
+    }
     process.exit(1);
   }
 }
 
-bootstrap();
+void bootstrap();

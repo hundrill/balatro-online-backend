@@ -5,7 +5,7 @@ import { AppService } from './app.service';
 export class AppController {
   private readonly logger = new Logger(AppController.name);
 
-  constructor(private readonly appService: AppService) { }
+  constructor(private readonly appService: AppService) {}
 
   @Get()
   getHello(): string {
@@ -13,7 +13,7 @@ export class AppController {
   }
 
   @Get('health')
-  async getHealth() {
+  getHealth() {
     try {
       this.logger.log('Health check requested');
 
@@ -32,13 +32,22 @@ export class AppController {
 
       this.logger.log(`Health check completed: ${healthStatus.status}`);
       return healthStatus;
-    } catch (error) {
-      this.logger.error('Health check failed', error.stack);
-      return {
-        status: 'error',
-        timestamp: new Date().toISOString(),
-        error: error.message || 'Unknown error',
-      };
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        this.logger.error('Health check failed', error.stack);
+        return {
+          status: 'error',
+          timestamp: new Date().toISOString(),
+          error: error.message,
+        };
+      } else {
+        this.logger.error('Health check failed', String(error));
+        return {
+          status: 'error',
+          timestamp: new Date().toISOString(),
+          error: 'Unknown error',
+        };
+      }
     }
   }
 }

@@ -1,4 +1,13 @@
-import { Controller, Get, Post, Body, Req, Param, Delete, Logger } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Req,
+  Param,
+  Delete,
+  Logger,
+} from '@nestjs/common';
 import { RoomService } from './room.service';
 import { CreateRoomDto } from './dto/create-room.dto';
 import { JoinRoomDto } from './dto/join-room.dto';
@@ -9,7 +18,7 @@ import { RoomValidator } from '../common/validators/room.validator';
 export class RoomController {
   private readonly logger = new Logger(RoomController.name);
 
-  constructor(private readonly roomService: RoomService) { }
+  constructor(private readonly roomService: RoomService) {}
 
   @Get()
   async findAll() {
@@ -17,8 +26,12 @@ export class RoomController {
       this.logger.log('GET /rooms - Fetching all rooms from database');
       const rooms = await this.roomService.findAll();
       return { success: true, rooms };
-    } catch (error) {
-      this.logger.error('Error in GET /rooms', error.stack);
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        this.logger.error('Error in GET /rooms', error.stack);
+      } else {
+        this.logger.error('Error in GET /rooms', String(error));
+      }
       throw error;
     }
   }
@@ -33,31 +46,45 @@ export class RoomController {
       this.logger.log(`POST /rooms - Creating room: ${name}`);
       const room = await this.roomService.create({ channelId, name, status });
       return { success: true, room };
-    } catch (error) {
-      this.logger.error(`Error in POST /rooms - Creating room: ${name}`, error.stack);
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        this.logger.error(
+          `Error in POST /rooms - Creating room: ${name}`,
+          error.stack,
+        );
+      } else {
+        this.logger.error(
+          `Error in POST /rooms - Creating room: ${name}`,
+          String(error),
+        );
+      }
       throw error;
     }
   }
 
   // Redis 기반 방 생성
   @Post('create')
-  async createRoom(@Body() dto: CreateRoomDto, @Req() req: Request) {
+  async createRoom(@Body() dto: CreateRoomDto) {
     try {
-      const ownerId = (req as any).user?.id || 'test-user';
-      this.logger.log(`POST /rooms/create - Creating Redis room: ${dto.name} by user: ${ownerId}`);
+      this.logger.log(`POST /rooms/create - Creating Redis room: ${dto.name}`);
 
       // 입력 데이터 검증
       RoomValidator.validateCreateRoomData(dto);
-      RoomValidator.validateUserId(ownerId);
 
-      const room = await this.roomService.createRoom(
-        dto.name,
-        dto.maxPlayers,
-        ownerId,
-      );
+      const room = await this.roomService.createRoom(dto.name, dto.maxPlayers);
       return { success: true, roomId: room.roomId, room };
-    } catch (error) {
-      this.logger.error(`Error in POST /rooms/create - Creating room: ${dto.name}`, error.stack);
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        this.logger.error(
+          `Error in POST /rooms/create - Creating room: ${dto.name}`,
+          error.stack,
+        );
+      } else {
+        this.logger.error(
+          `Error in POST /rooms/create - Creating room: ${dto.name}`,
+          String(error),
+        );
+      }
       throw error;
     }
   }
@@ -66,16 +93,43 @@ export class RoomController {
   @Post('join')
   async joinRoom(@Body() dto: JoinRoomDto, @Req() req: Request) {
     try {
-      const userId = (req as any).user?.id || 'test-user';
-      this.logger.log(`POST /rooms/join - User ${userId} joining room: ${dto.roomId}`);
+      let userId: string | undefined = dto.userId;
+      if (
+        req &&
+        typeof req === 'object' &&
+        'user' in req &&
+        req.user &&
+        typeof req.user === 'object' &&
+        req.user !== null &&
+        'id' in req.user &&
+        typeof req.user.id === 'string'
+      ) {
+        userId = req.user.id;
+      }
+      if (!userId) {
+        throw new Error('User ID is required');
+      }
+      this.logger.log(
+        `POST /rooms/join - User ${userId} joining room: ${dto.roomId}`,
+      );
 
       // 입력 데이터 검증
       RoomValidator.validateJoinRoomData({ roomId: dto.roomId, userId });
 
       const room = await this.roomService.joinRoom(dto.roomId, userId);
       return { success: true, room };
-    } catch (error) {
-      this.logger.error(`Error in POST /rooms/join - User joining room: ${dto.roomId}`, error.stack);
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        this.logger.error(
+          `Error in POST /rooms/join - User joining room: ${dto.roomId}`,
+          error.stack,
+        );
+      } else {
+        this.logger.error(
+          `Error in POST /rooms/join - User joining room: ${dto.roomId}`,
+          String(error),
+        );
+      }
       throw error;
     }
   }
@@ -87,23 +141,12 @@ export class RoomController {
       this.logger.log('GET /rooms/redis - Fetching all rooms from Redis');
       const rooms = await this.roomService.findAllRoomsInRedis();
       return { success: true, rooms };
-    } catch (error) {
-      this.logger.error('Error in GET /rooms/redis', error.stack);
-      throw error;
-    }
-  }
-
-  // Redis 기반 방 퇴장
-  @Post('leave')
-  async leaveRoom(@Body('roomId') roomId: string, @Req() req: Request) {
-    try {
-      const userId = (req as any).user?.id || 'test-user';
-      this.logger.log(`POST /rooms/leave - User ${userId} leaving room: ${roomId}`);
-
-      const result = await this.roomService.leaveRoom(roomId, userId);
-      return { success: true, ...result };
-    } catch (error) {
-      this.logger.error(`Error in POST /rooms/leave - User leaving room: ${roomId}`, error.stack);
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        this.logger.error('Error in GET /rooms/redis', error.stack);
+      } else {
+        this.logger.error('Error in GET /rooms/redis', String(error));
+      }
       throw error;
     }
   }
@@ -115,8 +158,12 @@ export class RoomController {
       this.logger.log(`DELETE /rooms/${roomId} - Deleting room`);
       const result = await this.roomService.deleteRoom(roomId);
       return { success: true, ...result };
-    } catch (error) {
-      this.logger.error(`Error in DELETE /rooms/${roomId}`, error.stack);
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        this.logger.error(`Error in DELETE /rooms/${roomId}`, error.stack);
+      } else {
+        this.logger.error(`Error in DELETE /rooms/${roomId}`, String(error));
+      }
       throw error;
     }
   }
@@ -128,8 +175,12 @@ export class RoomController {
       this.logger.log(`GET /rooms/${roomId}/users - Fetching users for room`);
       const users = await this.roomService.getRoomUsers(roomId);
       return { success: true, users };
-    } catch (error) {
-      this.logger.error(`Error in GET /rooms/${roomId}/users`, error.stack);
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        this.logger.error(`Error in GET /rooms/${roomId}/users`, error.stack);
+      } else {
+        this.logger.error(`Error in GET /rooms/${roomId}/users`, String(error));
+      }
       throw error;
     }
   }
