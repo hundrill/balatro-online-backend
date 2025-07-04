@@ -10,6 +10,12 @@ import {
   RedisConnectionException,
 } from '../common/exceptions/room.exception';
 import { Card, createDeck, shuffle } from './deck.util';
+import {
+  getRandomJokerCards,
+  JokerCard,
+  PlanetCard,
+  TarotCard,
+} from './joker-cards.util';
 
 @Injectable()
 export class RoomService {
@@ -18,12 +24,21 @@ export class RoomService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly redisService: RedisService,
-  ) {}
+  ) { }
 
   private gameStates: Map<
     string,
     { deck: Card[]; hands: Map<string, Card[]>; started: boolean }
   > = new Map();
+
+  private handPlayMap: Map<string, Map<string, Card[]>> = new Map(); // roomId -> userId -> hand
+
+  // nextRound 준비 상태 관리용 Map
+  private nextRoundReadyMap: Map<string, Set<string>> = new Map(); // roomId -> Set<userId>
+
+  // roomId별 샵 카드 5장 상태 관리
+  private shopCardsMap: Map<string, (JokerCard | PlanetCard | TarotCard)[]> =
+    new Map();
 
   async findAll() {
     try {
@@ -347,6 +362,15 @@ export class RoomService {
     this.logger.log(
       `[startGame] === 게임 상태 저장 완료: roomId=${roomId} ===`,
     );
+
+    // 샵 카드 5장 생성 (조커만)
+    const shopCardsRaw: JokerCard[] = getRandomJokerCards(5);
+    // type 필드 추가
+    const shopCards = shopCardsRaw.map((card) => ({ ...card, type: 'joker' }));
+    this.shopCardsMap.set(roomId, shopCards);
+    this.logger.log(
+      `[startGame] 샵 카드 3장(조커만) 생성 및 저장: roomId=${roomId}, cards=${JSON.stringify(shopCards)}`,
+    );
   }
 
   getUserHand(roomId: string, userId: string): Card[] {
@@ -411,5 +435,95 @@ export class RoomService {
         await this.removeUserFromRoom(roomId, userId);
       }
     }
+  }
+
+  /**
+   * 유저가 선택한 카드(suit/rank)들을 버리고, 덱에서 새 카드로 교체한다.
+   * @param roomId
+   * @param userId
+   * @param cards 버릴 카드의 suit/rank 배열
+   * @returns { newHand, discarded }
+   */
+  discardAndDraw(
+    roomId: string,
+    userId: string,
+    cards: { suit: string; rank: number }[],
+  ): { newHand: Card[]; discarded: Card[] } {
+    const state = this.gameStates.get(roomId);
+    if (!state) throw new Error('Room state not found');
+    const hand = state.hands.get(userId);
+    if (!hand) throw new Error('User hand not found');
+    const discarded: Card[] = [];
+    for (const cardInfo of cards) {
+      const idx = hand.findIndex(
+        (c) => c.suit === cardInfo.suit && c.rank === cardInfo.rank,
+      );
+      if (idx !== -1) {
+        discarded.push(hand.splice(idx, 1)[0]);
+      }
+    }
+    // 덱에서 새 카드 draw
+    const newCards: Card[] = state.deck.splice(0, discarded.length);
+    hand.push(...newCards);
+    state.hands.set(userId, hand);
+    return { newHand: [...hand], discarded };
+  }
+
+  handPlayReady(roomId: string, userId: string, hand: Card[]): void {
+    if (!this.handPlayMap.has(roomId)) {
+      this.handPlayMap.set(roomId, new Map());
+    }
+    this.handPlayMap.get(roomId)!.set(userId, hand);
+    this.logger.log(
+      `[handPlayReady] userId=${userId}, roomId=${roomId}, hand=${JSON.stringify(hand)}`,
+    );
+  }
+
+  async canRevealHandPlay(roomId: string): Promise<boolean> {
+    // 모든 유저가 제출했는지 확인
+    const users = await this.getRoomUsers(roomId);
+    const handMap = this.handPlayMap.get(roomId);
+    if (!handMap) return false;
+    const allReady = users.every((uid) => handMap.has(uid));
+    this.logger.log(
+      `[canRevealHandPlay] roomId=${roomId}, allReady=${allReady}, users=${users.join(',')}, submitted=${handMap ? Array.from(handMap.keys()).join(',') : ''}`,
+    );
+    return allReady;
+  }
+
+  getAllHandPlays(roomId: string): { userId: string; hand: Card[] }[] {
+    const handMap = this.handPlayMap.get(roomId);
+    if (!handMap) return [];
+    const result: { userId: string; hand: Card[] }[] = [];
+    for (const [userId, hand] of handMap.entries()) {
+      result.push({ userId, hand });
+    }
+    this.logger.log(
+      `[getAllHandPlays] roomId=${roomId}, result=${JSON.stringify(result)}`,
+    );
+    return result;
+  }
+
+  setNextRoundReady(roomId: string, userId: string): void {
+    if (!this.nextRoundReadyMap.has(roomId)) {
+      this.nextRoundReadyMap.set(roomId, new Set());
+    }
+    this.nextRoundReadyMap.get(roomId)!.add(userId);
+    this.logger.log(`[setNextRoundReady] userId=${userId}, roomId=${roomId}`);
+  }
+
+  async canStartNextRound(roomId: string): Promise<boolean> {
+    const users = await this.getRoomUsers(roomId);
+    const readySet = this.nextRoundReadyMap.get(roomId);
+    const allReady = readySet && users.every((uid) => readySet.has(uid));
+    this.logger.log(
+      `[canStartNextRound] roomId=${roomId}, allReady=${allReady}, users=${users.join(',')}, ready=${readySet ? Array.from(readySet).join(',') : ''}`,
+    );
+    return !!allReady;
+  }
+
+  // 현재 라운드 샵 카드 5장 반환
+  getShopCards(roomId: string): (JokerCard | PlanetCard | TarotCard)[] {
+    return this.shopCardsMap.get(roomId) ?? [];
   }
 }

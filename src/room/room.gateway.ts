@@ -175,11 +175,11 @@ export class RoomGateway
         client.emit('error', { message: 'User not registered' });
         return;
       }
-      await Promise.resolve(this.roomService.setReady(data.roomId, userId));
+      this.roomService.setReady(data.roomId, userId);
       this.logger.log(
         `[handleReady] setReady 완료: userId=${userId}, roomId=${data.roomId}`,
       );
-      if (await Promise.resolve(this.roomService.canStart(data.roomId))) {
+      if (this.roomService.canStart(data.roomId)) {
         this.logger.log(
           `[handleReady] 모든 유저 준비 완료, 게임 시작: roomId=${data.roomId}`,
         );
@@ -218,6 +218,140 @@ export class RoomGateway
         );
       }
       client.emit('error', { message: 'Failed to start game' });
+    }
+  }
+
+  @SubscribeMessage('discard')
+  handleDiscard(
+    @MessageBody()
+    data: { roomId: string; cards: { suit: string; rank: number }[] },
+    @ConnectedSocket() client: Socket,
+  ) {
+    try {
+      const userId = this.socketIdToUserId.get(client.id);
+      if (!userId) {
+        client.emit('error', { message: 'User not registered' });
+        return;
+      }
+      const { newHand, discarded } = this.roomService.discardAndDraw(
+        data.roomId,
+        userId,
+        data.cards,
+      );
+      client.emit('discardResult', { newHand, discarded });
+    } catch (error) {
+      this.logger.error(
+        `[handleDiscard] Error: socketId=${client.id}, data=${JSON.stringify(data)}`,
+        error instanceof Error ? error.stack : String(error),
+      );
+      client.emit('error', { message: 'Failed to discard cards' });
+    }
+  }
+
+  @SubscribeMessage('handPlayReady')
+  async handleHandPlayReady(
+    @MessageBody()
+    data: { roomId: string; hand: { suit: string; rank: number }[] },
+    @ConnectedSocket() client: Socket,
+  ) {
+    try {
+      const userId = this.socketIdToUserId.get(client.id);
+      if (!userId) {
+        client.emit('error', { message: 'User not registered' });
+        return;
+      }
+      // 유저별 최종 핸드 서버에 저장
+      await this.roomService.handPlayReady(data.roomId, userId, data.hand);
+      this.logger.log(
+        `[handleHandPlayReady] userId=${userId}, roomId=${data.roomId}, hand=${JSON.stringify(data.hand)}`,
+      );
+      // 모든 유저가 제출했는지 체크
+      if (await this.roomService.canRevealHandPlay(data.roomId)) {
+        // 모든 유저의 핸드 모아서 브로드캐스트
+        const allHands = await this.roomService.getAllHandPlays(data.roomId);
+        const shopCards = this.roomService.getShopCards(data.roomId);
+        this.logger.log(
+          `[handleHandPlayReady] 모든 유저 제출 완료, handPlayResult 브로드캐스트: roomId=${data.roomId}, allHands=${JSON.stringify(allHands)}, shopCards=${JSON.stringify(shopCards)}`,
+        );
+        // sprite 필드가 항상 포함되도록 명시적으로 내려줌
+        const shopCardsWithSprite = shopCards.map((card) => ({
+          ...card,
+          sprite: card.sprite,
+        }));
+        this.server.to(data.roomId).emit('handPlayResult', {
+          hands: allHands,
+          shopCards: shopCardsWithSprite,
+        });
+      }
+    } catch (error) {
+      this.logger.error(
+        `[handleHandPlayReady] Error: socketId=${client.id}, data=${JSON.stringify(data)}`,
+        error instanceof Error ? error.stack : String(error),
+      );
+      client.emit('error', { message: 'Failed to submit hand play' });
+    }
+  }
+
+  @SubscribeMessage('nextRound')
+  async handleNextRound(
+    @MessageBody() data: { roomId: string },
+    @ConnectedSocket() client: Socket,
+  ) {
+    try {
+      const userId = this.socketIdToUserId.get(client.id);
+      this.logger.log(
+        `[handleNextRound] nextRound: socketId=${client.id}, userId=${userId}, roomId=${data.roomId}, payload=${JSON.stringify(data)}`,
+      );
+      if (!userId) {
+        this.logger.warn(
+          `[handleNextRound] userId not found for socketId=${client.id}`,
+        );
+        client.emit('error', { message: 'User not registered' });
+        return;
+      }
+      this.roomService.setNextRoundReady(data.roomId, userId);
+      this.logger.log(
+        `[handleNextRound] setNextRoundReady 완료: userId=${userId}, roomId=${data.roomId}`,
+      );
+      if (await this.roomService.canStartNextRound(data.roomId)) {
+        this.logger.log(
+          `[handleNextRound] 모든 유저 nextRound 완료, 다음 라운드 시작: roomId=${data.roomId}`,
+        );
+        void this.roomService.startGame(data.roomId);
+        const adapter = this.server.of('/').adapter;
+        const room = adapter.rooms.get(data.roomId);
+        if (room) {
+          for (const socketId of room) {
+            const uid = this.socketIdToUserId.get(socketId);
+            if (!uid) continue;
+            const myCards = this.roomService.getUserHand(data.roomId, uid);
+            const opponents = this.roomService.getOpponentCardCounts(
+              data.roomId,
+              uid,
+            );
+            this.logger.log(
+              `[handleNextRound] [startGame emit] to userId=${uid}, socketId=${socketId}, myCards=${JSON.stringify(myCards)}, opponents=${JSON.stringify(opponents)}`,
+            );
+            void this.server.to(socketId).emit('startGame', {
+              myCards,
+              opponents,
+            });
+          }
+        }
+      }
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        this.logger.error(
+          `[handleNextRound] Error in nextRound/startGame: socketId=${client.id}, roomId=${data.roomId}`,
+          error.stack,
+        );
+      } else {
+        this.logger.error(
+          `[handleNextRound] Error in nextRound/startGame: socketId=${client.id}, roomId=${data.roomId}`,
+          String(error),
+        );
+      }
+      client.emit('error', { message: 'Failed to start next round' });
     }
   }
 
