@@ -8,10 +8,11 @@ datasource db {
 }
 
 model User {
-  id           Int        @id @default(autoincrement())
-  email        String     @unique
+  email        String     @id
   passwordHash String
   nickname     String     @unique
+  silverChip   Int        @default(1200)
+  goldChip     Int        @default(1200)
   createdAt    DateTime   @default(now())
   rooms        RoomUser[]
 }
@@ -36,12 +37,12 @@ model Room {
 }
 
 model RoomUser {
-  id     Int  @id @default(autoincrement())
+  id     Int    @id @default(autoincrement())
   roomId Int
-  userId Int
+  userId String
   seat   Int
   room   Room @relation(fields: [roomId], references: [id])
-  user   User @relation(fields: [userId], references: [id])
+  user   User @relation(fields: [userId], references: [email])
 
   @@index([roomId], map: "RoomUser_roomId_fkey")
   @@index([userId], map: "RoomUser_userId_fkey")

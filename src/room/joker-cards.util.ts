@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier */
 // 조커 카드 데이터 타입 정의
 export interface JokerCard {
     id: string;
@@ -5,6 +6,19 @@ export interface JokerCard {
     description: string;
     price: number;
     sprite: number;
+    basevalue?: number;
+    increase?: number;
+    decrease?: number;
+    maxvalue?: number;
+    timing_draw?: string;
+    timing_round_start?: string;
+    timing_hand_play?: string;
+    timing_scoring?: string;
+    timing_after_scoring?: string;
+    timing_fold?: string;
+    timing_round_clear?: string;
+    timing_tarot_card_use?: string;
+    timing_planet_card_use?: string;
 }
 
 // 행성 카드 데이터 타입 정의
@@ -25,7 +39,6 @@ export interface TarotCard {
     sprite: number;
 }
 
-// 전체 조커 카드 리스트 (다크워든 csv 기반)
 export const ALL_JOKER_CARDS: JokerCard[] = [
     {
         id: 'joker_1',
@@ -33,6 +46,10 @@ export const ALL_JOKER_CARDS: JokerCard[] = [
         description: '다이아몬드로 득점 시마다 배수가 <color=red>+2</color> 된다.',
         price: 2,
         sprite: 0,
+        basevalue: 0,
+        increase: 0.0,
+        decrease: 0,
+        timing_scoring: 'add_mults_2_playingcard_by_suite_diamond_playingcard',
     },
     {
         id: 'joker_2',
@@ -41,6 +58,11 @@ export const ALL_JOKER_CARDS: JokerCard[] = [
             '내 플레이 카드에 페어가 포함되어있으면 배수 <color=red>+2</color> 한다.',
         price: 3,
         sprite: 1,
+        basevalue: 0,
+        increase: 0.0,
+        decrease: 0,
+        timing_after_scoring:
+            'add_mults_2_total_include_rank_onepair/twopair/triple/fourcard/fivecard/fullhouse/flushfive_playcard',
     },
     {
         id: 'joker_3',
@@ -49,6 +71,14 @@ export const ALL_JOKER_CARDS: JokerCard[] = [
             '원페어 시 <color=red>x[basevalue]</color>배. 원페어가 플레이 될 때마다 <color=green>x[increase]</color>배가 성장한다. (최대 30)',
         price: 5,
         sprite: 2,
+        basevalue: 1,
+        increase: 0.2,
+        decrease: 0,
+        timing_hand_play:
+            'multiple_mults_[basevalue]_total_include_rank_onepair_playcard',
+        timing_after_scoring:
+            'increase_mults_[increase]_self_include_rank_onepair_playcard',
+        maxvalue: 30,
     },
     {
         id: 'joker_4',
@@ -57,6 +87,14 @@ export const ALL_JOKER_CARDS: JokerCard[] = [
             '투페어 시 <color=red>x[basevalue]</color>배. 투페어가 플레이 될 때마다 <color=green>x[increase]</color>배가 성장한다. (최대 30)',
         price: 4,
         sprite: 3,
+        basevalue: 1,
+        increase: 0.3,
+        decrease: 0,
+        timing_hand_play:
+            'multiple_mults_[basevalue]_total_include_rank_twopair_playcard',
+        timing_after_scoring:
+            'increase_mults_[increase]_self_include_rank_twopair_playcard',
+        maxvalue: 30,
     },
     {
         id: 'joker_5',
@@ -65,6 +103,14 @@ export const ALL_JOKER_CARDS: JokerCard[] = [
             '트리플 시 <color=red>x[basevalue]</color>배. 트리플이 플레이 될 때마다 <color=green>x[increase]</color>배가 성장한다. (최대 30)',
         price: 4,
         sprite: 4,
+        basevalue: 1,
+        increase: 0.4,
+        decrease: 0,
+        timing_hand_play:
+            'multiple_mults_[basevalue]_total_include_rank_triple_playcard',
+        timing_after_scoring:
+            'increase_mults_[increase]_self_include_rank_triple_playcard',
+        maxvalue: 30,
     },
     {
         id: 'joker_6',
@@ -73,6 +119,14 @@ export const ALL_JOKER_CARDS: JokerCard[] = [
             '포카드 시 <color=red>x[basevalue]</color>배. 포카드가 플레이 될 때마다 <color=green>x[increase]</color>배가 성장한다. (최대 30)',
         price: 4,
         sprite: 5,
+        basevalue: 1,
+        increase: 0.7,
+        decrease: 0,
+        timing_hand_play:
+            'multiple_mults_[basevalue]_total_include_rank_fourcard_playcard',
+        timing_after_scoring:
+            'increase_mults_[increase]_self_include_rank_fourcard_playcard',
+        maxvalue: 30,
     },
     {
         id: 'joker_7',
@@ -81,6 +135,14 @@ export const ALL_JOKER_CARDS: JokerCard[] = [
             '풀하우스 시 <color=red>x[basevalue]</color>배. 풀하우스가 플레이 될 때마다 <color=green>x[increase]</color>배가 성장한다. (최대 30)',
         price: 4,
         sprite: 6,
+        basevalue: 1,
+        increase: 0.5,
+        decrease: 0,
+        timing_hand_play:
+            'multiple_mults_[basevalue]_total_include_rank_fullhouse_playcard',
+        timing_after_scoring:
+            'increase_mults_[increase]_self_include_rank_fullhouse_playcard',
+        maxvalue: 30,
     },
     {
         id: 'joker_8',
@@ -89,6 +151,14 @@ export const ALL_JOKER_CARDS: JokerCard[] = [
             '하이카드 시 <color=red>x[basevalue]</color>배. 하이카드가 플레이 될 때마다 <color=green>x[increase]</color>배가 성장한다. (최대 30)',
         price: 4,
         sprite: 7,
+        basevalue: 1,
+        increase: 0.1,
+        decrease: 0,
+        timing_hand_play:
+            'multiple_mults_[basevalue]_total_include_rank_highcard_playcard',
+        timing_after_scoring:
+            'increase_mults_[increase]_self_include_rank_highcard_playcard',
+        maxvalue: 30,
     },
     {
         id: 'joker_9',
@@ -97,6 +167,14 @@ export const ALL_JOKER_CARDS: JokerCard[] = [
             '스트레이트 시 <color=red>x[basevalue]</color>배. 스트레이트가 플레이 될 때마다 <color=green>x[increase]</color>배가 성장한다. (최대 30)',
         price: 4,
         sprite: 8,
+        basevalue: 1,
+        increase: 0.4,
+        decrease: 0,
+        timing_hand_play:
+            'multiple_mults_[basevalue]_total_include_rank_straight_playcard',
+        timing_after_scoring:
+            'increase_mults_[increase]_self_include_rank_straight_playcard',
+        maxvalue: 30,
     },
     {
         id: 'joker_10',
@@ -105,6 +183,14 @@ export const ALL_JOKER_CARDS: JokerCard[] = [
             '플러시 시 <color=red>x[basevalue]</color>배. 플러시가 플레이 될 때마다 <color=green>x[increase]</color>배가 성장한다. (최대 30)',
         price: 4,
         sprite: 9,
+        basevalue: 1,
+        increase: 0.4,
+        decrease: 0,
+        timing_hand_play:
+            'multiple_mults_[basevalue]_total_include_rank_flush_playcard',
+        timing_after_scoring:
+            'increase_mults_[increase]_self_include_rank_flush_playcard',
+        maxvalue: 30,
     },
     {
         id: 'joker_11',
@@ -113,6 +199,11 @@ export const ALL_JOKER_CARDS: JokerCard[] = [
             '핸드플레이 시, 내 핸드에 페어가 남아있으면 배수 <color=red>3배</color>한다.',
         price: 4,
         sprite: 10,
+        basevalue: 0,
+        increase: 0.0,
+        decrease: 0,
+        timing_after_scoring:
+            'multiple_mults_3_total_include_rank_onepair/twopair/triple/fourcard/fivecard/fullhouse/flushfive_handcard',
     },
     {
         id: 'joker_12',
@@ -120,7 +211,12 @@ export const ALL_JOKER_CARDS: JokerCard[] = [
         description:
             '핸드플레이 시, 내 핸드에 트리플이 남아있으면 배수 <color=red>6배</color>한다.',
         price: 4,
-        sprite: 11,
+        sprite: 12,
+        basevalue: 0,
+        increase: 0.0,
+        decrease: 0,
+        timing_after_scoring:
+            'multiple_mults_6_total_include_rank_triple/fourcard/fullhouse_handcard',
     },
     {
         id: 'joker_13',
@@ -128,7 +224,12 @@ export const ALL_JOKER_CARDS: JokerCard[] = [
         description:
             '핸드플레이 시, 내 핸드에 포 카드가 남아있으면 배수 <color=red>25배</color>한다.',
         price: 4,
-        sprite: 12,
+        sprite: 13,
+        basevalue: 0,
+        increase: 0.0,
+        decrease: 0,
+        timing_after_scoring:
+            'multiple_mults_25_total_include_rank_fourcard_handcard',
     },
     {
         id: 'joker_14',
@@ -136,14 +237,22 @@ export const ALL_JOKER_CARDS: JokerCard[] = [
         description:
             '내 패에 스트레이트가 포함되어있으면 배수 <color=red>+4</color> 한다.',
         price: 4,
-        sprite: 13,
+        sprite: 14,
+        basevalue: 0,
+        increase: 0.0,
+        decrease: 0,
+        timing_hand_play: 'add_mults_4_total_include_rank_straight_playcard',
     },
     {
         id: 'joker_15',
         name: '조커 P',
         description: '무조건 배수 <color=red>+1</color> 한다.',
         price: 4,
-        sprite: 14,
+        sprite: 15,
+        basevalue: 0,
+        increase: 0.0,
+        decrease: 0,
+        timing_hand_play: 'add_mults_1_total_nocondition_0_0_0',
     },
     {
         id: 'joker_16',
@@ -151,7 +260,12 @@ export const ALL_JOKER_CARDS: JokerCard[] = [
         description:
             '내 패에 트리플이 포함되어있으면 배수 <color=red>+3</color> 한다.',
         price: 4,
-        sprite: 15,
+        sprite: 16,
+        basevalue: 0,
+        increase: 0.0,
+        decrease: 0,
+        timing_hand_play:
+            'add_mults_3_total_include_rank_triple/fullhouse/fourcard_playcard',
     },
     {
         id: 'joker_17',
@@ -159,7 +273,11 @@ export const ALL_JOKER_CARDS: JokerCard[] = [
         description:
             '내 패에 포카드가 포함되어있으면 배수 <color=red>+5</color> 한다.',
         price: 4,
-        sprite: 16,
+        sprite: 17,
+        basevalue: 0,
+        increase: 0.0,
+        decrease: 0,
+        timing_hand_play: 'add_mults_5_total_include_rank_fourcard_playcard',
     },
     {
         id: 'joker_18',
@@ -167,7 +285,11 @@ export const ALL_JOKER_CARDS: JokerCard[] = [
         description:
             '내 패에 풀하우스가 포함되어있으면 배수 <color=red>+4</color> 한다.',
         price: 4,
-        sprite: 17,
+        sprite: 18,
+        basevalue: 0,
+        increase: 0.0,
+        decrease: 0,
+        timing_hand_play: 'add_mults_4_total_include_rank_fullhouse_playcard',
     },
     {
         id: 'joker_19',
@@ -175,7 +297,11 @@ export const ALL_JOKER_CARDS: JokerCard[] = [
         description:
             '내 패에 플러시가 포함되어있으면 배수 <color=red>+4</color> 한다.',
         price: 4,
-        sprite: 18,
+        sprite: 19,
+        basevalue: 0,
+        increase: 0.0,
+        decrease: 0,
+        timing_hand_play: 'add_mults_4_total_include_rank_flush_playcard',
     },
     {
         id: 'joker_20',
@@ -183,7 +309,11 @@ export const ALL_JOKER_CARDS: JokerCard[] = [
         description:
             '하트로 득점 시마다, 해당 카드의 득점 시 칩스가 <color=blue>+10</color> 성장한다.',
         price: 2,
-        sprite: 19,
+        sprite: 20,
+        basevalue: 0,
+        increase: 0.0,
+        decrease: 0,
+        timing_scoring: 'add_chips_10_playingcard_by_suite_heart_playingcard',
     },
     {
         id: 'joker_21',
@@ -191,7 +321,11 @@ export const ALL_JOKER_CARDS: JokerCard[] = [
         description:
             '스페이드로 득점 시마다, 해당 카드의 득점 시 칩스가 <color=blue>+10</color> 성장한다.',
         price: 2,
-        sprite: 20,
+        sprite: 21,
+        basevalue: 0,
+        increase: 0.0,
+        decrease: 0,
+        timing_scoring: 'add_chips_10_playingcard_by_suite_spade_playingcard',
     },
     {
         id: 'joker_22',
@@ -199,7 +333,11 @@ export const ALL_JOKER_CARDS: JokerCard[] = [
         description:
             '클럽으로 득점 시마다, 해당 카드의 득점 시 칩스가 <color=blue>+10</color> 성장한다.',
         price: 2,
-        sprite: 21,
+        sprite: 22,
+        basevalue: 0,
+        increase: 0.0,
+        decrease: 0,
+        timing_scoring: 'add_chips_10_playingcard_by_suite_club_playingcard',
     },
     {
         id: 'joker_23',
@@ -207,7 +345,11 @@ export const ALL_JOKER_CARDS: JokerCard[] = [
         description:
             '핸드플레이 시, 내 핸드에 하트가 남아있는 카드 한 장당 배수가 <color=red>+2</color> 된다.',
         price: 2,
-        sprite: 22,
+        sprite: 23,
+        basevalue: 0,
+        increase: 0.0,
+        decrease: 0,
+        timing_after_scoring: 'add_mults_2_total_by_suite_heart_handcard',
     },
     {
         id: 'joker_24',
@@ -215,7 +357,11 @@ export const ALL_JOKER_CARDS: JokerCard[] = [
         description:
             '핸드플레이 시, 내 핸드에 스페이드가 남아있는 카드 한 장당 배수가 <color=red>+2</color> 된다.',
         price: 2,
-        sprite: 23,
+        sprite: 24,
+        basevalue: 0,
+        increase: 0.0,
+        decrease: 0,
+        timing_after_scoring: 'add_mults_2_total_by_suite_spade_handcard',
     },
     {
         id: 'joker_25',
@@ -223,7 +369,11 @@ export const ALL_JOKER_CARDS: JokerCard[] = [
         description:
             '핸드플레이 시, 내 핸드에 클럽이 남아있는 카드 한 장당 배수가 <color=red>+2</color> 된다.',
         price: 2,
-        sprite: 24,
+        sprite: 25,
+        basevalue: 0,
+        increase: 0.0,
+        decrease: 0,
+        timing_after_scoring: 'add_mults_2_total_by_suite_club_handcard',
     },
     {
         id: 'joker_26',
@@ -231,7 +381,11 @@ export const ALL_JOKER_CARDS: JokerCard[] = [
         description:
             '핸드플레이 시, 내 핸드에 다이아몬드가 남아있는 카드 한 장당 배수가 <color=red>+2</color> 된다.',
         price: 2,
-        sprite: 25,
+        sprite: 26,
+        basevalue: 0,
+        increase: 0.0,
+        decrease: 0,
+        timing_after_scoring: 'add_mults_2_total_by_suite_diamond_handcard',
     },
     {
         id: 'joker_27',
@@ -239,7 +393,12 @@ export const ALL_JOKER_CARDS: JokerCard[] = [
         description:
             '득점에 사용된 에이스 한 장당, 칩스 <color=red>+20</color> 배수 <color=blue>+4</color> 된다.',
         price: 4,
-        sprite: 26,
+        sprite: 27,
+        basevalue: 0,
+        increase: 0.0,
+        decrease: 0,
+        timing_scoring:
+            'add_chips_20_total_by_number_1_playingcard,add_mults_4_total_by_number_1_playingcard',
     },
     {
         id: 'joker_28',
@@ -247,7 +406,12 @@ export const ALL_JOKER_CARDS: JokerCard[] = [
         description:
             '배수 <color=red>+[basevalue]</color>. 라운드 종료 시 마다 배수가 <color=blue>-[decrease]</color> 된다.',
         price: 4,
-        sprite: 27,
+        sprite: 28,
+        basevalue: 20,
+        increase: 0.0,
+        decrease: 4,
+        timing_hand_play: 'add_mults_[basevalue]_total_nocondition_0_0_0',
+        timing_round_clear: 'decrease_mults_[decrease]_self_nocondition_0_0_0',
     },
     {
         id: 'joker_29',
@@ -255,7 +419,12 @@ export const ALL_JOKER_CARDS: JokerCard[] = [
         description:
             '득점한 모든 카드의 득점 시 칩스가 <color=green>+3</color> 성장한다.',
         price: 4,
-        sprite: 28,
+        sprite: 29,
+        basevalue: 0,
+        increase: 3.0,
+        decrease: 0,
+        timing_scoring:
+            'increase_chips_[increase]_playingcard_by_suite_spade/diamond/heart/club_playingcard',
     },
     {
         id: 'joker_30',
@@ -263,7 +432,11 @@ export const ALL_JOKER_CARDS: JokerCard[] = [
         description:
             '전체 덱에 보유한 7 한장 당 배수가 <color=red>+2</color> 된다.',
         price: 4,
-        sprite: 29,
+        sprite: 30,
+        basevalue: 0,
+        increase: 0.0,
+        decrease: 0,
+        timing_hand_play: 'add_mults_2_total_by_number_7_deckcardall',
     },
     {
         id: 'joker_31',
@@ -271,7 +444,11 @@ export const ALL_JOKER_CARDS: JokerCard[] = [
         description:
             '전체 덱카드가 52장 보다 적으면, 그 차이 당 배수가 <color=red>+4</color> 된다.',
         price: 4,
-        sprite: 30,
+        sprite: 31,
+        basevalue: 0,
+        increase: 0.0,
+        decrease: 0,
+        timing_hand_play: 'add_mults_4_total_by_exist_52-all_deckcardall',
     },
     {
         id: 'joker_32',
@@ -279,7 +456,14 @@ export const ALL_JOKER_CARDS: JokerCard[] = [
         description:
             '스페이드 카드로 득점 시 배수 <color=red>x[basevalue]</color> 스페이드 카드 득점 시마다 배수가 <color=green>[increase]</color> 성장한다. 다른 카드 득점 시마다 배수가 <color=blue>[decrease]</color> 감퇴한다.',
         price: 4,
-        sprite: 31,
+        sprite: 32,
+        basevalue: 1,
+        increase: 1.0,
+        decrease: 2,
+        timing_scoring:
+            'increase_mults_[increase]_self_by_suite_spade_playingcard,decrease_mults_[decrease]_self_by_suite_heart/diamond/club_playingcard',
+        timing_after_scoring:
+            'multiple_mults_[basevalue]_total_include_suite_spade_playcard',
     },
     {
         id: 'joker_33',
@@ -287,7 +471,14 @@ export const ALL_JOKER_CARDS: JokerCard[] = [
         description:
             '다이아 카드로 득점 시 배수 <color=red>x[basevalue]</color> 다이아 카드 득점 시마다 배수가 <color=green>[increase]</color> 성장한다. 다른 카드 득점 시마다 배수가 <color=blue>[decrease]</color> 감퇴한다.',
         price: 4,
-        sprite: 32,
+        sprite: 33,
+        basevalue: 1,
+        increase: 1.0,
+        decrease: 2,
+        timing_scoring:
+            'increase_mults_[increase]_self_by_suite_diamond_playingcard,decrease_mults_[decrease]_self_by_suite_spade/heart/club_playingcard',
+        timing_after_scoring:
+            'multiple_mults_[basevalue]_total_include_suite_diamond_playcard',
     },
     {
         id: 'joker_34',
@@ -295,7 +486,14 @@ export const ALL_JOKER_CARDS: JokerCard[] = [
         description:
             '하트 카드로 득점 시 배수 <color=red>x[basevalue]</color> 하트 카드 득점 시마다 배수가 <color=green>[increase]</color> 성장한다. 다른 카드 득점 시마다 배수가 <color=blue>[decrease]</color> 감퇴한다.',
         price: 4,
-        sprite: 33,
+        sprite: 34,
+        basevalue: 1,
+        increase: 1.0,
+        decrease: 2,
+        timing_scoring:
+            'increase_mults_[increase]_self_by_suite_heart_playingcard,decrease_mults_[decrease]_self_by_suite_spade/diamond/club_playingcard',
+        timing_after_scoring:
+            'multiple_mults_[basevalue]_total_include_suite_heart_playcard',
     },
     {
         id: 'joker_35',
@@ -303,7 +501,14 @@ export const ALL_JOKER_CARDS: JokerCard[] = [
         description:
             '클럽 카드로 득점 시 배수 <color=red>x[basevalue]</color> 클럽 카드 득점 시마다 배수가 <color=green>[increase]</color> 성장한다. 다른 카드 득점 시마다 배수가 <color=blue>[decrease]</color> 감퇴한다.',
         price: 4,
-        sprite: 34,
+        sprite: 35,
+        basevalue: 1,
+        increase: 1.0,
+        decrease: 2,
+        timing_scoring:
+            'increase_mults_[increase]_self_by_suite_club_playingcard,decrease_mults_[decrease]_self_by_suite_spade/diamond/heart_playingcard',
+        timing_after_scoring:
+            'multiple_mults_[basevalue]_total_include_suite_club_playcard',
     },
     {
         id: 'joker_36',
@@ -311,7 +516,12 @@ export const ALL_JOKER_CARDS: JokerCard[] = [
         description:
             '스페이드 1장으로 플레이 시, 칩스 <color=red>x20</color> 된다.',
         price: 4,
-        sprite: 35,
+        sprite: 36,
+        basevalue: 0,
+        increase: 0.0,
+        decrease: 0,
+        timing_after_scoring:
+            'multiple_chips_20_total_count=1_suite_spade_playcard',
     },
     {
         id: 'joker_37',
@@ -319,21 +529,35 @@ export const ALL_JOKER_CARDS: JokerCard[] = [
         description:
             '다이아몬드 4장으로 득점 시, 배수 <color=red>x12</color> 된다.',
         price: 4,
-        sprite: 36,
+        sprite: 37,
+        basevalue: 0,
+        increase: 0.0,
+        decrease: 0,
+        timing_after_scoring:
+            'multiple_mults_12_total_count=4_suite_diamond_playcard',
     },
     {
         id: 'joker_38',
         name: '조커 AM',
         description: '하트 2장으로 득점 시, 배수 <color=red>x18</color> 된다.',
         price: 4,
-        sprite: 37,
+        sprite: 38,
+        basevalue: 0,
+        increase: 0.0,
+        decrease: 0,
+        timing_after_scoring:
+            'multiple_mults_18_total_count=2_suite_heart_playcard',
     },
     {
         id: 'joker_39',
         name: '조커 AN',
         description: '클럽 3장으로 득점 시, 칩스 <color=red>x15</color> 된다.',
         price: 4,
-        sprite: 38,
+        sprite: 39,
+        basevalue: 0,
+        increase: 0.0,
+        decrease: 0,
+        timing_after_scoring: 'multiple_chips_15_total_count=3_suite_club_playcard',
     },
     {
         id: 'joker_40',
@@ -341,14 +565,22 @@ export const ALL_JOKER_CARDS: JokerCard[] = [
         description:
             '왼쪽 조커와 동일한 기능을 한다. (레벨은 자신의 레벨로 적용된다.)',
         price: 4,
-        sprite: 39,
+        sprite: 40,
+        basevalue: 0,
+        increase: 0.0,
+        decrease: 0,
+        timing_hand_play: 'copy_left_1_self_by_exist_joker_jokercard',
     },
     {
         id: 'joker_41',
         name: '조커 AP',
         description: '남은 버리기 1 당 칩스가 <color=red>+20</color> 된다.',
         price: 5,
-        sprite: 40,
+        sprite: 41,
+        basevalue: 0,
+        increase: 0.0,
+        decrease: 0,
+        timing_after_scoring: 'add_chips_10_total_by_remain_discard_roundvalue',
     },
     {
         id: 'joker_42',
@@ -356,35 +588,57 @@ export const ALL_JOKER_CARDS: JokerCard[] = [
         description:
             '남은 핸드플레이 1 당 배수가 <color=red>+2</color>, 칩스는 <color=blue>-30</color> 된다.',
         price: 5,
-        sprite: 41,
+        sprite: 42,
+        basevalue: 0,
+        increase: 0.0,
+        decrease: 0,
+        timing_after_scoring:
+            'add_mults_2_total_by_remain_hand_roundvalue,subtract_chips_30_total_by_remain_hand_roundvalue',
     },
     {
         id: 'joker_43',
         name: '조커 AR',
         description: '버리기가 0번 남았을 때 배수가 <color=red>+15</color> 된다.',
         price: 5,
-        sprite: 42,
+        sprite: 43,
+        basevalue: 0,
+        increase: 0.0,
+        decrease: 0,
+        timing_after_scoring:
+            'add_chips_10_total_count=0_remain_discard_roundvalue',
     },
     {
         id: 'joker_44',
         name: '조커 AS',
         description: '랜덤으로 배수가 <color=red>+2 ~ 20</color> 된다.',
         price: 5,
-        sprite: 43,
+        sprite: 44,
+        basevalue: 0,
+        increase: 0.0,
+        decrease: 0,
+        timing_hand_play: 'add_mults_2@20_total_include_rank_highcard_playcard',
     },
     {
         id: 'joker_45',
         name: '조커 AU',
         description: '짝수 카드 점수 시 마다, 배수 <color=red>+2</color> 된다.',
         price: 5,
-        sprite: 44,
+        sprite: 46,
+        basevalue: 0,
+        increase: 0.0,
+        decrease: 0,
+        timing_scoring: 'add_mults_2_playingcard_by_number_2/4/6/8/10_playingcard',
     },
     {
         id: 'joker_46',
         name: '조커 AV',
         description: '홀수 카드 점수 시 마다, 배수 <color=red>+2</color> 된다.',
         price: 5,
-        sprite: 45,
+        sprite: 47,
+        basevalue: 0,
+        increase: 0.0,
+        decrease: 0,
+        timing_scoring: 'add_mults_2_playingcard_by_number_1/3/5/7/9_playingcard',
     },
     {
         id: 'joker_47',
@@ -392,7 +646,12 @@ export const ALL_JOKER_CARDS: JokerCard[] = [
         description:
             '덱에 남아 있는 카드 1장 당 칩스가 <color=red>+2</color> 된다.',
         price: 5,
-        sprite: 46,
+        sprite: 48,
+        basevalue: 0,
+        increase: 0.0,
+        decrease: 0,
+        timing_hand_play:
+            'add_chips_2_playingcard_by_suite_spade/diamond/heart/club_deckcardremain',
     },
 ];
 

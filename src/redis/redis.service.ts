@@ -83,4 +83,62 @@ export class RedisService implements OnModuleDestroy {
       }
     }
   }
+
+  // 중복 접속 관련 메서드들
+  async addChannelMember(userId: string): Promise<boolean> {
+    try {
+      const key = `channel_member:${userId}`;
+      const value = JSON.stringify({
+        userId,
+        connectedAt: new Date().toISOString(),
+      });
+
+      // 기존 연결이 있는지 확인
+      const existing = await this.client.get(key);
+      if (existing) {
+        this.logger.warn(`Duplicate connection detected for user: ${userId}`);
+        return false; // 중복 접속
+      }
+
+      // 새 연결 정보 저장 (TTL: 1시간)
+      await this.client.setex(key, 3600, value);
+      this.logger.log(`User ${userId} connected`);
+      return true; // 새 접속
+    } catch (error) {
+      this.logger.error(`Error adding channel member: ${error}`);
+      return false;
+    }
+  }
+
+  async removeChannelMember(userId: string): Promise<void> {
+    try {
+      const key = `channel_member:${userId}`;
+      await this.client.del(key);
+      this.logger.log(`User ${userId} disconnected`);
+    } catch (error) {
+      this.logger.error(`Error removing channel member: ${error}`);
+    }
+  }
+
+  async isUserConnected(userId: string): Promise<boolean> {
+    try {
+      const key = `channel_member:${userId}`;
+      const exists = await this.client.exists(key);
+      return exists === 1;
+    } catch (error) {
+      this.logger.error(`Error checking user connection: ${error}`);
+      return false;
+    }
+  }
+
+  async getUserConnectionInfo(userId: string): Promise<any> {
+    try {
+      const key = `channel_member:${userId}`;
+      const data = await this.client.get(key);
+      return data ? JSON.parse(data) : null;
+    } catch (error) {
+      this.logger.error(`Error getting user connection info: ${error}`);
+      return null;
+    }
+  }
 }

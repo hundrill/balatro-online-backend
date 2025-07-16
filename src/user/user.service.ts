@@ -3,14 +3,10 @@ import { PrismaService } from '../prisma.service';
 
 @Injectable()
 export class UserService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   async findAll() {
     return this.prisma.user.findMany();
-  }
-
-  async findById(id: number) {
-    return this.prisma.user.findUnique({ where: { id } });
   }
 
   async findByEmail(email: string) {
@@ -23,5 +19,27 @@ export class UserService {
     nickname: string;
   }) {
     return this.prisma.user.create({ data });
+  }
+
+  /**
+   * 유저의 칩 정보를 가져옵니다.
+   */
+  async getUserChips(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { email: userId },
+      select: {
+        silverChip: true,
+        goldChip: true,
+      },
+    });
+
+    if (!user) {
+      return { silverChip: 0, goldChip: 0 };
+    }
+
+    return {
+      silverChip: user.silverChip || 0,
+      goldChip: user.goldChip || 0,
+    };
   }
 }

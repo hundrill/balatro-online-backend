@@ -9,8 +9,8 @@ import {
   Logger,
 } from '@nestjs/common';
 import { RoomService } from './room.service';
-import { CreateRoomDto } from './dto/create-room.dto';
-import { JoinRoomDto } from './dto/join-room.dto';
+import { CreateRoomDto } from './api-dto/create-room.dto';
+import { JoinRoomDto } from './api-dto/join-room.dto';
 import { Request } from 'express';
 import { RoomValidator } from '../common/validators/room.validator';
 
@@ -18,7 +18,7 @@ import { RoomValidator } from '../common/validators/room.validator';
 export class RoomController {
   private readonly logger = new Logger(RoomController.name);
 
-  constructor(private readonly roomService: RoomService) {}
+  constructor(private readonly roomService: RoomService) { }
 
   @Get()
   async findAll() {
@@ -67,11 +67,29 @@ export class RoomController {
   async createRoom(@Body() dto: CreateRoomDto) {
     try {
       this.logger.log(`POST /rooms/create - Creating Redis room: ${dto.name}`);
+      this.logger.log(
+        `POST /rooms/create - Request body: ${JSON.stringify(dto)}`,
+      );
 
       // 입력 데이터 검증
       RoomValidator.validateCreateRoomData(dto);
 
-      const room = await this.roomService.createRoom(dto.name, dto.maxPlayers);
+      this.logger.log(
+        `POST /rooms/create - silverSeedChip: ${dto.silverSeedChip}, goldSeedChip: ${dto.goldSeedChip}, silverBettingChip: ${dto.silverBettingChip}, goldBettingChip: ${dto.goldBettingChip}`,
+      );
+
+      const room = await this.roomService.createRoom(
+        dto.name,
+        dto.maxPlayers,
+        dto.silverSeedChip,
+        dto.goldSeedChip,
+        dto.silverBettingChip,
+        dto.goldBettingChip,
+      );
+
+      this.logger.log(
+        `POST /rooms/create - Room created successfully: ${JSON.stringify(room)}`,
+      );
       return { success: true, roomId: room.roomId, room };
     } catch (error: unknown) {
       if (error instanceof Error) {
