@@ -1,7 +1,7 @@
 import { BaseSocketDto } from "./base-socket.dto";
 
-export class CardPurchasedResponse extends BaseSocketDto {
-    override eventName = 'cardPurchased';
+export class CardPurchasedResponseDto extends BaseSocketDto {
+    override eventName = 'CardPurchasedResponse';
     userId: string;
     cardId: string;
     cardType: string;
@@ -9,7 +9,7 @@ export class CardPurchasedResponse extends BaseSocketDto {
     cardName: string;
     cardDescription: string;
     cardSprite: number;
-    constructor(init?: Partial<CardPurchasedResponse>) {
+    constructor(init?: Partial<CardPurchasedResponseDto>) {
         super();
         Object.assign(this, init);
     }

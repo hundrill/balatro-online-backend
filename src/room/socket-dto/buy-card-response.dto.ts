@@ -1,8 +1,8 @@
 import { BaseSocketDto } from './base-socket.dto';
 import { IsString, IsInt, IsBoolean } from 'class-validator';
 
-export class BuyCardResultDto extends BaseSocketDto {
-    override eventName = 'buyCardResult';
+export class BuyCardResponseDto extends BaseSocketDto {
+    override eventName = 'BuyCardResponse';
 
     @IsString()
     cardId: string;
@@ -22,7 +22,7 @@ export class BuyCardResultDto extends BaseSocketDto {
     @IsInt()
     cardSprite: number;
 
-    constructor(init?: Partial<BuyCardResultDto>) {
+    constructor(init?: Partial<BuyCardResponseDto>) {
         super();
         Object.assign(this, init);
     }

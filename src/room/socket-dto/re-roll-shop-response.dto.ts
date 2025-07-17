@@ -2,7 +2,7 @@ import { BaseSocketDto } from './base-socket.dto';
 import { IsBoolean, IsArray, IsString } from 'class-validator';
 
 export class ReRollShopResponseDto extends BaseSocketDto {
-    override eventName = 'reRollShopResult';
+    override eventName = 'ReRollShopResponse';
 
     @IsArray()
     cards: any[];

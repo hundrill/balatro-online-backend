@@ -1,8 +1,8 @@
 import { BaseSocketDto } from "./base-socket.dto";
 
-export class ErrorResponse extends BaseSocketDto {
-    override eventName = 'error';
-    constructor(init?: Partial<ErrorResponse>) {
+export class ErrorResponseDto extends BaseSocketDto {
+    override eventName = 'ErrorResponse';
+    constructor(init?: Partial<ErrorResponseDto>) {
         super();
         Object.assign(this, init);
     }

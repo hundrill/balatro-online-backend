@@ -1,14 +1,14 @@
 import { BaseSocketDto } from './base-socket.dto';
 
-export class StartGameResponse extends BaseSocketDto {
-    override eventName = 'startGame';
+export class StartGameResponseDto extends BaseSocketDto {
+    override eventName = 'StartGameResponse';
     myCards: any[];
     opponents: string[];
     round: number;
     silverSeedChip: number;
     goldSeedChip: number;
     userFunds: Record<string, number>;
-    constructor(init?: Partial<StartGameResponse>) {
+    constructor(init?: Partial<StartGameResponseDto>) {
         super();
         Object.assign(this, init);
     }

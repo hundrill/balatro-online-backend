@@ -1,9 +1,9 @@
 import { BaseSocketDto } from './base-socket.dto';
 
-export class HandPlayReadyResponse extends BaseSocketDto {
-    override eventName = 'handPlayReady';
+export class HandPlayReadyResponseDto extends BaseSocketDto {
+    override eventName = 'HandPlayReadyResponse';
     userId: string;
-    constructor(init?: Partial<HandPlayReadyResponse>) {
+    constructor(init?: Partial<HandPlayReadyResponseDto>) {
         super();
         Object.assign(this, init);
     }

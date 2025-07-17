@@ -2,7 +2,7 @@ import { BaseSocketDto } from './base-socket.dto';
 import { IsString, IsBoolean } from 'class-validator';
 
 export class SellCardResponseDto extends BaseSocketDto {
-    override eventName = 'sellCardResult';
+    override eventName = 'SellCardResponse';
 
     @IsString()
     soldCardName?: string;
