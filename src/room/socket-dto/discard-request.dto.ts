@@ -3,8 +3,7 @@ import { IsString, ValidateNested, IsArray, IsInt } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class DiscardRequestDto extends BaseSocketDto {
-    @IsString()
-    roomId: string;
+    static readonly eventNameRequest = 'DiscardRequest';
 
     @IsArray()
     @ValidateNested({ each: true })

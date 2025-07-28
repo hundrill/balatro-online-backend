@@ -1,6 +1,6 @@
 /* eslint-disable prettier/prettier */
 // 조커 카드 데이터 타입 정의
-export interface JokerCard {
+export interface SpecialCard {
     id: string;
     name: string;
     description: string;
@@ -21,25 +21,8 @@ export interface JokerCard {
     timing_planet_card_use?: string;
 }
 
-// 행성 카드 데이터 타입 정의
-export interface PlanetCard {
-    id: string;
-    name: string;
-    description: string;
-    price: number;
-    sprite: number;
-}
 
-// 타로 카드 데이터 타입 정의
-export interface TarotCard {
-    id: string;
-    name: string;
-    description: string;
-    price: number;
-    sprite: number;
-}
-
-export const ALL_JOKER_CARDS: JokerCard[] = [
+export const ALL_JOKER_CARDS: SpecialCard[] = [
     {
         id: 'joker_1',
         name: '조커 A',
@@ -656,7 +639,7 @@ export const ALL_JOKER_CARDS: JokerCard[] = [
 ];
 
 // 전체 행성 카드 리스트 (다크워든 Card_Planet.cs 기반)
-export const ALL_PLANET_CARDS: PlanetCard[] = [
+export const ALL_PLANET_CARDS: SpecialCard[] = [
     {
         id: 'planet_1',
         name: '태양',
@@ -732,7 +715,7 @@ export const ALL_PLANET_CARDS: PlanetCard[] = [
 ];
 
 // 전체 타로 카드 리스트 (다크워든 tarot.csv 기반)
-export const ALL_TAROT_CARDS: TarotCard[] = [
+export const ALL_TAROT_CARDS: SpecialCard[] = [
     {
         id: 'tarot_1',
         name: '타로 A',
@@ -805,11 +788,10 @@ export const ALL_TAROT_CARDS: TarotCard[] = [
     },
 ];
 
-// 5장 랜덤 추출 (중복 없이, 다크워든과 동일하게 제한)
-export function getRandomJokerCards(count: number): JokerCard[] {
+export function getRandomSpecialCards(count: number): SpecialCard[] {
     // 다크워든: 0~23번(24개)만 사용
     const pool = ALL_JOKER_CARDS.slice(0, 24);
-    const result: JokerCard[] = [];
+    const result: SpecialCard[] = [];
     for (let i = 0; i < Math.min(count, pool.length); i++) {
         const idx = Math.floor(Math.random() * pool.length);
         result.push(pool[idx]);
@@ -818,10 +800,10 @@ export function getRandomJokerCards(count: number): JokerCard[] {
     return result;
 }
 
-export function getRandomPlanetCards(count: number): PlanetCard[] {
+export function getRandomPlanetCards(count: number): SpecialCard[] {
     // 다크워든: 0~7번(8개)만 사용
     const pool = ALL_PLANET_CARDS.slice(0, 8);
-    const result: PlanetCard[] = [];
+    const result: SpecialCard[] = [];
     for (let i = 0; i < Math.min(count, pool.length); i++) {
         const idx = Math.floor(Math.random() * pool.length);
         result.push(pool[idx]);
@@ -830,14 +812,41 @@ export function getRandomPlanetCards(count: number): PlanetCard[] {
     return result;
 }
 
-export function getRandomTarotCards(count: number): TarotCard[] {
+export function getRandomTarotCards(count: number): SpecialCard[] {
     // 다크워든: 0~9번(10개)만 사용
     const pool = ALL_TAROT_CARDS.slice(0, 10);
-    const result: TarotCard[] = [];
+    const result: SpecialCard[] = [];
     for (let i = 0; i < Math.min(count, pool.length); i++) {
         const idx = Math.floor(Math.random() * pool.length);
         result.push(pool[idx]);
         pool.splice(idx, 1);
     }
     return result;
+}
+
+export function getRandomShopCards(): SpecialCard[] {
+    // 샵 카드용: 조커 3장, 행성 1장, 타로 1장
+    const jokerCards = getRandomSpecialCards(3);
+    const planetCards = getRandomPlanetCards(1);
+    const tarotCards = getRandomTarotCards(1);
+
+    return [...jokerCards, ...planetCards, ...tarotCards];
+}
+
+export function getCardById(cardId: string): SpecialCard | undefined {
+    // 모든 카드 배열에서 검색
+    const allCards = [...ALL_JOKER_CARDS, ...ALL_PLANET_CARDS, ...ALL_TAROT_CARDS];
+    return allCards.find(card => card.id === cardId);
+}
+
+export function isJokerCard(cardId: string): boolean {
+    return ALL_JOKER_CARDS.some(card => card.id === cardId);
+}
+
+export function isPlanetCard(cardId: string): boolean {
+    return ALL_PLANET_CARDS.some(card => card.id === cardId);
+}
+
+export function isTarotCard(cardId: string): boolean {
+    return ALL_TAROT_CARDS.some(card => card.id === cardId);
 }

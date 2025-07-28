@@ -1,5 +1,5 @@
 export class BaseSocketDto {
-    eventName: string;
+    responseEventName: string;
     success: boolean = true;
     code?: number;
     message?: string;

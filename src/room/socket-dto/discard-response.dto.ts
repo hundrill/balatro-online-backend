@@ -2,7 +2,7 @@ import { BaseSocketDto } from './base-socket.dto';
 import { IsInt, IsArray } from 'class-validator';
 
 export class DiscardResponseDto extends BaseSocketDto {
-    override eventName = 'DiscardResponse';
+    override responseEventName = 'DiscardResponse';
 
     @IsArray()
     newHand: any[];

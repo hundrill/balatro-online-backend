@@ -1,11 +1,17 @@
 import { BaseSocketDto } from './base-socket.dto';
-import { IsBoolean, IsArray, IsString } from 'class-validator';
+import { IsBoolean, IsArray, IsString, IsNumber } from 'class-validator';
 
 export class ReRollShopResponseDto extends BaseSocketDto {
-    override eventName = 'ReRollShopResponse';
+    override responseEventName = 'ReRollShopResponse';
 
     @IsArray()
     cards: any[];
+
+    @IsString()
+    userId?: string;
+
+    @IsNumber()
+    funds?: number;
 
     constructor(init?: Partial<ReRollShopResponseDto>) {
         super();

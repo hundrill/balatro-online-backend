@@ -1,11 +1,10 @@
 import { BaseSocketDto } from './base-socket.dto';
 
 export class HandPlayResultResponseDto extends BaseSocketDto {
-    override eventName = 'HandPlayResultResponse';
+    override responseEventName = 'HandPlayResultResponse';
 
     roundResult: any;
     shopCards: any;
-    ownedCards: any;
     round: any;
 
     constructor(init?: Partial<HandPlayResultResponseDto>) {

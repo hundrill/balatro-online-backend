@@ -1,7 +1,7 @@
 import { BaseSocketDto } from "./base-socket.dto";
 
 export class NextRoundReadyResponseDto extends BaseSocketDto {
-    override eventName = 'NextRoundReadyResponse';
+    override responseEventName = 'NextRoundReadyResponse';
     userId: string;
     constructor(init?: Partial<NextRoundReadyResponseDto>) {
         super();

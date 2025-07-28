@@ -1,12 +1,8 @@
 import { BaseSocketDto } from './base-socket.dto';
 
 export class JoinRoomRequestDto extends BaseSocketDto {
-    public readonly eventName = 'JoinRoomRequest';
+    static readonly eventNameRequest = 'JoinRoomRequest';
 
-    constructor(
-        public readonly roomId: string,
-        public readonly userId: string,
-    ) {
-        super();
-    }
-} 
+    roomId: string;
+    userId: string;
+}

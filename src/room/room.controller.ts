@@ -187,19 +187,19 @@ export class RoomController {
   }
 
   // 방 유저 리스트 조회
-  @Get(':roomId/users')
-  async getRoomUsers(@Param('roomId') roomId: string) {
-    try {
-      this.logger.log(`GET /rooms/${roomId}/users - Fetching users for room`);
-      const users = await this.roomService.getRoomUsers(roomId);
-      return { success: true, users };
-    } catch (error: unknown) {
-      if (error instanceof Error) {
-        this.logger.error(`Error in GET /rooms/${roomId}/users`, error.stack);
-      } else {
-        this.logger.error(`Error in GET /rooms/${roomId}/users`, String(error));
-      }
-      throw error;
-    }
-  }
+  // @Get(':roomId/users')
+  // async getRoomUsers(@Param('roomId') roomId: string) {
+  //   try {
+  //     this.logger.log(`GET /rooms/${roomId}/users - Fetching users for room`);
+  //     const users = await this.roomService.getRoomUsers(roomId);
+  //     return { success: true, users };
+  //   } catch (error: unknown) {
+  //     if (error instanceof Error) {
+  //       this.logger.error(`Error in GET /rooms/${roomId}/users`, error.stack);
+  //     } else {
+  //       this.logger.error(`Error in GET /rooms/${roomId}/users`, String(error));
+  //     }
+  //     throw error;
+  //   }
+  // }
 }

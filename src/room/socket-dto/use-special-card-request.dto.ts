@@ -2,13 +2,16 @@ import { BaseSocketDto } from './base-socket.dto';
 import { IsString, ValidateNested, IsArray, IsInt } from 'class-validator';
 import { Type } from 'class-transformer';
 
-export class HandPlayReadyRequestDto extends BaseSocketDto {
-    static readonly eventNameRequest = 'HandPlayReadyRequest';
+export class UseSpecialCardRequestDto extends BaseSocketDto {
+    static readonly eventNameRequest = 'UseSpecialCardRequest';
+
+    @IsString()
+    cardId: string;
 
     @IsArray()
     @ValidateNested({ each: true })
     @Type(() => CardDto)
-    hand: CardDto[];
+    cards: CardDto[];
 }
 
 export class CardDto {
@@ -17,4 +20,4 @@ export class CardDto {
 
     @IsInt()
     rank: number;
-}
+} 

@@ -1,26 +1,21 @@
 import { BaseSocketDto } from './base-socket.dto';
-import { IsString, IsInt, IsBoolean } from 'class-validator';
+import { IsString, IsInt, IsBoolean, IsOptional, IsArray } from 'class-validator';
 
 export class BuyCardResponseDto extends BaseSocketDto {
-    override eventName = 'BuyCardResponse';
+    override responseEventName = 'BuyCardResponse';
+
+    @IsString()
+    userId: string;
 
     @IsString()
     cardId: string;
 
-    @IsString()
-    cardType: string;
-
     @IsInt()
-    price: number;
+    funds: number;
 
-    @IsString()
-    cardName: string;
-
-    @IsString()
-    cardDescription: string;
-
-    @IsInt()
-    cardSprite: number;
+    @IsOptional()
+    @IsArray()
+    firstDeckCards?: any[]; // 수정된 덱의 앞 8장
 
     constructor(init?: Partial<BuyCardResponseDto>) {
         super();

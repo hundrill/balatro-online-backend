@@ -1,7 +1,7 @@
 import { BaseSocketDto } from "./base-socket.dto";
 
 export class RoomUsersResponseDto extends BaseSocketDto {
-    override eventName = 'RoomUsersResponse';
+    override responseEventName = 'RoomUsersResponse';
     users: any[];
     constructor(init?: Partial<RoomUsersResponseDto>) {
         super();
