@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE `SpecialCard` ADD COLUMN `sprite` INTEGER NOT NULL DEFAULT 0;

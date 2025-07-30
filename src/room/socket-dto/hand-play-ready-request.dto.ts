@@ -3,7 +3,7 @@ import { IsString, ValidateNested, IsArray, IsInt } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class HandPlayReadyRequestDto extends BaseSocketDto {
-    static readonly eventNameRequest = 'HandPlayReadyRequest';
+    static readonly requestEventName = 'HandPlayReadyRequest';
 
     @IsArray()
     @ValidateNested({ each: true })

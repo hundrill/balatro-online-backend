@@ -17,6 +17,10 @@ export class BuyCardResponseDto extends BaseSocketDto {
     @IsArray()
     firstDeckCards?: any[]; // 수정된 덱의 앞 8장
 
+    @IsOptional()
+    @IsArray()
+    planetCardIds?: string[]; // tarot_10용 행성 카드 ID 리스트
+
     constructor(init?: Partial<BuyCardResponseDto>) {
         super();
         Object.assign(this, init);

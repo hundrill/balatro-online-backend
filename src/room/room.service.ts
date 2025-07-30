@@ -10,15 +10,12 @@ import {
   RedisConnectionException,
 } from '../common/exceptions/room.exception';
 import { Card, createDeck, shuffle } from './deck.util';
-import {
-  getRandomShopCards,
-  getCardById,
-  isJokerCard,
-  isTarotCard,
-  // ALL_JOKER_CARDS,
-  SpecialCard
-} from './joker-cards.util';
+import { SpecialCard } from './special-card-manager.service';
 import { UserService } from '../user/user.service';
+import { PaytableService } from './paytable.service';
+import { HandEvaluatorService } from './hand-evaluator.service';
+import { SpecialCardManagerService } from './special-card-manager.service';
+import { CardData, CardType, PokerHandResult } from './poker-types';
 
 @Injectable()
 export class RoomService {
@@ -41,15 +38,39 @@ export class RoomService {
     this.shopCardsMap.delete(roomId);
     this.reRollCardsMap.delete(roomId);
     this.userOwnedCardsMap.delete(roomId);
+    this.userDeckModifications.delete(roomId);
     this.userTarotCardsMap.delete(roomId);
     this.userFirstDeckCardsMap.delete(roomId);
     this.userChipsMap.delete(roomId);
+    this.bettingMap.delete(roomId);
+    this.usedJokerCardIdsMap.delete(roomId);
+    this.discardCountMap.delete(roomId);
+    this.resetSeedMoneyPayments(roomId);
+  }
+
+  // 카드 무늬 변환 헬퍼 메서드
+  private convertSuitToCardType(suit: string): CardType {
+    switch (suit.toLowerCase()) {
+      case 'clubs':
+        return CardType.Clubs;
+      case 'diamonds':
+        return CardType.Diamonds;
+      case 'hearts':
+        return CardType.Hearts;
+      case 'spades':
+        return CardType.Spades;
+      default:
+        return CardType.Clubs; // 기본값
+    }
   }
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly redisService: RedisService,
     private readonly userService: UserService,
+    private readonly paytableService: PaytableService,
+    private readonly handEvaluatorService: HandEvaluatorService,
+    private readonly specialCardManagerService: SpecialCardManagerService,
   ) { }
 
   private gameStates: Map<
@@ -112,6 +133,18 @@ export class RoomService {
 
   // === [3] 베팅 상태 관리용 Map 추가 ===
   private bettingMap: Map<string, Set<string>> = new Map(); // roomId -> Set<userId> (라운드당 1번 베팅한 유저들)
+
+  // === [3] roomId별 이미 등장한 조커카드 id Set 추가 ===
+  private usedJokerCardIdsMap: Map<string, Set<string>> = new Map(); // roomId -> Set<조커카드id>
+
+  // === [4] roomId별 유저별 버리기 횟수 관리 ===
+  private discardCountMap: Map<string, Map<string, number>> = new Map(); // roomId -> userId -> count
+
+  // 유저별 실제 시드머니 납부 금액 저장
+  private readonly userSeedMoneyPayments: Map<string, Map<string, {
+    silverPayment: number;  // 실제 납부한 실버칩
+    goldPayment: number;    // 실제 납부한 골드칩
+  }>> = new Map();
 
   async findAll() {
     try {
@@ -510,45 +543,76 @@ export class RoomService {
     this.logger.log(
       `[startGame] === 게임 상태 저장 완료: roomId=${roomId}, round=${round} ===`,
     );
-    // 샵 카드 5장 생성 (조커 3장, 행성 1장, 타로 1장)
-    const shopCards = getRandomShopCards();
+    // 1라운드 시작 시 사용된 조커카드 추적 초기화 및 paytable 데이터 초기화
+    if (round === 1) {
+      this.usedJokerCardIdsMap.delete(roomId);
+      this.paytableService.resetAllUserData();
+      this.logger.log(`[startGame] 1라운드 시작 - 사용된 조커카드 추적 초기화 및 paytable 데이터 초기화: roomId=${roomId}`);
+    }
+
+    // 샵 카드 5장 생성 (조커 3장, 행성 1장, 타로 1장) - 이미 등장한 조커카드 제외
+    const usedJokerSet = this.usedJokerCardIdsMap.get(roomId) ?? new Set();
+    const shopCards = this.specialCardManagerService.getRandomShopCards(5, usedJokerSet);
     this.shopCardsMap.set(roomId, [...shopCards]); // 복사본 저장
+
+    // 새로 뽑힌 조커카드 id를 usedJokerSet에 추가
+    shopCards.forEach(card => {
+      if (this.specialCardManagerService.isJokerCard(card.id)) {
+        usedJokerSet.add(card.id);
+        this.logger.log(`[startGame] 조커카드 ${card.id}를 usedJokerSet에 추가: roomId=${roomId}`);
+      }
+    });
+    this.usedJokerCardIdsMap.set(roomId, usedJokerSet);
+
     this.logger.log(
-      `[startGame] 공통 샵 카드 5장 생성 및 저장: roomId=${roomId}`,
+      `[startGame] 공통 샵 카드 5장 생성 및 저장: roomId=${roomId}, 사용된 조커카드 수: ${usedJokerSet.size}`,
     );
 
     // 새로운 라운드 시작 시 다시뽑기 카드 초기화
     this.reRollCardsMap.delete(roomId);
     this.logger.log(`[startGame] 다시뽑기 카드 초기화: roomId=${roomId}`);
 
+    // 새로운 라운드 시작 시 버리기 횟수 초기화
+    this.resetDiscardCounts(roomId);
+    this.logger.log(`[startGame] 버리기 횟수 초기화: roomId=${roomId}`);
+
+    // 주의: usedJokerCardIdsMap은 초기화하지 않음 (1~5라운드 동안 조커카드 중복 방지)
+    this.logger.log(`[startGame] 사용된 조커카드 추적 유지: roomId=${roomId}, 개수: ${this.usedJokerCardIdsMap.get(roomId)?.size ?? 0}`);
+
     // 모든 유저의 칩을 현재 seed 칩만큼 차감
     const currentSilverSeedChip = this.getCurrentSilverSeedChip(roomId);
     const currentGoldSeedChip = this.getCurrentGoldSeedChip(roomId);
 
-    const userChipsMap = this.userChipsMap.get(roomId);
-    if (userChipsMap) {
-      for (const [userId, chips] of userChipsMap.entries()) {
-        // 현재 seed 칩만큼 차감하고 funds를 0으로 초기화
-        const success = await this.updateUserChips(
-          roomId,
-          userId,
-          -currentSilverSeedChip,
-          -currentGoldSeedChip
-        );
+    // 유저별 시드머니 납부 처리
+    for (const uid of userIds) {
+      const chips = await this.getUserChips(roomId, uid);
 
-        if (success) {
-          this.logger.log(
-            `[startGame] 유저 칩 차감 완료: userId=${userId}, ` +
-            `silverChip: -${currentSilverSeedChip}, goldChip: -${currentGoldSeedChip}, funds: -${chips.funds}`
-          );
-        } else {
-          this.logger.warn(
-            `[startGame] 유저 칩 차감 실패: userId=${userId}, ` +
-            `currentSilverChips=${chips.silverChips}, currentGoldChips=${chips.goldChips}, ` +
-            `requiredSilver=${currentSilverSeedChip}, requiredGold=${currentGoldSeedChip}`
-          );
-        }
+      // 실제 납부 가능한 금액 계산 (가진 돈이 부족하면 가진 돈만큼만)
+      const actualSilverPayment = Math.min(currentSilverSeedChip, chips.silverChips);
+      const actualGoldPayment = Math.min(currentGoldSeedChip, chips.goldChips);
+
+      // 시드머니 납부 기록 저장
+      if (!this.userSeedMoneyPayments.has(roomId)) {
+        this.userSeedMoneyPayments.set(roomId, new Map());
       }
+      this.userSeedMoneyPayments.get(roomId)!.set(uid, {
+        silverPayment: actualSilverPayment,
+        goldPayment: actualGoldPayment
+      });
+
+      // 현재 seed 칩만큼 차감하고 funds를 0으로 초기화
+      await this.updateUserChips(roomId, uid, -actualSilverPayment, -actualGoldPayment);
+
+      if (round === 1) {
+        await this.updateUserFunds(roomId, uid, -chips.funds);
+      }
+
+      this.logger.log(
+        `[startGame] ${uid} 시드머니 납부: ` +
+        `요구(실버=${currentSilverSeedChip}, 골드=${currentGoldSeedChip}), ` +
+        `실제납부(실버=${actualSilverPayment}, 골드=${actualGoldPayment}), ` +
+        `자금=${chips.funds}`
+      );
     }
   }
 
@@ -612,17 +676,21 @@ export class RoomService {
   }
 
   /**
-   * 유저가 선택한 카드(suit/rank)들을 버리고, 덱에서 새 카드로 교체한다.
+   * 카드를 버리고 새 카드를 뽑습니다.
    * @param roomId
    * @param userId
    * @param cards 버릴 카드의 suit/rank 배열
-   * @returns { newHand, discarded }
+   * @returns { newHand, discarded, remainingDiscards }
    */
   discardAndDraw(
     roomId: string,
     userId: string,
     cards: { suit: string; rank: number }[],
-  ): { newHand: Card[]; discarded: Card[] } {
+  ): { newHand: Card[]; discarded: Card[]; remainingDiscards: number } {
+    // 버리기 횟수 증가
+    const newCount = this.incrementUserDiscardCount(roomId, userId);
+    const remainingDiscards = this.getRemainingDiscards(roomId, userId);
+
     const state = this.gameStates.get(roomId);
     if (!state) throw new Error('Room state not found');
     const hand = state.hands.get(userId);
@@ -642,7 +710,10 @@ export class RoomService {
     hand.push(...newCards);
     state.hands.set(userId, [...hand]); // 복사본 저장
     state.decks.set(userId, [...deck]); // 복사본 저장
-    return { newHand: [...hand], discarded: [...discarded] };
+
+    this.logger.log(`[discardAndDraw] userId=${userId}, roomId=${roomId}, discarded=${discarded.length}, newCount=${newCount}, remainingDiscards=${remainingDiscards}`);
+
+    return { newHand: [...hand], discarded: [...discarded], remainingDiscards };
   }
 
   handPlayReady(roomId: string, userId: string, hand: Card[]): void {
@@ -726,7 +797,18 @@ export class RoomService {
     }
 
     // 아무도 카드를 가지고 있지 않으면 새로 생성
-    const reRollCardsRaw: SpecialCard[] = getRandomShopCards();
+    const usedJokerSet = this.usedJokerCardIdsMap.get(roomId) ?? new Set();
+    const reRollCardsRaw: SpecialCard[] = this.specialCardManagerService.getRandomShopCards(5, usedJokerSet);
+
+    // 새로 뽑힌 조커카드 id를 usedJokerSet에 추가
+    reRollCardsRaw.forEach(card => {
+      if (this.specialCardManagerService.isJokerCard(card.id)) {
+        usedJokerSet.add(card.id);
+        this.logger.log(`[getReRollCards] 조커카드 ${card.id}를 usedJokerSet에 추가: roomId=${roomId}, userId=${userId}`);
+      }
+    });
+    this.usedJokerCardIdsMap.set(roomId, usedJokerSet);
+
     roomReRollCards.set(userId, reRollCardsRaw);
     return [...reRollCardsRaw];
   }
@@ -744,6 +826,7 @@ export class RoomService {
     cardSprite?: number;
     funds?: number;
     firstDeckCards?: Card[];
+    planetCardIds?: string[];
   }> {
     try {
       this.logger.log(
@@ -751,8 +834,8 @@ export class RoomService {
       );
 
       // 1. cardId로 카드 데이터 조회
-      const cardData = getCardById(cardId);
-      if (!cardData) {
+      const cardInfo = this.specialCardManagerService.getCardById(cardId);
+      if (!cardInfo) {
         this.logger.warn(
           `[buyCard] cardId=${cardId}인 카드를 찾을 수 없습니다.`,
         );
@@ -784,9 +867,9 @@ export class RoomService {
         return { success: false, message: '해당 카드를 찾을 수 없습니다.' };
       }
       // 3. 조커 카드인 경우에만 개수 제한 및 중복 구매 방지 체크
-      if (isJokerCard(cardId)) {
+      if (this.specialCardManagerService.isJokerCard(cardId)) {
         const ownedCardIds = this.getUserOwnedCards(roomId, userId);
-        const ownedJokerCount = ownedCardIds.filter(id => isJokerCard(id)).length;
+        const ownedJokerCount = ownedCardIds.filter(id => this.specialCardManagerService.isJokerCard(id)).length;
         if (ownedJokerCount >= 5) {
           this.logger.warn(
             `[buyCard] userId=${userId}는 이미 조커카드를 5장 보유 중. 구매 불가.`,
@@ -808,6 +891,8 @@ export class RoomService {
             message: '이미 보유한 조커 카드는 중복 구매할 수 없습니다.',
           };
         }
+      } else if (this.specialCardManagerService.isTarotCard(cardId)) {
+        // 타로 카드 처리
       }
 
       // 5. 유저의 funds 확인 및 구매 가능 여부 체크
@@ -829,9 +914,10 @@ export class RoomService {
       );
 
       let firstDeckCards: Card[] | undefined;
+      let planetCardIds: string[] | undefined;
 
       // 7. 카드 구매 처리
-      if (isJokerCard(cardId)) {
+      if (this.specialCardManagerService.isJokerCard(cardId)) {
         // 조커 카드 처리
         if (!this.userOwnedCardsMap.has(roomId)) {
           this.userOwnedCardsMap.set(roomId, new Map());
@@ -842,57 +928,82 @@ export class RoomService {
         }
         userCardsMap.get(userId)!.push(shopCard);
         this.logger.log(`[buyCard] userId=${userId}의 조커 카드 ${cardId}를 userOwnedCardsMap에 추가했습니다.`);
-      } else if (isTarotCard(cardId)) {
+      } else if (this.specialCardManagerService.isTarotCard(cardId)) {
         // 타로 카드 처리 - 덱 수정 로직
         this.logger.log(`[buyCard] userId=${userId}의 타로 카드 ${cardId}를 처리합니다.`);
 
-        // 타로 카드를 userTarotCardsMap에 저장
-        if (!this.userTarotCardsMap.has(roomId)) {
-          this.userTarotCardsMap.set(roomId, new Map());
-        }
-        const userTarotCardsMap = this.userTarotCardsMap.get(roomId)!;
-        if (!userTarotCardsMap.has(userId)) {
-          userTarotCardsMap.set(userId, []);
-        }
-        userTarotCardsMap.get(userId)!.push(shopCard);
-        this.logger.log(`[buyCard] userId=${userId}의 타로 카드 ${cardId}를 userTarotCardsMap에 추가했습니다.`);
+        // tarot_10 특별 처리
+        if (cardId === 'tarot_10') {
+          this.logger.log(`[buyCard] tarot_10 특별 처리: 행성 카드 2장 생성`);
 
-        // 유저의 수정된 덱이 있는지 확인
-        let modifiedDeck: Card[];
-        const roomDeckModifications = this.userDeckModifications.get(roomId);
+          // 행성 카드 2장 뽑기
+          const planetCards = this.specialCardManagerService.getRandomPlanetCards(2);
+          planetCardIds = planetCards ? planetCards.map(card => card.id) : [];
 
-        if (roomDeckModifications && roomDeckModifications.has(userId)) {
-          // 이미 수정된 덱이 있으면 그것을 사용
-          modifiedDeck = [...roomDeckModifications.get(userId)!];
-          this.logger.log(`[buyCard] userId=${userId}의 기존 수정된 덱을 사용합니다.`);
+          this.logger.log(`[buyCard] 생성된 행성 카드: ${planetCardIds.join(', ')}`);
+
         } else {
-          // 수정된 덱이 없으면 새로 생성
-          modifiedDeck = shuffle(createDeck());
-          this.logger.log(`[buyCard] userId=${userId}의 새 덱을 생성합니다.`);
+          // 기존 타로 카드 처리 로직
+          // 타로 카드를 userTarotCardsMap에 저장
+          if (!this.userTarotCardsMap.has(roomId)) {
+            this.userTarotCardsMap.set(roomId, new Map());
+          }
+          const userTarotCardsMap = this.userTarotCardsMap.get(roomId)!;
+          if (!userTarotCardsMap.has(userId)) {
+            userTarotCardsMap.set(userId, []);
+          }
+          userTarotCardsMap.get(userId)!.push(shopCard);
+          this.logger.log(`[buyCard] userId=${userId}의 타로 카드 ${cardId}를 userTarotCardsMap에 추가했습니다.`);
+
+          // 유저의 수정된 덱이 있는지 확인
+          let modifiedDeck: Card[];
+          const roomDeckModifications = this.userDeckModifications.get(roomId);
+
+          if (roomDeckModifications && roomDeckModifications.has(userId)) {
+            // 이미 수정된 덱이 있으면 그것을 사용
+            modifiedDeck = [...roomDeckModifications.get(userId)!];
+            this.logger.log(`[buyCard] userId=${userId}의 기존 수정된 덱을 사용합니다.`);
+          } else {
+            // 수정된 덱이 없으면 새로 생성
+            modifiedDeck = shuffle(createDeck());
+            this.logger.log(`[buyCard] userId=${userId}의 새 덱을 생성합니다.`);
+          }
+
+          // 수정된 덱을 저장
+          if (!this.userDeckModifications.has(roomId)) {
+            this.userDeckModifications.set(roomId, new Map());
+          }
+          const roomDeckModificationsForSave = this.userDeckModifications.get(roomId)!;
+          roomDeckModificationsForSave.set(userId, modifiedDeck);
+
+          this.logger.log(`[buyCard] userId=${userId}의 덱이 수정되어 저장되었습니다.`);
+
+          // 수정된 덱의 앞 8장 반환
+          firstDeckCards = modifiedDeck.slice(0, 8);
+
+          // firstDeckCards를 서버에도 저장
+          if (!this.userFirstDeckCardsMap.has(roomId)) {
+            this.userFirstDeckCardsMap.set(roomId, new Map());
+          }
+          const userFirstDeckCardsMap = this.userFirstDeckCardsMap.get(roomId)!;
+          userFirstDeckCardsMap.set(userId, [...firstDeckCards]);
+          this.logger.log(`[buyCard] userId=${userId}의 firstDeckCards를 userFirstDeckCardsMap에 저장했습니다.`);
         }
 
-        // 수정된 덱을 저장
-        if (!this.userDeckModifications.has(roomId)) {
-          this.userDeckModifications.set(roomId, new Map());
+      } else if (this.specialCardManagerService.isPlanetCard(cardId)) {
+        // 행성 카드 처리 - paytable에 enhanceChips, enhanceMul 적용
+        this.logger.log(`[buyCard] userId=${userId}의 행성 카드 ${cardId} 효과를 적용합니다.`);
+
+        const cardData = this.specialCardManagerService.getCardById(cardId);
+        if (cardData && cardData.pokerHand && cardData.enhanceChips !== undefined && cardData.enhanceMul !== undefined) {
+          // paytable에 행성 카드 효과 적용
+          this.paytableService.enhanceChips(userId, cardData.pokerHand, cardData.enhanceChips);
+          this.paytableService.enhanceMultiplier(userId, cardData.pokerHand, cardData.enhanceMul);
+
+          this.logger.log(`[buyCard] 행성 카드 ${cardId} 효과 적용 완료: ${cardData.pokerHand} - 칩스 +${cardData.enhanceChips}, 배수 +${cardData.enhanceMul}`);
+        } else {
+          this.logger.warn(`[buyCard] 행성 카드 ${cardId}의 데이터가 올바르지 않습니다.`);
         }
-        const roomDeckModificationsForSave = this.userDeckModifications.get(roomId)!;
-        roomDeckModificationsForSave.set(userId, modifiedDeck);
-
-        this.logger.log(`[buyCard] userId=${userId}의 덱이 수정되어 저장되었습니다.`);
-
-        // 수정된 덱의 앞 8장 반환
-        firstDeckCards = modifiedDeck.slice(0, 8);
-
-        // firstDeckCards를 서버에도 저장
-        if (!this.userFirstDeckCardsMap.has(roomId)) {
-          this.userFirstDeckCardsMap.set(roomId, new Map());
-        }
-        const userFirstDeckCardsMap = this.userFirstDeckCardsMap.get(roomId)!;
-        userFirstDeckCardsMap.set(userId, [...firstDeckCards]);
-        this.logger.log(`[buyCard] userId=${userId}의 firstDeckCards를 userFirstDeckCardsMap에 저장했습니다.`);
-
-      } else {
-        this.logger.log(`[buyCard] userId=${userId}의 ${cardId}는 조커 카드가 아니므로 userOwnedCardsMap에 추가하지 않습니다. (나중에 처리 예정)`);
       }
 
       // 8. 업데이트된 funds 가져오기
@@ -906,6 +1017,7 @@ export class RoomService {
         cardSprite: shopCard.sprite,
         funds: updatedUserChips.funds,
         firstDeckCards: firstDeckCards, // 수정된 덱의 앞 8장
+        planetCardIds: cardId === 'tarot_10' ? planetCardIds : undefined, // tarot_10용 행성 카드 ID 리스트
       };
     } catch (error) {
       this.logger.error(
@@ -1317,27 +1429,27 @@ export class RoomService {
       this.userOwnedCardsMap.delete(roomId);
 
       // 5라운드가 넘었을 때 모든 유저의 funds를 0으로 초기화
-      try {
-        const roomChipsMap = this.userChipsMap.get(roomId);
-        if (roomChipsMap) {
-          const userIds = Array.from(roomChipsMap.keys());
-          this.logger.log(`[handleRoundEnd] 5라운드 종료 - 모든 유저 funds 초기화: roomId=${roomId}, users=${userIds.join(',')}`);
+      // try {
+      //   const roomChipsMap = this.userChipsMap.get(roomId);
+      //   if (roomChipsMap) {
+      //     const userIds = Array.from(roomChipsMap.keys());
+      //     this.logger.log(`[handleRoundEnd] 5라운드 종료 - 모든 유저 funds 초기화: roomId=${roomId}, users=${userIds.join(',')}`);
 
-          for (const userId of userIds) {
-            const currentChips = roomChipsMap.get(userId);
-            if (currentChips) {
-              const fundsToDeduct = -currentChips.funds; // 현재 funds 값을 음수로 만들어서 0으로 초기화
-              await this.updateUserFunds(roomId, userId, fundsToDeduct);
-              this.logger.log(`[handleRoundEnd] 유저 funds 초기화 완료: userId=${userId}, 기존 funds=${currentChips.funds}`);
-            }
-          }
-        }
-      } catch (error) {
-        this.logger.error(
-          `[handleRoundEnd] 유저 funds 초기화 중 오류 발생: roomId=${roomId}`,
-          error instanceof Error ? error.stack : String(error),
-        );
-      }
+      //     for (const userId of userIds) {
+      //       const currentChips = roomChipsMap.get(userId);
+      //       if (currentChips) {
+      //         const fundsToDeduct = -currentChips.funds; // 현재 funds 값을 음수로 만들어서 0으로 초기화
+      //         await this.updateUserFunds(roomId, userId, fundsToDeduct);
+      //         this.logger.log(`[handleRoundEnd] 유저 funds 초기화 완료: userId=${userId}, 기존 funds=${currentChips.funds}`);
+      //       }
+      //     }
+      //   }
+      // } catch (error) {
+      //   this.logger.error(
+      //     `[handleRoundEnd] 유저 funds 초기화 중 오류 발생: roomId=${roomId}`,
+      //     error instanceof Error ? error.stack : String(error),
+      //   );
+      // }
     } else {
       // 다음 라운드로 진행
       const prevState = this.gameStates.get(roomId);
@@ -1413,5 +1525,811 @@ export class RoomService {
       );
       return { success: false, message: '베팅 처리 중 오류가 발생했습니다.' };
     }
+  }
+
+  /**
+   * 방의 현재 phase를 반환합니다.
+   */
+  getRoomPhase(roomId: string): string | undefined {
+    const state = this.gameStates.get(roomId);
+    return state?.phase;
+  }
+
+  /**
+   * 방의 phase를 변경합니다.
+   */
+  setRoomPhase(roomId: string, phase: 'waiting' | 'playing' | 'shop'): void {
+    const state = this.gameStates.get(roomId);
+    if (state) {
+      this.gameStates.set(roomId, {
+        ...state,
+        phase,
+      });
+    }
+  }
+
+  /**
+   * 유저의 타로 카드 소유 여부를 확인합니다.
+   */
+  hasUserTarotCard(roomId: string, userId: string, cardId: string): boolean {
+    const userTarotCards = this.userTarotCardsMap.get(roomId)?.get(userId) ?? [];
+    return userTarotCards.some(card => card.id === cardId);
+  }
+
+  /**
+   * 유저의 firstDeckCards를 반환합니다.
+   */
+  getUserFirstDeckCards(roomId: string, userId: string): Card[] {
+    return this.userFirstDeckCardsMap.get(roomId)?.get(userId) ?? [];
+  }
+
+  /**
+   * 유저의 handPlay 상태를 확인합니다.
+   */
+  hasUserHandPlay(roomId: string, userId: string): boolean {
+    const handMap = this.handPlayMap.get(roomId);
+    return handMap?.has(userId) ?? false;
+  }
+
+  /**
+   * 유저의 덱 정보를 반환합니다.
+   */
+  getUserDeckInfo(roomId: string, userId: string): { remainingDeck: number; remainingSevens: number } {
+    const state = this.gameStates.get(roomId);
+    if (!state) {
+      this.logger.warn(`[getUserDeckInfo] roomId=${roomId}에 대한 상태가 없습니다.`);
+      return { remainingDeck: 0, remainingSevens: 0 };
+    }
+
+    const deck = state.decks.get(userId);
+    if (!deck) {
+      this.logger.warn(`[getUserDeckInfo] userId=${userId}의 덱이 없습니다.`);
+      return { remainingDeck: 0, remainingSevens: 0 };
+    }
+
+    const remainingDeck = deck.length;
+    const remainingSevens = deck.filter(card => card.rank === 7).length;
+
+    this.logger.log(
+      `[getUserDeckInfo] userId=${userId}, roomId=${roomId}, remainingDeck=${remainingDeck}, remainingSevens=${remainingSevens}`,
+    );
+
+    return { remainingDeck, remainingSevens };
+  }
+
+  // === [5] discardCountMap 관리 메서드들 ===
+
+  // 유저의 버리기 횟수 가져오기
+  getUserDiscardCount(roomId: string, userId: string): number {
+    const roomMap = this.discardCountMap.get(roomId);
+    if (!roomMap) {
+      return 0;
+    }
+    return roomMap.get(userId) || 0;
+  }
+
+  // 유저의 버리기 횟수 증가
+  incrementUserDiscardCount(roomId: string, userId: string): number {
+    if (!this.discardCountMap.has(roomId)) {
+      this.discardCountMap.set(roomId, new Map());
+    }
+
+    const userMap = this.discardCountMap.get(roomId)!;
+    const currentCount = userMap.get(userId) || 0;
+    const newCount = currentCount + 1;
+    userMap.set(userId, newCount);
+
+    this.logger.log(`[incrementUserDiscardCount] userId=${userId}, roomId=${roomId}, count: ${currentCount} -> ${newCount}`);
+    return newCount;
+  }
+
+  // 유저의 남은 버리기 횟수 계산
+  getRemainingDiscards(roomId: string, userId: string): number {
+    const currentCount = this.getUserDiscardCount(roomId, userId);
+    return Math.max(0, 4 - currentCount);
+  }
+
+  // 유저가 버리기를 할 수 있는지 확인
+  canUserDiscard(roomId: string, userId: string): boolean {
+    const currentCount = this.getUserDiscardCount(roomId, userId);
+    return currentCount < 4;
+  }
+
+  // 방의 모든 유저 버리기 횟수 초기화
+  resetDiscardCounts(roomId: string): void {
+    this.discardCountMap.delete(roomId);
+    this.logger.log(`[resetDiscardCounts] roomId=${roomId}의 버리기 횟수 초기화`);
+  }
+
+  // 방의 모든 유저 버리기 횟수 가져오기
+  getDiscardCountMap(roomId: string): Map<string, number> {
+    return this.discardCountMap.get(roomId) || new Map();
+  }
+
+  // 시드머니 납부 관련 헬퍼 메서드들
+  getUserSeedMoneyPayment(roomId: string, userId: string): { silverPayment: number; goldPayment: number } {
+    const roomPayments = this.userSeedMoneyPayments.get(roomId);
+    if (!roomPayments) {
+      return { silverPayment: 0, goldPayment: 0 };
+    }
+    return roomPayments.get(userId) || { silverPayment: 0, goldPayment: 0 };
+  }
+
+  getAllUserSeedMoneyPayments(roomId: string): Map<string, { silverPayment: number; goldPayment: number }> {
+    return this.userSeedMoneyPayments.get(roomId) || new Map();
+  }
+
+  resetSeedMoneyPayments(roomId: string): void {
+    this.userSeedMoneyPayments.delete(roomId);
+  }
+
+  /**
+   * 방에서 퇴장할 때 유저의 칩 정보를 DB에 저장합니다.
+   */
+  async saveUserChipsOnLeave(roomId: string, userId: string): Promise<boolean> {
+    try {
+      const roomChipsMap = this.userChipsMap.get(roomId);
+      if (!roomChipsMap) {
+        this.logger.warn(`[saveUserChipsOnLeave] roomChipsMap not found: roomId=${roomId}`);
+        return false;
+      }
+
+      const userChips = roomChipsMap.get(userId);
+      if (!userChips) {
+        this.logger.warn(`[saveUserChipsOnLeave] userChips not found: roomId=${roomId}, userId=${userId}`);
+        return false;
+      }
+
+      // 현재 실버칩, 골드칩만 DB에 저장
+      const success = await this.userService.saveUserChips(
+        userId,
+        userChips.silverChips,
+        userChips.goldChips
+      );
+
+      if (success) {
+        this.logger.log(`[saveUserChipsOnLeave] 칩 정보 저장 성공: roomId=${roomId}, userId=${userId}, silverChips=${userChips.silverChips}, goldChips=${userChips.goldChips}`);
+      } else {
+        this.logger.error(`[saveUserChipsOnLeave] 칩 정보 저장 실패: roomId=${roomId}, userId=${userId}`);
+      }
+
+      return success;
+    } catch (error) {
+      this.logger.error(`[saveUserChipsOnLeave] 오류 발생: roomId=${roomId}, userId=${userId}`, error);
+      return false;
+    }
+  }
+
+  /**
+   * 특별 카드 사용을 처리합니다.
+   */
+  async processUseSpecialCard(
+    roomId: string,
+    userId: string,
+    cardId: string,
+    cards: { suit: string; rank: number }[]
+  ): Promise<{
+    success: boolean;
+    message: string;
+    selectedCards?: { suit: string; rank: number }[];
+    resultCards?: { suit: string; rank: number }[];
+  }> {
+    try {
+      // 1. 카드 정보 가져오기
+      const cardInfo = this.specialCardManagerService.getCardById(cardId);
+      if (!cardInfo) {
+        this.logger.warn(`[processUseSpecialCard] 존재하지 않는 카드: userId=${userId}, cardId=${cardId}`);
+        return {
+          success: false,
+          message: '존재하지 않는 카드입니다.'
+        };
+      }
+
+      this.logger.log(`[processUseSpecialCard] 카드 정보: userId=${userId}, cardId=${cardId}, name=${cardInfo.name}, description=${cardInfo.description}, needCardCount=${cardInfo.needCardCount}`);
+
+      // 2. 카드 개수 검증
+      if (cardInfo.needCardCount && cards.length > cardInfo.needCardCount) {
+        this.logger.warn(`[processUseSpecialCard] 카드 개수 초과: userId=${userId}, cardId=${cardId}, selected=${cards.length}, required=${cardInfo.needCardCount}`);
+        return {
+          success: false,
+          message: `카드 개수가 초과되었습니다. ${cardInfo.needCardCount}장 이하의 카드를 선택해야 합니다.`
+        };
+      }
+
+      // 3. 타로 카드 소유 여부 확인
+      if (!this.hasUserTarotCard(roomId, userId, cardId)) {
+        this.logger.warn(`[processUseSpecialCard] 유효하지 않은 타로 카드: userId=${userId}, cardId=${cardId}`);
+        return {
+          success: false,
+          message: '구매하지 않은 타로 카드입니다.'
+        };
+      }
+
+      // 4. firstDeckCards 매칭 확인
+      const userFirstDeckCards = this.getUserFirstDeckCards(roomId, userId);
+      const receivedCardIds = cards.map(card => `${card.suit}_${card.rank}`);
+      const firstDeckCardIds = userFirstDeckCards.map(card => `${card.suit}_${card.rank}`);
+
+      const isValidCards = receivedCardIds.every(cardId => firstDeckCardIds.includes(cardId));
+
+      if (!isValidCards) {
+        this.logger.warn(`[processUseSpecialCard] 유효하지 않은 카드들: userId=${userId}, receivedCards=${JSON.stringify(receivedCardIds)}, firstDeckCards=${JSON.stringify(firstDeckCardIds)}`);
+        return {
+          success: false,
+          message: '유효하지 않은 카드 조합입니다.'
+        };
+      }
+
+      this.logger.log(`[processUseSpecialCard] 밸리드 체크 통과: userId=${userId}, cardId=${cardId}`);
+
+      // 5. 카드 ID에 따른 결과 카드 생성 및 modifiedDeck 수정
+      const selectedCards = [...cards];
+      let resultCards: { suit: string; rank: number }[] = [];
+
+      switch (cardId) {
+        case 'tarot_1':
+          // 선택한 카드의 숫자가 1 상승
+          resultCards = cards.map(card => ({
+            ...card,
+            rank: Math.min(card.rank + 1, 13) // 최대 13 (K)
+          }));
+          break;
+
+        case 'tarot_2':
+          // 선택한 카드의 숫자가 2 감소
+          resultCards = cards.map(card => ({
+            ...card,
+            rank: Math.max(card.rank - 2, 1) // 최소 1 (A)
+          }));
+          break;
+
+        case 'tarot_3':
+          // 5장의 무작위 카드가 선택되고, 모두 한 가지 무늬로 변경
+          if (userFirstDeckCards.length >= (cardInfo?.needCardCount ?? 5)) {
+            // 무작위로 5장 선택
+            const shuffledDeck = [...userFirstDeckCards].sort(() => Math.random() - 0.5);
+            const randomCards = shuffledDeck.slice(0, cardInfo.needCardCount);
+
+            // selectedCards를 무작위 선택된 카드로 교체
+            selectedCards.length = 0;
+            selectedCards.push(...randomCards);
+
+            // 결과 카드는 모두 스페이드로 변경
+            resultCards = randomCards.map(card => ({
+              ...card,
+              suit: 'Spades'
+            }));
+
+            this.logger.log(`[processUseSpecialCard] tarot_3 무작위 카드 선택: userId=${userId}, selectedCards=${randomCards.map(c => `${c.suit}_${c.rank}`).join(', ')}`);
+          } else {
+            this.logger.warn(`[processUseSpecialCard] tarot_3 카드 부족: userId=${userId}, available=${userFirstDeckCards.length}, required=5`);
+            resultCards = [];
+          }
+          break;
+
+        case 'tarot_4':
+          // 선택한 카드가 스페이드로 변경
+          resultCards = cards.map(card => ({
+            ...card,
+            suit: 'Spades'
+          }));
+          break;
+
+        case 'tarot_5':
+          // 선택한 카드가 다이아로 변경
+          resultCards = cards.map(card => ({
+            ...card,
+            suit: 'Diamonds'
+          }));
+          break;
+
+        case 'tarot_6':
+          // 선택한 카드가 하트로 변경
+          resultCards = cards.map(card => ({
+            ...card,
+            suit: 'Hearts'
+          }));
+          break;
+
+        case 'tarot_7':
+          // 선택한 카드가 클로버로 변경
+          resultCards = cards.map(card => ({
+            ...card,
+            suit: 'Clubs'
+          }));
+          break;
+
+        case 'tarot_8':
+          // 선택한 카드를 덱에서 삭제 (결과 카드는 빈 배열)
+          const modifiedDeck = this.userDeckModifications.get(roomId)?.get(userId);
+          if (modifiedDeck) {
+            cards.forEach(card => {
+              const deckIndex = modifiedDeck.findIndex(deckCard =>
+                deckCard.suit === card.suit && deckCard.rank === card.rank
+              );
+              if (deckIndex !== -1) {
+                modifiedDeck.splice(deckIndex, 1);
+                this.logger.log(`[processUseSpecialCard] tarot_8 modifiedDeck 카드 삭제: ${card.suit}_${card.rank}`);
+              }
+            });
+          }
+          resultCards = [];
+          break;
+
+        case 'tarot_9':
+          // 선택한 3장의 카드 중, 무작위 1장의 카드를 복제
+          if (cards.length > 0) {
+            const randomIndex = Math.floor(Math.random() * cards.length);
+            resultCards = [cards[randomIndex]];
+          }
+          break;
+
+        default:
+          // 기본값: 스페이드로 변경
+          resultCards = cards.map(card => ({
+            ...card,
+            suit: 'Spades'
+          }));
+          break;
+      }
+
+      this.logger.log(`[processUseSpecialCard] 카드 처리 완료: userId=${userId}, cardId=${cardId}, selectedCount=${selectedCards.length}, resultCount=${resultCards.length}`);
+
+      // 6. modifiedDeck에서 선택된 카드들을 결과값으로 수정
+      const modifiedDeck = this.userDeckModifications.get(roomId)?.get(userId);
+      if (modifiedDeck) {
+        this.logger.log(`[processUseSpecialCard] modifiedDeck 수정 시작: userId=${userId}, deckSize=${modifiedDeck.length}`);
+
+        for (let i = 0; i < selectedCards.length && i < resultCards.length; i++) {
+          const selectedCard = selectedCards[i];
+          const resultCard = resultCards[i];
+
+          // modifiedDeck에서 해당 카드 찾기
+          const deckIndex = modifiedDeck.findIndex(card =>
+            card.suit === selectedCard.suit && card.rank === selectedCard.rank
+          );
+
+          if (deckIndex !== -1) {
+            // 카드 정보 업데이트
+            modifiedDeck[deckIndex] = {
+              ...modifiedDeck[deckIndex],
+              suit: resultCard.suit,
+              rank: resultCard.rank
+            };
+            this.logger.log(`[processUseSpecialCard] modifiedDeck 카드 수정: index=${deckIndex}, ${selectedCard.suit}_${selectedCard.rank} -> ${resultCard.suit}_${resultCard.rank}`);
+          } else {
+            this.logger.warn(`[processUseSpecialCard] modifiedDeck에서 카드를 찾을 수 없음: ${selectedCard.suit}_${selectedCard.rank}`);
+          }
+        }
+
+        this.logger.log(`[processUseSpecialCard] modifiedDeck 수정 완료: userId=${userId}`);
+      } else {
+        this.logger.warn(`[processUseSpecialCard] modifiedDeck이 존재하지 않음: userId=${userId}`);
+      }
+
+      return {
+        success: true,
+        message: '특별 카드 사용이 완료되었습니다.',
+        selectedCards,
+        resultCards
+      };
+    } catch (error) {
+      this.logger.error(`[processUseSpecialCard] Error: userId=${userId}, cardId=${cardId}`, error);
+      return {
+        success: false,
+        message: '특별 카드 사용 처리 중 오류가 발생했습니다.'
+      };
+    }
+  }
+
+  /**
+   * 핸드 플레이 결과를 처리합니다.
+   */
+  async processHandPlayResult(
+    roomId: string,
+    userIds: string[]
+  ): Promise<{
+    roundResult: Record<string, any>;
+    shopCards: string[];
+    round: number;
+  }> {
+    try {
+      const allHandsRaw = this.getAllHandPlays(roomId);
+      const allHands: Record<string, any[]> = {};
+
+      if (Array.isArray(allHandsRaw)) {
+        for (const handData of allHandsRaw) {
+          if (
+            handData &&
+            typeof handData === 'object' &&
+            'userId' in handData &&
+            'hand' in handData
+          ) {
+            allHands[handData.userId] = handData.hand || [];
+          }
+        }
+      }
+
+      const ownedCards: Record<string, string[]> = {};
+      for (const uid of userIds) {
+        ownedCards[uid] = this.getUserOwnedCards(roomId, uid);
+      }
+
+      // 모든 유저의 점수 계산
+      const userScores: Record<string, number> = {};
+      const userRandomValues: Record<string, number> = {};
+
+      for (const userId of userIds) {
+        await this.updateUserFunds(roomId, userId, 4);
+        const updatedChips = await this.getUserChips(roomId, userId);
+
+        let remainingDiscards = 4;
+        const discardUserMap = this.getDiscardCountMap(roomId);
+        if (discardUserMap) {
+          const used = discardUserMap.get(userId) ?? 0;
+          remainingDiscards = 4 - used;
+        }
+
+        const { remainingDeck, remainingSevens } = this.getUserDeckInfo(roomId, userId);
+
+        // 유저의 전체 핸드 카드 가져오기
+        const fullHand = this.getUserHand(roomId, userId);
+        const playedHand = allHands[userId] || [];
+
+        // usedHand: 클라에서 받은 playedHand(순서 그대로)
+        const usedHand = playedHand;
+
+        // 새로운 점수 계산 시스템 사용
+        let finalScore = 0;
+        let finalChips = 0;
+        let finalMultiplier = 0;
+        let finalRandomValue = 0;
+
+        if (usedHand.length > 0) {
+          // Card[]를 CardData[]로 변환
+          const playCards: CardData[] = usedHand.map(card => new CardData(
+            this.convertSuitToCardType(card.suit),
+            card.rank
+          ));
+          const fullCards: CardData[] = fullHand.map(card => new CardData(
+            this.convertSuitToCardType(card.suit),
+            card.rank
+          ));
+
+          // 족보 판정 및 기본 점수 계산
+          const handResult = this.handEvaluatorService.evaluate(userId, playCards, fullCards);
+
+          // 조커 효과 적용 및 최종 점수 계산
+          const ownedJokers = ownedCards[userId] || [];
+          const scoreResult = this.specialCardManagerService.calculateFinalScore(
+            userId,
+            handResult,
+            ownedJokers,
+            remainingDiscards,
+            remainingDeck,
+            remainingSevens
+          );
+
+          finalChips = scoreResult.finalChips;
+          finalMultiplier = scoreResult.finalMultiplier;
+          finalScore = finalChips * finalMultiplier;
+          finalRandomValue = scoreResult.context.randomValue;
+
+          // 🎯 서버 점수 계산 결과 로그 (클라이언트와 비교용)
+          this.logger.log(`\x1b[36m[SCORE_CALC] ${userId} - ${handResult.pokerHand}\x1b[0m`);
+          this.logger.log(`\x1b[33m  📊 기본 점수: ${handResult.score} | 기본 배수: ${handResult.multiplier}\x1b[0m`);
+          this.logger.log(`\x1b[32m  🎴 사용된 카드: ${handResult.usedCards.map(c => `${c.suit}${c.rank}`).join(', ')}\x1b[0m`);
+          this.logger.log(`\x1b[32m  🎴 사용안된 카드: ${handResult.unUsedCards.map(c => `${c.suit}${c.rank}`).join(', ')}\x1b[0m`);
+          this.logger.log(`\x1b[35m  🃏 보유 조커: ${ownedJokers.join(', ') || '없음'}\x1b[0m`);
+          this.logger.log(`\x1b[31m  💰 최종 칩스: ${finalChips} | 최종 배수: ${finalMultiplier} | 최종 점수: ${finalScore}\x1b[0m`);
+          this.logger.log(`\x1b[34m  📈 남은 버리기: ${remainingDiscards} | 남은 덱: ${remainingDeck} | 남은 7: ${remainingSevens}\x1b[0m`);
+          this.logger.log(`\x1b[37m  ────────────────────────────────────────────────\x1b[0m`);
+
+          // Paytable 업데이트 (족보 카운트 증가)
+          this.paytableService.enhanceCount(userId, handResult.pokerHand);
+        }
+
+        userScores[userId] = finalScore;
+        userRandomValues[userId] = finalRandomValue;
+      }
+
+      // 승자 판정 및 시드머니 분배 계산
+      const allScores = userIds.map(uid => ({ userId: uid, score: userScores[uid] || 0 }));
+      const maxScore = Math.max(...allScores.map(s => s.score));
+      const winners = allScores.filter(s => s.score === maxScore && s.score > 0);
+
+      // 전체 시드머니 납부 금액 계산
+      const allPayments = this.getAllUserSeedMoneyPayments(roomId);
+      let totalSilverPayment = 0;
+      let totalGoldPayment = 0;
+
+      for (const [uid, payment] of allPayments.entries()) {
+        totalSilverPayment += payment.silverPayment;
+        totalGoldPayment += payment.goldPayment;
+      }
+
+      this.logger.log(
+        `[processHandPlayResult] 시드머니 분배 준비: ` +
+        `전체시드머니(실버=${totalSilverPayment}, 골드=${totalGoldPayment}), ` +
+        `승자수=${winners.length}, ` +
+        `점수분포=${JSON.stringify(allScores.map(s => ({ userId: s.userId, score: s.score })))}`
+      );
+
+      // 각 유저별 결과 처리
+      const roundResult: Record<string, any> = {};
+
+      for (const userId of userIds) {
+        const updatedChips = await this.getUserChips(roomId, userId);
+        const { remainingDeck, remainingSevens } = this.getUserDeckInfo(roomId, userId);
+
+        let remainingDiscards = 4;
+        const discardUserMap = this.getDiscardCountMap(roomId);
+        if (discardUserMap) {
+          const used = discardUserMap.get(userId) ?? 0;
+          remainingDiscards = 4 - used;
+        }
+
+        const fullHand = this.getUserHand(roomId, userId);
+        const playedHand = allHands[userId] || [];
+        const usedHand = playedHand;
+        const finalScore = userScores[userId] || 0;
+
+        // 승자별 분배 금액 계산
+        let silverChipGain = 0;
+        let goldChipGain = 0;
+        let isWinner = -1;
+
+        if (winners.length > 0 && winners.some(w => w.userId === userId)) {
+          isWinner = 1;
+
+          // 승자인 경우
+          const userPayment = this.getUserSeedMoneyPayment(roomId, userId);
+
+          if (winners.length === 1) {
+            // 단독 승자인 경우
+            // 각 패자에게서 가져올 수 있는 금액 = min(자신이낸금액, 패자가낸금액)
+            let totalSilverFromLosers = 0;
+            let totalGoldFromLosers = 0;
+
+            for (const uid of userIds) {
+              if (uid !== userId) { // 패자들만
+                const loserPayment = this.getUserSeedMoneyPayment(roomId, uid);
+                const silverFromThisLoser = Math.min(userPayment.silverPayment, loserPayment.silverPayment);
+                const goldFromThisLoser = Math.min(userPayment.goldPayment, loserPayment.goldPayment);
+
+                totalSilverFromLosers += silverFromThisLoser;
+                totalGoldFromLosers += goldFromThisLoser;
+              }
+            }
+
+            // 자신이 낸 금액 + 패자들에게서 가져온 금액
+            silverChipGain = userPayment.silverPayment + totalSilverFromLosers;
+            goldChipGain = userPayment.goldPayment + totalGoldFromLosers;
+
+            this.logger.log(
+              `[processHandPlayResult] ${userId} 단독 승자 분배: ` +
+              `자신납부(실버=${userPayment.silverPayment}, 골드=${userPayment.goldPayment}), ` +
+              `패자들에게서받음(실버=${totalSilverFromLosers}, 골드=${totalGoldFromLosers}), ` +
+              `총획득(실버=${silverChipGain}, 골드=${goldChipGain})`
+            );
+          } else {
+            // 공동 승자인 경우
+            // 각 승자는 자신이 납부한 금액만큼만 다른 유저들에게서 가져갈 수 있음
+            const otherUsersCount = userIds.length - winners.length;
+            let totalSilverFromLosers = 0;
+            let totalGoldFromLosers = 0;
+
+            for (const uid of userIds) {
+              if (!winners.some(w => w.userId === uid)) { // 패자들만
+                const loserPayment = this.getUserSeedMoneyPayment(roomId, uid);
+                // 각 승자가 가져갈 수 있는 금액 = min(자신이낸금액, 패자가낸금액) / 승자수
+                const silverPerWinner = Math.min(userPayment.silverPayment, loserPayment.silverPayment) / winners.length;
+                const goldPerWinner = Math.min(userPayment.goldPayment, loserPayment.goldPayment) / winners.length;
+
+                totalSilverFromLosers += silverPerWinner;
+                totalGoldFromLosers += goldPerWinner;
+              }
+            }
+
+            silverChipGain = userPayment.silverPayment + totalSilverFromLosers;
+            goldChipGain = userPayment.goldPayment + totalGoldFromLosers;
+
+            this.logger.log(
+              `[processHandPlayResult] ${userId} 공동 승자 분배: ` +
+              `자신납부(실버=${userPayment.silverPayment}, 골드=${userPayment.goldPayment}), ` +
+              `패자들에게서받음(실버=${totalSilverFromLosers}, 골드=${totalGoldFromLosers}), ` +
+              `총획득(실버=${silverChipGain}, 골드=${goldChipGain})`
+            );
+          }
+        } else {
+          // 패자인 경우 - 자신이 납부한 시드머니에서 승자에게 빼앗긴 금액을 제외하고 돌려받음
+          const userPayment = this.getUserSeedMoneyPayment(roomId, userId);
+
+          if (winners.length === 1) {
+            // 단독 승자가 있는 경우
+            const winnerPayment = this.getUserSeedMoneyPayment(roomId, winners[0].userId);
+            const takenByWinner = Math.min(userPayment.silverPayment, winnerPayment.silverPayment);
+            const takenByWinnerGold = Math.min(userPayment.goldPayment, winnerPayment.goldPayment);
+
+            silverChipGain = userPayment.silverPayment - takenByWinner;
+            goldChipGain = userPayment.goldPayment - takenByWinnerGold;
+
+            this.logger.log(
+              `[processHandPlayResult] ${userId} 패자 환불: ` +
+              `자신납부(실버=${userPayment.silverPayment}, 골드=${userPayment.goldPayment}), ` +
+              `승자에게빼앗김(실버=${takenByWinner}, 골드=${takenByWinnerGold}), ` +
+              `환불량(실버=${silverChipGain}, 골드=${goldChipGain})`
+            );
+          } else if (winners.length > 1) {
+            // 공동 승자가 있는 경우
+            let totalTakenSilver = 0;
+            let totalTakenGold = 0;
+
+            for (const winner of winners) {
+              const winnerPayment = this.getUserSeedMoneyPayment(roomId, winner.userId);
+              // 각 승자가 가져갈 수 있는 금액 = min(승자가낸금액, 패자가낸금액) / 승자수
+              const silverPerWinner = Math.min(winnerPayment.silverPayment, userPayment.silverPayment) / winners.length;
+              const goldPerWinner = Math.min(winnerPayment.goldPayment, userPayment.goldPayment) / winners.length;
+
+              totalTakenSilver += silverPerWinner;
+              totalTakenGold += goldPerWinner;
+            }
+
+            silverChipGain = userPayment.silverPayment - totalTakenSilver;
+            goldChipGain = userPayment.goldPayment - totalTakenGold;
+
+            this.logger.log(
+              `[processHandPlayResult] ${userId} 패자 환불(공동승자): ` +
+              `자신납부(실버=${userPayment.silverPayment}, 골드=${userPayment.goldPayment}), ` +
+              `승자들에게빼앗김(실버=${totalTakenSilver}, 골드=${totalTakenGold}), ` +
+              `환불량(실버=${silverChipGain}, 골드=${goldChipGain})`
+            );
+          } else {
+            isWinner = 0;
+            // 승자가 없는 경우 (모든 점수가 0)
+            silverChipGain = userPayment.silverPayment;
+            goldChipGain = userPayment.goldPayment;
+
+            this.logger.log(
+              `[processHandPlayResult] ${userId} 무승부 환불: ` +
+              `자신납부(실버=${userPayment.silverPayment}, 골드=${userPayment.goldPayment}), ` +
+              `환불량(실버=${silverChipGain}, 골드=${goldChipGain})`
+            );
+          }
+        }
+
+        // 유저 칩 업데이트
+        const updateSuccess = await this.updateUserChips(
+          roomId,
+          userId,
+          silverChipGain,
+          goldChipGain
+        );
+
+        if (!updateSuccess) {
+          this.logger.error(`[processHandPlayResult] 칩 업데이트 실패: userId=${userId}`);
+          throw new Error('칩 업데이트 실패');
+        }
+
+        // 업데이트된 칩 정보 가져오기
+        const finalUpdatedChips = await this.getUserChips(roomId, userId);
+
+        this.logger.log(
+          `[processHandPlayResult] ${userId} 결과: ` +
+          `점수=${finalScore}, ` +
+          `승자여부=${winners.some(w => w.userId === userId)}, ` +
+          `획득량(실버=${silverChipGain}, 골드=${goldChipGain}), ` +
+          `최종(실버=${finalUpdatedChips.silverChips}, 골드=${finalUpdatedChips.goldChips}, 자금=${finalUpdatedChips.funds})`
+        );
+
+        roundResult[userId] = {
+          isWinner: isWinner,
+          usedHand: usedHand,
+          fullHand: fullHand,
+          score: finalScore,
+          silverChipGain: silverChipGain,
+          goldChipGain: goldChipGain,
+          finalSilverChips: finalUpdatedChips.silverChips,
+          finalGoldChips: finalUpdatedChips.goldChips,
+          finalFunds: finalUpdatedChips.funds,
+          remainingDiscards,
+          remainingDeck,
+          remainingSevens,
+          randomValue: userRandomValues[userId],
+          ownedCards: ownedCards[userId] || [],
+        };
+      }
+
+      const shopCards = this.getShopCards(roomId);
+      const round = this.getRound(roomId);
+
+      // phase를 shop으로 변경
+      this.setRoomPhase(roomId, 'shop');
+
+      await this.handleRoundEnd(roomId);
+
+      return {
+        roundResult,
+        shopCards,
+        round
+      };
+    } catch (error) {
+      this.logger.error(`[processHandPlayResult] Error: roomId=${roomId}`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * 게임 시작 정보를 생성합니다.
+   */
+  async createStartGameInfo(
+    roomId: string,
+    userId: string,
+    allUserInfos: any[]
+  ): Promise<{
+    round: number;
+    totalDeckCards: number; // 내 덱의 총 카드 수
+    silverSeedChip: number;
+    goldSeedChip: number;
+    silverTableChip: number;
+    goldTableChip: number;
+    userInfo: Record<string, any>;
+  }> {
+    const myCards = this.getUserHand(roomId, userId);
+    const round = this.getRound(roomId);
+    const silverSeedChip = this.getCurrentSilverSeedChip(roomId);
+    const goldSeedChip = this.getCurrentGoldSeedChip(roomId);
+
+    // 내 덱의 총 카드 수 계산 (초기 총 개수 표시용으로 핸드 카드 8장 포함)
+    const gameState = this.gameStates.get(roomId);
+    let totalDeckCards = 0;
+    if (gameState && gameState.decks.has(userId)) {
+      totalDeckCards = (gameState.decks.get(userId)?.length || 0) + 8; // 덱 카드 + 핸드 카드 8장
+    }
+
+    const userIds = allUserInfos.map(user => user.userId);
+    const silverTableChip = silverSeedChip * userIds.length;
+    const goldTableChip = goldSeedChip * userIds.length;
+
+    const userInfo: Record<string, any> = {};
+
+    for (const uid of userIds) {
+      const userChips = await this.getUserChips(roomId, uid);
+
+      // 시드머니 납부 정보 가져오기
+      const seedPayment = this.getUserSeedMoneyPayment(roomId, uid);
+
+      // 유저별 정보 생성
+      if (uid === userId) {
+        // 내 정보 (카드 포함)
+        userInfo[uid] = {
+          cards: myCards,
+          userFunds: userChips.funds,
+          silverChipGain: -seedPayment.silverPayment,
+          goldChipGain: -seedPayment.goldPayment,
+          silverChipNow: userChips.silverChips,
+          goldChipNow: userChips.goldChips
+        };
+      } else {
+        // 상대방 정보 (카드 제외)
+        userInfo[uid] = {
+          userFunds: userChips.funds,
+          silverChipGain: -seedPayment.silverPayment,
+          goldChipGain: -seedPayment.goldPayment,
+          silverChipNow: userChips.silverChips,
+          goldChipNow: userChips.goldChips
+        };
+      }
+    }
+
+    return {
+      round,
+      totalDeckCards,
+      silverSeedChip,
+      goldSeedChip,
+      silverTableChip,
+      goldTableChip,
+      userInfo
+    };
   }
 }

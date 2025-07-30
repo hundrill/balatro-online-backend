@@ -136,9 +136,34 @@ export class RedisService implements OnModuleDestroy {
       const key = `channel_member:${userId}`;
       const data = await this.client.get(key);
       return data ? JSON.parse(data) : null;
-    } catch (error) {
-      this.logger.error(`Error getting user connection info: ${error}`);
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        this.logger.error(`Failed to get user connection info for ${userId}`, error.stack);
+      } else {
+        this.logger.error(`Failed to get user connection info for ${userId}`, String(error));
+      }
       return null;
+    }
+  }
+
+  async getOnlineUsers(): Promise<string[]> {
+    try {
+      const keys = await this.client.keys('channel_member:*');
+      const onlineUsers: string[] = [];
+
+      for (const key of keys) {
+        const userId = key.replace('channel_member:', '');
+        onlineUsers.push(userId);
+      }
+
+      return onlineUsers;
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        this.logger.error('Failed to get online users', error.stack);
+      } else {
+        this.logger.error('Failed to get online users', String(error));
+      }
+      return [];
     }
   }
 }

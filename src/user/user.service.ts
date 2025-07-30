@@ -42,4 +42,23 @@ export class UserService {
       goldChip: user.goldChip || 0,
     };
   }
+
+  /**
+   * 유저의 칩 정보를 DB에 저장합니다.
+   */
+  async saveUserChips(userId: string, silverChip: number, goldChip: number) {
+    try {
+      await this.prisma.user.update({
+        where: { email: userId },
+        data: {
+          silverChip: silverChip,
+          goldChip: goldChip,
+        },
+      });
+      return true;
+    } catch (error) {
+      console.error(`[UserService] saveUserChips 오류: userId=${userId}`, error);
+      return false;
+    }
+  }
 }

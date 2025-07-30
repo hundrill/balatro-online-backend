@@ -10,6 +10,7 @@ import { RoomModule } from './room/room.module';
 import { GameHistoryModule } from './game-history/game-history.module';
 import { LobbyModule } from './lobby/lobby.module';
 import { AdminModule } from './admin/admin.module';
+import { DevToolsModule } from './dev-tools/dev-tools.module';
 
 @Module({
   imports: [
@@ -22,8 +23,9 @@ import { AdminModule } from './admin/admin.module';
     GameHistoryModule,
     LobbyModule,
     AdminModule,
+    DevToolsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {}
+export class AppModule { }

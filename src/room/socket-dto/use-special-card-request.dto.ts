@@ -3,7 +3,7 @@ import { IsString, ValidateNested, IsArray, IsInt } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class UseSpecialCardRequestDto extends BaseSocketDto {
-    static readonly eventNameRequest = 'UseSpecialCardRequest';
+    static readonly requestEventName = 'UseSpecialCardRequest';
 
     @IsString()
     cardId: string;
