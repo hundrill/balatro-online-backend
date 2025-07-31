@@ -9,6 +9,9 @@ export class RedisService implements OnModuleDestroy {
   constructor() {
     let redisOptions: any = {
       maxRetriesPerRequest: 3,
+      retryDelayOnFailover: 100,
+      enableReadyCheck: false,
+      lazyConnect: true,
     };
 
     // Railway에서는 REDIS_URL을 사용
@@ -20,6 +23,9 @@ export class RedisService implements OnModuleDestroy {
         host: process.env.REDIS_HOST || 'localhost',
         port: parseInt(process.env.REDIS_PORT || '6379'),
         maxRetriesPerRequest: 3,
+        retryDelayOnFailover: 100,
+        enableReadyCheck: false,
+        lazyConnect: true,
       };
 
       if (process.env.REDIS_PASSWORD) {
