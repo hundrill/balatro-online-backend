@@ -23,6 +23,23 @@ async function bootstrap() {
 
     logger.log(`Balatro Online Backend is running on port ${port}`);
     logger.log('Environment: ' + (process.env.NODE_ENV || 'development'));
+
+    // Graceful shutdown 설정
+    const signals = ['SIGTERM', 'SIGINT'];
+    for (const signal of signals) {
+      process.on(signal, async () => {
+        logger.log(`Received ${signal}, starting graceful shutdown...`);
+        try {
+          await app.close();
+          logger.log('Graceful shutdown completed');
+          process.exit(0);
+        } catch (error) {
+          logger.error('Error during graceful shutdown:', error);
+          process.exit(1);
+        }
+      });
+    }
+
   } catch (error: unknown) {
     if (error instanceof Error) {
       logger.error('Failed to start Balatro Online Backend', error.stack);
