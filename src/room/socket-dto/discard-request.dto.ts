@@ -1,20 +1,10 @@
 import { BaseSocketDto } from './base-socket.dto';
-import { IsString, ValidateNested, IsArray, IsInt } from 'class-validator';
-import { Type } from 'class-transformer';
-
+import { ValidateNested, IsArray } from 'class-validator';
+import { Card } from '../deck.util';
 export class DiscardRequestDto extends BaseSocketDto {
     static readonly requestEventName = 'DiscardRequest';
 
     @IsArray()
     @ValidateNested({ each: true })
-    @Type(() => CardDto)
-    cards: CardDto[];
-}
-
-export class CardDto {
-    @IsString()
-    suit: string;
-
-    @IsInt()
-    rank: number;
+    cards: Card[];
 }

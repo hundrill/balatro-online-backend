@@ -382,6 +382,11 @@ export class RoomGateway
         this.logger.warn(
           `[handleLeaveRoom] 잘못된 phase에서 요청 무시: userId=${userId}, roomId=${roomId}, phase=${currentPhase}`,
         );
+        this.emitUserResponse(
+          client,
+          new ErrorResponseDto({ message: '게임 중에는 나갈 수 없습니다.' }),
+        );
+        return;
       }
 
       await client.leave(roomId);
@@ -570,9 +575,9 @@ export class RoomGateway
         return;
       }
 
-      this.roomService.handPlayReady(roomId, userId, data.hand);
+      this.roomService.handPlayReady(roomId, userId, data.playCards);
       this.logger.log(
-        `[handleHandPlayReady] userId=${userId}, roomId=${roomId}, hand=${JSON.stringify(data.hand)}`,
+        `[handleHandPlayReady] userId=${userId}, roomId=${roomId}, hand=${JSON.stringify(data.playCards)}`,
       );
 
       this.emitRoomResponse(
@@ -1183,6 +1188,12 @@ export class RoomGateway
 
       this.socketIdToUserId.set(client.id, user.email);
 
+      // 로그인할 때마다 DB에서 스페셜카드 데이터 다시 읽어들이기
+      await this.specialCardManagerService.initializeCards(this.roomService['prisma']);
+
+      // 활성화된 스페셜카드 데이터 가져오기
+      const activeSpecialCards = this.specialCardManagerService.getActiveSpecialCards();
+
       const res = new LoginResponseDto({
         success: true,
         code: 0,
@@ -1191,6 +1202,8 @@ export class RoomGateway
         nickname: user.nickname,
         silverChip: user.silverChip,
         goldChip: user.goldChip,
+        createdAt: user.createdAt.toISOString(),
+        specialCards: activeSpecialCards
       });
       this.emitUserResponse(client, res);
 

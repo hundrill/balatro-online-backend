@@ -306,7 +306,7 @@ export class DevToolsController {
         <div style="display: flex; gap: 20px; align-items: center; flex-wrap: wrap; margin-bottom: 15px;">
             <div style="display: flex; gap: 10px; align-items: center;">
                 <label style="font-weight: 600; color: #333;">실버칩:</label>
-                <input type="number" id="silver-chip-amount" value="100" min="0" style="width: 120px; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                <input type="number" id="silver-chip-amount" value="1000" min="0" style="width: 120px; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
             </div>
             <div style="display: flex; gap: 10px; align-items: center;">
                 <label style="font-weight: 600; color: #333;">유저 선택:</label>

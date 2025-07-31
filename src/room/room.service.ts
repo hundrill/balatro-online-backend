@@ -15,7 +15,7 @@ import { UserService } from '../user/user.service';
 import { PaytableService } from './paytable.service';
 import { HandEvaluatorService } from './hand-evaluator.service';
 import { SpecialCardManagerService } from './special-card-manager.service';
-import { CardData, CardType, PokerHandResult } from './poker-types';
+import { CardType, PokerHandResult } from './poker-types';
 
 @Injectable()
 export class RoomService {
@@ -49,20 +49,7 @@ export class RoomService {
   }
 
   // 카드 무늬 변환 헬퍼 메서드
-  private convertSuitToCardType(suit: string): CardType {
-    switch (suit.toLowerCase()) {
-      case 'clubs':
-        return CardType.Clubs;
-      case 'diamonds':
-        return CardType.Diamonds;
-      case 'hearts':
-        return CardType.Hearts;
-      case 'spades':
-        return CardType.Spades;
-      default:
-        return CardType.Clubs; // 기본값
-    }
-  }
+  // convertSuitToCardType 메서드 제거 - 이제 Card.suit가 이미 CardType enum
 
   constructor(
     private readonly prisma: PrismaService,
@@ -139,6 +126,9 @@ export class RoomService {
 
   // === [4] roomId별 유저별 버리기 횟수 관리 ===
   private discardCountMap: Map<string, Map<string, number>> = new Map(); // roomId -> userId -> count
+
+  // === [5] 유저별 게임 참여 상태 관리 ===
+  private userGameStatusMap: Map<string, Map<string, 'active' | 'inactive' | 'afk'>> = new Map(); // roomId -> userId -> status
 
   // 유저별 실제 시드머니 납부 금액 저장
   private readonly userSeedMoneyPayments: Map<string, Map<string, {
@@ -685,7 +675,7 @@ export class RoomService {
   discardAndDraw(
     roomId: string,
     userId: string,
-    cards: { suit: string; rank: number }[],
+    cards: Card[],
   ): { newHand: Card[]; discarded: Card[]; remainingDiscards: number } {
     // 버리기 횟수 증가
     const newCount = this.incrementUserDiscardCount(roomId, userId);
@@ -700,7 +690,7 @@ export class RoomService {
     const discarded: Card[] = [];
     for (const cardInfo of cards) {
       const idx = hand.findIndex(
-        (c) => c.suit === cardInfo.suit && c.rank === cardInfo.rank,
+        (c) => c.id === cardInfo.id,
       );
       if (idx !== -1) {
         discarded.push(hand.splice(idx, 1)[0]);
@@ -716,13 +706,13 @@ export class RoomService {
     return { newHand: [...hand], discarded: [...discarded], remainingDiscards };
   }
 
-  handPlayReady(roomId: string, userId: string, hand: Card[]): void {
+  handPlayReady(roomId: string, userId: string, playCards: Card[]): void {
     if (!this.handPlayMap.has(roomId)) {
       this.handPlayMap.set(roomId, new Map());
     }
-    this.handPlayMap.get(roomId)!.set(userId, hand);
+    this.handPlayMap.get(roomId)!.set(userId, playCards);
     this.logger.log(
-      `[handPlayReady] userId=${userId}, roomId=${roomId}, hand=${JSON.stringify(hand)}`,
+      `[handPlayReady] userId=${userId}, roomId=${roomId}, playCards=${JSON.stringify(playCards)}`,
     );
   }
 
@@ -736,15 +726,15 @@ export class RoomService {
     return allReady;
   }
 
-  getAllHandPlays(roomId: string): { userId: string; hand: Card[] }[] {
+  getAllHandPlayCards(roomId: string): { userId: string; playCards: Card[] }[] {
     const handMap = this.handPlayMap.get(roomId);
     if (!handMap) return [];
-    const result: { userId: string; hand: Card[] }[] = [];
-    for (const [userId, hand] of handMap.entries()) {
-      result.push({ userId, hand: [...hand] });
+    const result: { userId: string; playCards: Card[] }[] = [];
+    for (const [userId, playCards] of handMap.entries()) {
+      result.push({ userId, playCards: [...playCards] });
     }
     this.logger.log(
-      `[getAllHandPlays] roomId=${roomId}, result=${JSON.stringify(result)}`,
+      `[getAllHandPlayCards] roomId=${roomId}, result=${JSON.stringify(result)}`,
     );
     return result;
   }
@@ -1707,12 +1697,12 @@ export class RoomService {
     roomId: string,
     userId: string,
     cardId: string,
-    cards: { suit: string; rank: number }[]
+    cards: Card[]
   ): Promise<{
     success: boolean;
     message: string;
-    selectedCards?: { suit: string; rank: number }[];
-    resultCards?: { suit: string; rank: number }[];
+    selectedCards?: Card[];
+    resultCards?: Card[];
   }> {
     try {
       // 1. 카드 정보 가져오기
@@ -1764,23 +1754,30 @@ export class RoomService {
 
       // 5. 카드 ID에 따른 결과 카드 생성 및 modifiedDeck 수정
       const selectedCards = [...cards];
-      let resultCards: { suit: string; rank: number }[] = [];
+      let resultCards: Card[] = [];
+
+      this.logger.log(`\x1b[35m[🔮 TAROT CARD USE] 시작 - userId=${userId}, cardId=${cardId}, cardName=${cardInfo.name}\x1b[0m`);
+      this.logger.log(`\x1b[36m  📋 선택된 카드: ${cards.map(c => `${c.suit}_${c.rank}`).join(', ')}\x1b[0m`);
 
       switch (cardId) {
         case 'tarot_1':
           // 선택한 카드의 숫자가 1 상승
           resultCards = cards.map(card => ({
-            ...card,
+            id: card.id,
+            suit: card.suit,
             rank: Math.min(card.rank + 1, 13) // 최대 13 (K)
           }));
+          this.logger.log(`\x1b[32m  ⬆️  tarot_1 적용: ${cards.map(c => `${c.suit}_${c.rank} → ${c.suit}_${Math.min(c.rank + 1, 13)}`).join(', ')}\x1b[0m`);
           break;
 
         case 'tarot_2':
           // 선택한 카드의 숫자가 2 감소
           resultCards = cards.map(card => ({
-            ...card,
+            id: card.id,
+            suit: card.suit,
             rank: Math.max(card.rank - 2, 1) // 최소 1 (A)
           }));
+          this.logger.log(`\x1b[31m  ⬇️  tarot_2 적용: ${cards.map(c => `${c.suit}_${c.rank} → ${c.suit}_${Math.max(c.rank - 2, 1)}`).join(', ')}\x1b[0m`);
           break;
 
         case 'tarot_3':
@@ -1797,12 +1794,14 @@ export class RoomService {
             // 결과 카드는 모두 스페이드로 변경
             resultCards = randomCards.map(card => ({
               ...card,
-              suit: 'Spades'
+              id: card.id,
+              suit: CardType.Spades
             }));
 
-            this.logger.log(`[processUseSpecialCard] tarot_3 무작위 카드 선택: userId=${userId}, selectedCards=${randomCards.map(c => `${c.suit}_${c.rank}`).join(', ')}`);
+            this.logger.log(`\x1b[33m  🎲 tarot_3 무작위 선택: ${randomCards.map(c => `${c.suit}_${c.rank}`).join(', ')}\x1b[0m`);
+            this.logger.log(`\x1b[34m  ♠️  tarot_3 결과: ${resultCards.map(c => `${c.suit}_${c.rank}`).join(', ')}\x1b[0m`);
           } else {
-            this.logger.warn(`[processUseSpecialCard] tarot_3 카드 부족: userId=${userId}, available=${userFirstDeckCards.length}, required=5`);
+            this.logger.warn(`\x1b[31m  ❌ tarot_3 카드 부족: available=${userFirstDeckCards.length}, required=${cardInfo.needCardCount}\x1b[0m`);
             resultCards = [];
           }
           break;
@@ -1811,69 +1810,75 @@ export class RoomService {
           // 선택한 카드가 스페이드로 변경
           resultCards = cards.map(card => ({
             ...card,
-            suit: 'Spades'
+            id: card.id,
+            suit: CardType.Spades
           }));
+          this.logger.log(`\x1b[34m  ♠️  tarot_4 적용: ${cards.map(c => `${c.suit}_${c.rank} → Spades_${c.rank}`).join(', ')}\x1b[0m`);
           break;
 
         case 'tarot_5':
           // 선택한 카드가 다이아로 변경
           resultCards = cards.map(card => ({
             ...card,
-            suit: 'Diamonds'
+            id: card.id,
+            suit: CardType.Diamonds
           }));
+          this.logger.log(`\x1b[36m  ♦️  tarot_5 적용: ${cards.map(c => `${c.suit}_${c.rank} → Diamonds_${c.rank}`).join(', ')}\x1b[0m`);
           break;
 
         case 'tarot_6':
           // 선택한 카드가 하트로 변경
           resultCards = cards.map(card => ({
             ...card,
-            suit: 'Hearts'
+            id: card.id,
+            suit: CardType.Hearts
           }));
+          this.logger.log(`\x1b[31m  ♥️  tarot_6 적용: ${cards.map(c => `${c.suit}_${c.rank} → Hearts_${c.rank}`).join(', ')}\x1b[0m`);
           break;
 
         case 'tarot_7':
           // 선택한 카드가 클로버로 변경
           resultCards = cards.map(card => ({
             ...card,
-            suit: 'Clubs'
+            id: card.id,
+            suit: CardType.Clubs
           }));
+          this.logger.log(`\x1b[32m  ♣️  tarot_7 적용: ${cards.map(c => `${c.suit}_${c.rank} → Clubs_${c.rank}`).join(', ')}\x1b[0m`);
           break;
 
         case 'tarot_8':
           // 선택한 카드를 덱에서 삭제 (결과 카드는 빈 배열)
           const modifiedDeck = this.userDeckModifications.get(roomId)?.get(userId);
           if (modifiedDeck) {
+            this.logger.log(`\x1b[33m  🗑️  tarot_8 덱에서 삭제 시작: ${cards.map(c => `${c.suit}_${c.rank}`).join(', ')}\x1b[0m`);
+            this.logger.log(`\x1b[33m  📊 삭제 전 덱 크기: ${modifiedDeck.length}\x1b[0m`);
+
             cards.forEach(card => {
               const deckIndex = modifiedDeck.findIndex(deckCard =>
                 deckCard.suit === card.suit && deckCard.rank === card.rank
               );
               if (deckIndex !== -1) {
-                modifiedDeck.splice(deckIndex, 1);
-                this.logger.log(`[processUseSpecialCard] tarot_8 modifiedDeck 카드 삭제: ${card.suit}_${card.rank}`);
+                const removedCard = modifiedDeck.splice(deckIndex, 1)[0];
+                this.logger.log(`\x1b[31m  ❌ tarot_8 카드 삭제: ${removedCard.suit}_${removedCard.rank} (인덱스: ${deckIndex})\x1b[0m`);
+              } else {
+                this.logger.warn(`\x1b[33m  ⚠️  tarot_8 카드를 찾을 수 없음: ${card.suit}_${card.rank}\x1b[0m`);
               }
             });
+
+            this.logger.log(`\x1b[33m  📊 삭제 후 덱 크기: ${modifiedDeck.length}\x1b[0m`);
+          } else {
+            this.logger.warn(`\x1b[33m  ⚠️  tarot_8 modifiedDeck이 존재하지 않음: userId=${userId}\x1b[0m`);
           }
           resultCards = [];
           break;
 
-        case 'tarot_9':
-          // 선택한 3장의 카드 중, 무작위 1장의 카드를 복제
-          if (cards.length > 0) {
-            const randomIndex = Math.floor(Math.random() * cards.length);
-            resultCards = [cards[randomIndex]];
-          }
-          break;
-
         default:
-          // 기본값: 스페이드로 변경
-          resultCards = cards.map(card => ({
-            ...card,
-            suit: 'Spades'
-          }));
-          break;
+          this.logger.warn(`\x1b[33m  ⚠️  알 수 없는 타로 카드: ${cardId}\x1b[0m`);
+          resultCards = [];
       }
 
-      this.logger.log(`[processUseSpecialCard] 카드 처리 완료: userId=${userId}, cardId=${cardId}, selectedCount=${selectedCards.length}, resultCount=${resultCards.length}`);
+      this.logger.log(`\x1b[35m  📤 최종 결과 카드: ${resultCards.map(c => `${c.suit}_${c.rank}`).join(', ') || '없음'}\x1b[0m`);
+      this.logger.log(`\x1b[35m[🔮 TAROT CARD USE] 완료 - userId=${userId}, cardId=${cardId}\x1b[0m`);
 
       // 6. modifiedDeck에서 선택된 카드들을 결과값으로 수정
       const modifiedDeck = this.userDeckModifications.get(roomId)?.get(userId);
@@ -1886,7 +1891,7 @@ export class RoomService {
 
           // modifiedDeck에서 해당 카드 찾기
           const deckIndex = modifiedDeck.findIndex(card =>
-            card.suit === selectedCard.suit && card.rank === selectedCard.rank
+            card.id === selectedCard.id
           );
 
           if (deckIndex !== -1) {
@@ -1934,21 +1939,38 @@ export class RoomService {
     round: number;
   }> {
     try {
-      const allHandsRaw = this.getAllHandPlays(roomId);
-      const allHands: Record<string, any[]> = {};
+      // const allHandPlayCardsRaw = this.getAllHandPlayCards(roomId);
+      // const allHandPlayCards: Record<string, Card[]> = {};
 
-      if (Array.isArray(allHandsRaw)) {
-        for (const handData of allHandsRaw) {
-          if (
-            handData &&
-            typeof handData === 'object' &&
-            'userId' in handData &&
-            'hand' in handData
-          ) {
-            allHands[handData.userId] = handData.hand || [];
-          }
-        }
+      // if (Array.isArray(allHandPlayCardsRaw)) {
+      //   for (const handPlayCardData of allHandPlayCardsRaw) {
+      //     if (
+      //       handPlayCardData &&
+      //       typeof handPlayCardData === 'object' &&
+      //       'userId' in handPlayCardData &&
+      //       'hand' in handPlayCardData &&
+      //       Array.isArray(handPlayCardData.hand)
+      //     ) {
+      //       allHandPlayCards[handPlayCardData.userId] = handPlayCardData.hand;
+      //     }
+      //   }
+      // }
+
+      const allHandPlayCards = this.handPlayMap.get(roomId);
+
+      if (!allHandPlayCards) {
+        this.logger.error(`[processHandPlayResult] allHandPlayCards not found: roomId=${roomId}`);
+        return {
+          roundResult: {},
+          shopCards: [],
+          round: 0
+        };
       }
+
+      // const allHandPlayCards: Record<string, Card[]> = {};
+      // for (const [userId, playCards] of allHandPlayCards.entries()) {
+      //   allHandPlayCards[userId] = playCards;
+      // }
 
       const ownedCards: Record<string, string[]> = {};
       for (const uid of userIds) {
@@ -1974,10 +1996,10 @@ export class RoomService {
 
         // 유저의 전체 핸드 카드 가져오기
         const fullHand = this.getUserHand(roomId, userId);
-        const playedHand = allHands[userId] || [];
+        const playedHand = allHandPlayCards.get(userId) || [];
 
         // usedHand: 클라에서 받은 playedHand(순서 그대로)
-        const usedHand = playedHand;
+        // const usedHand = playedHand;
 
         // 새로운 점수 계산 시스템 사용
         let finalScore = 0;
@@ -1985,19 +2007,10 @@ export class RoomService {
         let finalMultiplier = 0;
         let finalRandomValue = 0;
 
-        if (usedHand.length > 0) {
-          // Card[]를 CardData[]로 변환
-          const playCards: CardData[] = usedHand.map(card => new CardData(
-            this.convertSuitToCardType(card.suit),
-            card.rank
-          ));
-          const fullCards: CardData[] = fullHand.map(card => new CardData(
-            this.convertSuitToCardType(card.suit),
-            card.rank
-          ));
+        if (playedHand.length > 0) {
 
           // 족보 판정 및 기본 점수 계산
-          const handResult = this.handEvaluatorService.evaluate(userId, playCards, fullCards);
+          const handResult = this.handEvaluatorService.evaluate(userId, playedHand, fullHand);
 
           // 조커 효과 적용 및 최종 점수 계산
           const ownedJokers = ownedCards[userId] || [];
@@ -2018,8 +2031,12 @@ export class RoomService {
           // 🎯 서버 점수 계산 결과 로그 (클라이언트와 비교용)
           this.logger.log(`\x1b[36m[SCORE_CALC] ${userId} - ${handResult.pokerHand}\x1b[0m`);
           this.logger.log(`\x1b[33m  📊 기본 점수: ${handResult.score} | 기본 배수: ${handResult.multiplier}\x1b[0m`);
-          this.logger.log(`\x1b[32m  🎴 사용된 카드: ${handResult.usedCards.map(c => `${c.suit}${c.rank}`).join(', ')}\x1b[0m`);
-          this.logger.log(`\x1b[32m  🎴 사용안된 카드: ${handResult.unUsedCards.map(c => `${c.suit}${c.rank}`).join(', ')}\x1b[0m`);
+          this.logger.log(`\x1b[32m  🎴 사용된 카드: ${handResult.usedCards.map(c => `${c.suit}${c.rank}(id:${c.id || 'undefined'})`).join(', ')}\x1b[0m`);
+          this.logger.log(`\x1b[32m  🎴 사용안된 카드: ${handResult.unUsedCards.map(c => `${c.suit}${c.rank}(id:${c.id || 'undefined'})`).join(', ')}\x1b[0m`);
+          // 디버깅용: 첫 번째 사용된 카드의 전체 구조 출력
+          if (handResult.usedCards.length > 0) {
+            this.logger.log(`\x1b[33m  🔍 첫 번째 사용된 카드 구조: ${JSON.stringify(handResult.usedCards[0])}\x1b[0m`);
+          }
           this.logger.log(`\x1b[35m  🃏 보유 조커: ${ownedJokers.join(', ') || '없음'}\x1b[0m`);
           this.logger.log(`\x1b[31m  💰 최종 칩스: ${finalChips} | 최종 배수: ${finalMultiplier} | 최종 점수: ${finalScore}\x1b[0m`);
           this.logger.log(`\x1b[34m  📈 남은 버리기: ${remainingDiscards} | 남은 덱: ${remainingDeck} | 남은 7: ${remainingSevens}\x1b[0m`);
@@ -2070,8 +2087,7 @@ export class RoomService {
         }
 
         const fullHand = this.getUserHand(roomId, userId);
-        const playedHand = allHands[userId] || [];
-        const usedHand = playedHand;
+        const playedHand = allHandPlayCards.get(userId) || [];
         const finalScore = userScores[userId] || 0;
 
         // 승자별 분배 금액 계산
@@ -2224,7 +2240,7 @@ export class RoomService {
 
         roundResult[userId] = {
           isWinner: isWinner,
-          usedHand: usedHand,
+          usedHand: playedHand,
           fullHand: fullHand,
           score: finalScore,
           silverChipGain: silverChipGain,
@@ -2331,5 +2347,76 @@ export class RoomService {
       goldTableChip,
       userInfo
     };
+  }
+
+  // === 유저별 게임 참여 상태 관리 메서드들 ===
+
+  /**
+   * 유저의 게임 참여 상태를 설정
+   */
+  setUserGameStatus(roomId: string, userId: string, status: 'active' | 'inactive' | 'afk'): void {
+    if (!this.userGameStatusMap.has(roomId)) {
+      this.userGameStatusMap.set(roomId, new Map());
+    }
+    this.userGameStatusMap.get(roomId)!.set(userId, status);
+    this.logger.log(`[setUserGameStatus] roomId=${roomId}, userId=${userId}, status=${status}`);
+  }
+
+  /**
+   * 유저의 게임 참여 상태를 가져오기
+   */
+  getUserGameStatus(roomId: string, userId: string): 'active' | 'inactive' | 'afk' | undefined {
+    const statusMap = this.userGameStatusMap.get(roomId);
+    return statusMap?.get(userId);
+  }
+
+  /**
+   * 방의 모든 유저 게임 참여 상태 가져오기
+   */
+  getAllUserGameStatuses(roomId: string): Map<string, 'active' | 'inactive' | 'afk'> {
+    return this.userGameStatusMap.get(roomId) || new Map();
+  }
+
+  /**
+   * 유저가 게임에 활성적으로 참여 중인지 확인
+   */
+  isUserActive(roomId: string, userId: string): boolean {
+    const status = this.getUserGameStatus(roomId, userId);
+    return status === 'active';
+  }
+
+  /**
+   * 방의 모든 유저가 활성 상태인지 확인
+   */
+  areAllUsersActive(roomId: string, userIds: string[]): boolean {
+    return userIds.every(userId => this.isUserActive(roomId, userId));
+  }
+
+  /**
+   * 유저를 활성 상태로 설정 (게임 참여 시작)
+   */
+  setUserActive(roomId: string, userId: string): void {
+    this.setUserGameStatus(roomId, userId, 'active');
+  }
+
+  /**
+   * 유저를 비활성 상태로 설정 (게임 참여 중단)
+   */
+  setUserInactive(roomId: string, userId: string): void {
+    this.setUserGameStatus(roomId, userId, 'inactive');
+  }
+
+  /**
+   * 유저를 AFK 상태로 설정 (자리 비움)
+   */
+  setUserAfk(roomId: string, userId: string): void {
+    this.setUserGameStatus(roomId, userId, 'afk');
+  }
+
+  /**
+   * 방의 게임 참여 상태 초기화
+   */
+  resetUserGameStatuses(roomId: string): void {
+    this.userGameStatusMap.delete(roomId);
   }
 }

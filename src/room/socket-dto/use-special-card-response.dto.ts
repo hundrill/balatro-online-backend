@@ -1,5 +1,6 @@
 import { BaseSocketDto } from './base-socket.dto';
 import { IsString, IsArray, IsOptional } from 'class-validator';
+import { Card } from '../deck.util';
 
 export class UseSpecialCardResponseDto extends BaseSocketDto {
     override responseEventName = 'UseSpecialCardResponse';
@@ -11,10 +12,10 @@ export class UseSpecialCardResponseDto extends BaseSocketDto {
     cardId: string;
 
     @IsArray()
-    selectedCards: any[]; // 선택된 카드 리스트
+    selectedCards: Card[]; // 선택된 카드 리스트
 
     @IsArray()
-    resultCards: any[]; // 처리 결과 카드 리스트
+    resultCards: Card[]; // 처리 결과 카드 리스트
 
     constructor(init?: Partial<UseSpecialCardResponseDto>) {
         super();

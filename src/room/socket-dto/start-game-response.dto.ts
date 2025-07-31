@@ -1,7 +1,8 @@
+import { Card } from '../deck.util';
 import { BaseSocketDto } from './base-socket.dto';
 
 export interface UserInfo {
-    cards?: any[]; // 내 정보에만 있음
+    cards?: Card[]; // 내 정보에만 있음
     userFunds: number;
     silverChipGain: number;
     goldChipGain: number;

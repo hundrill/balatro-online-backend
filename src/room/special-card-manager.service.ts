@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { HandContext, CardData, CardType, PokerHand } from './poker-types';
+import { HandContext, CardType, PokerHand } from './poker-types';
 import { PaytableService } from './paytable.service';
 import { HandEvaluatorService } from './hand-evaluator.service';
 
@@ -710,7 +710,7 @@ export class SpecialCardManagerService {
             }, {
                 timing: JokerEffectTiming.OnAfterScoring,
                 applyEffect: (context: HandContext, self: SpecialCardData) => {
-                    self.baseValue = Math.max(0, (self.baseValue || 0) - (self.decrease || 0));
+                    self.baseValue = Math.max(-10000, (self.baseValue || 0) - (self.decrease || 0));
                     return true;
                 }
             }]
@@ -791,7 +791,7 @@ export class SpecialCardManagerService {
                     if (context.currentCardData?.suit === CardType.Spades) {
                         self.baseValue = (self.baseValue || 1) + (self.increase || 0);
                     } else {
-                        self.baseValue = Math.max(0, (self.baseValue || 1) - (self.decrease || 0));
+                        self.baseValue = Math.max(-10000, (self.baseValue || 1) - (self.decrease || 0));
                     }
                     return true;
                 }
@@ -824,7 +824,7 @@ export class SpecialCardManagerService {
                     if (context.currentCardData?.suit === CardType.Diamonds) {
                         self.baseValue = (self.baseValue || 1) + (self.increase || 0);
                     } else {
-                        self.baseValue = Math.max(0, (self.baseValue || 1) - (self.decrease || 0));
+                        self.baseValue = Math.max(-10000, (self.baseValue || 1) - (self.decrease || 0));
                     }
                     return true;
                 }
@@ -857,7 +857,7 @@ export class SpecialCardManagerService {
                     if (context.currentCardData?.suit === CardType.Hearts) {
                         self.baseValue = (self.baseValue || 1) + (self.increase || 0);
                     } else {
-                        self.baseValue = Math.max(0, (self.baseValue || 1) - (self.decrease || 0));
+                        self.baseValue = Math.max(-10000, (self.baseValue || 1) - (self.decrease || 0));
                     }
                     return true;
                 }
@@ -890,7 +890,7 @@ export class SpecialCardManagerService {
                     if (context.currentCardData?.suit === CardType.Clubs) {
                         self.baseValue = (self.baseValue || 1) + (self.increase || 0);
                     } else {
-                        self.baseValue = Math.max(0, (self.baseValue || 1) - (self.decrease || 0));
+                        self.baseValue = Math.max(-10000, (self.baseValue || 1) - (self.decrease || 0));
                     }
                     return true;
                 }
@@ -1403,8 +1403,23 @@ export class SpecialCardManagerService {
         // OnHandPlay 효과 적용
         this.applyJokerEffects(JokerEffectTiming.OnHandPlay, context, ownedJokers);
 
-        // 카드별 점수 계산 및 OnScoring 효과 적용
+        // 카드별 점수 계산 및 OnScoring 효과 적용 (handResult.usedCards에 포함된 카드만)
+        console.log(`\x1b[36m[SCORING_DEBUG] context.playedCards 개수: ${context.playedCards.length}\x1b[0m`);
+        console.log(`\x1b[36m[SCORING_DEBUG] handResult.usedCards 개수: ${handResult?.usedCards?.length || 0}\x1b[0m`);
+
         for (const card of context.playedCards) {
+            console.log(`\x1b[33m[SCORING_DEBUG] 처리 중인 카드: ${card.suit}${card.rank}(id:${card.id})\x1b[0m`);
+
+            // handResult.usedCards에 해당 카드가 포함되지 않은 경우 continue (id로 비교)
+            const isUsed = handResult?.usedCards?.some((usedCard: any) => usedCard.id === card.id);
+            console.log(`\x1b[35m[SCORING_DEBUG] 카드 ${card.id}가 usedCards에 포함됨: ${isUsed}\x1b[0m`);
+
+            if (handResult?.usedCards && !isUsed) {
+                console.log(`\x1b[31m[SCORING_DEBUG] 카드 ${card.id} 제외됨 (continue)\x1b[0m`);
+                continue;
+            }
+
+            console.log(`\x1b[32m[SCORING_DEBUG] 카드 ${card.id} 점수 계산 진행\x1b[0m`);
             const cardValue = this.handEvaluatorService.calculateCardValue(card.rank);
             context.chips += cardValue;
             context.currentCardData = card;
@@ -1440,15 +1455,16 @@ export class SpecialCardManagerService {
 
     // 기존 joker-cards.util.ts 함수들을 대체하는 메서드들
     getRandomShopCards(count: number, usedJokerCardIds: Set<string> = new Set()): SpecialCard[] {
+        /*
         // 🧪 테스트용: joker_24만 뽑히도록 임시 수정
         // TODO: 테스트 완료 후 아래 주석 처리된 원본 코드로 복구
-        const joker24 = this.getCardById('joker_44');
+        const joker24 = this.getCardById('joker_39');
         if (joker24) {
             return [joker24, joker24, joker24, joker24, joker24]; // 5개 모두 joker_24로 채움
         }
         return [];
+        */
 
-        /*
         // 원본 코드 (테스트 후 복구용)
         const result: SpecialCard[] = [];
 
@@ -1469,9 +1485,8 @@ export class SpecialCardManagerService {
             .filter(card => card.type === SpecialCardType.Tarot);
         const selectedTarots = this.getRandomCardsFromPool(activeTarots, 1);
         result.push(...selectedTarots);
-        
+
         return result;
-        */
     }
 
     // 카드 풀에서 랜덤하게 선택하는 헬퍼 함수

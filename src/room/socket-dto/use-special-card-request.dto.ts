@@ -1,6 +1,6 @@
 import { BaseSocketDto } from './base-socket.dto';
-import { IsString, ValidateNested, IsArray, IsInt } from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsString, ValidateNested, IsArray } from 'class-validator';
+import { Card } from '../deck.util';
 
 export class UseSpecialCardRequestDto extends BaseSocketDto {
     static readonly requestEventName = 'UseSpecialCardRequest';
@@ -10,14 +10,5 @@ export class UseSpecialCardRequestDto extends BaseSocketDto {
 
     @IsArray()
     @ValidateNested({ each: true })
-    @Type(() => CardDto)
-    cards: CardDto[];
+    cards: Card[];
 }
-
-export class CardDto {
-    @IsString()
-    suit: string;
-
-    @IsInt()
-    rank: number;
-} 

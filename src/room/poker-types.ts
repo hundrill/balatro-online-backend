@@ -1,3 +1,5 @@
+import { Card } from "./deck.util";
+
 // 포커 족보 enum
 export enum PokerHand {
     None = 'None',
@@ -37,48 +39,23 @@ export enum CardValue {
     King = 13,
 }
 
-// 카드 데이터 클래스
-export class CardData {
-    constructor(
-        public suit: CardType,
-        public rank: number
-    ) { }
-
-    get TypeEnum(): CardType {
-        return this.suit;
-    }
-
-    get ValueEnum(): CardValue {
-        return this.rank as CardValue;
-    }
-
-    // 카드 값 계산 (2-10은 숫자값, A는 11, J/Q/K는 10)
-    getValue(): number {
-        if (this.rank >= 2 && this.rank <= 10) return this.rank;
-        if (this.rank === 1) return 11; // Ace
-        return 10; // J, Q, K
-    }
-}
-
 // 포커 핸드 결과 클래스
 export class PokerHandResult {
     constructor(
         public pokerHand: PokerHand = PokerHand.None,
         public score: number = 0,
         public multiplier: number = 0,
-        // public level: number = 0,
-        // public usedCardIndices: number[] = [],
-        public usedCards: CardData[] = [],
-        public unUsedCards: CardData[] = [],
+        public usedCards: Card[] = [],
+        public unUsedCards: Card[] = [],
         public unUsedPokerHand: PokerHand = PokerHand.None
     ) { }
 }
 
 // 핸드 컨텍스트 클래스 (조커 효과 적용용)
 export class HandContext {
-    public playedCards: CardData[] = [];
-    public unUsedCards: CardData[] = [];
-    public currentCardData: CardData | null = null;
+    public playedCards: Card[] = [];
+    public unUsedCards: Card[] = [];
+    public currentCardData: Card | null = null;
     public multiplier: number = 1;
     public chips: number = 0;
     public pokerHand: PokerHand = PokerHand.None;

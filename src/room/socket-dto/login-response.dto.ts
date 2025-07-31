@@ -1,5 +1,5 @@
 import { BaseSocketDto } from './base-socket.dto';
-import { IsString, IsInt } from 'class-validator';
+import { IsString, IsInt, IsArray, IsOptional } from 'class-validator';
 
 export class LoginResponseDto extends BaseSocketDto {
     override responseEventName = 'LoginResponse';
@@ -18,6 +18,10 @@ export class LoginResponseDto extends BaseSocketDto {
 
     @IsString()
     createdAt: string;
+
+    @IsOptional()
+    @IsArray()
+    specialCards?: any[];
 
     constructor(init?: Partial<LoginResponseDto>) {
         super();
