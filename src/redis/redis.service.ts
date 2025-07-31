@@ -7,22 +7,28 @@ export class RedisService implements OnModuleDestroy {
   private readonly logger = new Logger(RedisService.name);
 
   constructor() {
-    const redisOptions: {
-      host: string;
-      port: number;
-      maxRetriesPerRequest: number;
-      password?: string;
-    } = {
-      host: process.env.REDIS_HOST || 'localhost',
-      port: parseInt(process.env.REDIS_PORT || '6379'),
+    let redisOptions: any = {
       maxRetriesPerRequest: 3,
     };
 
-    if (process.env.REDIS_PASSWORD) {
-      redisOptions.password = process.env.REDIS_PASSWORD;
+    // Railway에서는 REDIS_URL을 사용
+    if (process.env.REDIS_URL) {
+      this.client = new Redis(process.env.REDIS_URL, redisOptions);
+    } else {
+      // 로컬 개발용
+      redisOptions = {
+        host: process.env.REDIS_HOST || 'localhost',
+        port: parseInt(process.env.REDIS_PORT || '6379'),
+        maxRetriesPerRequest: 3,
+      };
+
+      if (process.env.REDIS_PASSWORD) {
+        redisOptions.password = process.env.REDIS_PASSWORD;
+      }
+
+      this.client = new Redis(redisOptions);
     }
 
-    this.client = new Redis(redisOptions);
     this.setupEventHandlers();
   }
 
