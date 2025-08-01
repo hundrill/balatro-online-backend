@@ -44,19 +44,18 @@ import { BettingResponseDto } from './socket-dto/betting-response.dto';
 import { UseSpecialCardRequestDto } from './socket-dto/use-special-card-request.dto';
 import { UseSpecialCardResponseDto } from './socket-dto/use-special-card-response.dto';
 import { SpecialCardManagerService } from './special-card-manager.service';
+import { isClientVersionSupported, MIN_CLIENT_VERSION, getVersionString } from '../common/constants/version.constants';
 
 interface RoomUserInfo {
   userId: string;
   nickname: string | null;
   silverChip: number;
   goldChip: number;
-}
-
-interface GameState {
-  phase: string;
-  decks?: Map<string, any[]>;
-  hands?: Map<string, any[]>;
-  round?: number;
+  isPlaying: boolean;
+  ownedCards: string[];
+  paytableLevels: Record<string, number>;
+  paytableBaseChips: Record<string, number>;
+  paytableMultipliers: Record<string, number>;
 }
 
 @WebSocketGateway({ cors: true })
@@ -188,14 +187,41 @@ export class RoomGateway
     const users = await Promise.all(
       userIds.map(async (userId) => {
         const user = await this.userService.findByEmail(userId);
+
+        // 유저의 게임 참여 상태 확인
+        const isPlaying = this.roomService.isUserPlaying(roomId, userId);
+
+        // 유저가 소유 중인 조커 카드 리스트 가져오기
+        const ownedCards = this.roomService.getUserOwnedCards(roomId, userId);
+
+        // 유저의 페이테이블 족보 레벨 정보 가져오기
+        const paytableLevels = this.roomService.getUserPaytableLevels(roomId, userId);
+        const paytableBaseChips = this.roomService.getUserPaytableBaseChips(roomId, userId);
+        const paytableMultipliers = this.roomService.getUserPaytableMultipliers(roomId, userId);
+
         return user
           ? {
             userId: user.email,
             nickname: user.nickname,
             silverChip: user.silverChip,
             goldChip: user.goldChip,
+            isPlaying,
+            ownedCards,
+            paytableLevels,
+            paytableBaseChips,
+            paytableMultipliers,
           }
-          : { userId, nickname: null, silverChip: 0, goldChip: 0 };
+          : {
+            userId,
+            nickname: null,
+            silverChip: 0,
+            goldChip: 0,
+            isPlaying: false,
+            ownedCards: [],
+            paytableLevels: {},
+            paytableBaseChips: {},
+            paytableMultipliers: {},
+          };
       }),
     );
     return users;
@@ -214,13 +240,14 @@ export class RoomGateway
     if (!room) return;
 
     // 상대방 유저들의 전체 정보 가져오기
-    const allUserInfos = await this.getRoomUserInfos(roomId);
+    // const allUserInfos = await this.getRoomUserInfos(roomId);
+    // const const userIds = this.getRoomUserIds(roomId);
 
     for (const socketId of room) {
       const uid = this.socketIdToUserId.get(socketId);
       if (!uid) continue;
 
-      const gameInfo = await this.roomService.createStartGameInfo(roomId, uid, allUserInfos);
+      const gameInfo = await this.roomService.createStartGameInfo(roomId, uid, userIds);
 
       this.emitUserResponseBySocketId(
         socketId,
@@ -377,14 +404,14 @@ export class RoomGateway
         `[handleLeaveRoom] leaveRoom: socketId=${client.id}, userId=${userId}, roomId=${roomId}, payload=${JSON.stringify(data)}`,
       );
 
-      const currentPhase = this.roomService.getRoomPhase(roomId);
-      if (currentPhase !== 'waiting') {
+      // 유저가 playing 상태인지 확인
+      if (userId && this.roomService.isUserPlaying(roomId, userId)) {
         this.logger.warn(
-          `[handleLeaveRoom] 잘못된 phase에서 요청 무시: userId=${userId}, roomId=${roomId}, phase=${currentPhase}`,
+          `[handleLeaveRoom] 유저가 playing 상태에서 요청 무시: userId=${userId}, roomId=${roomId}`,
         );
         this.emitUserResponse(
           client,
-          new ErrorResponseDto({ message: '게임 중에는 나갈 수 없습니다.' }),
+          new ErrorResponseDto({ message: '게임 진행 중에는 방을 나갈 수 없습니다.' }),
         );
         return;
       }
@@ -525,12 +552,23 @@ export class RoomGateway
         data.cards,
       );
 
+      // 본인에게는 전체 정보 전송
       const res = new DiscardResponseDto({
+        userId,
+        discardCount: data.cards.length,
         newHand,
         discarded,
         remainingDiscards,
       });
       this.emitUserResponse(client, res);
+
+      // 상대방에게는 discardCount만 전송
+      const otherRes = new DiscardResponseDto({
+        userId,
+        discardCount: data.cards.length,
+        remainingDiscards,
+      });
+      this.emitRoomResponseExceptUser(roomId, userId, otherRes);
     } catch (error) {
       this.logger.error(
         `[handleDiscard] Error: socketId=${client.id}, data=${JSON.stringify(data)}`,
@@ -587,9 +625,12 @@ export class RoomGateway
 
       const userIds = this.getRoomUserIds(roomId);
 
+      // playing 상태인 유저들만 필터링
+      const playingUserIds = userIds.filter(uid => this.roomService.isUserPlaying(roomId, uid));
+
       if (this.roomService.canRevealHandPlay(roomId, userIds)) {
         try {
-          const result = await this.roomService.processHandPlayResult(roomId, userIds);
+          const result = await this.roomService.processHandPlayResult(roomId, playingUserIds);
 
           const adapter = this.server.of('/').adapter;
           const room = adapter.rooms.get(roomId);
@@ -1157,8 +1198,23 @@ export class RoomGateway
   ) {
     try {
       this.logger.log(
-        `[handleLogin] login attempt: socketId=${client.id}, email=${data.email}`,
+        `[handleLogin] login attempt: socketId=${client.id}, email=${data.email}, clientVersion=${data.version}`,
       );
+
+      // 버전 체크
+      this.logger.log(`[handleLogin] Version check: client=${getVersionString(data.version)}, minRequired=${getVersionString(MIN_CLIENT_VERSION)}`);
+      if (!isClientVersionSupported(data.version)) {
+        this.logger.warn(
+          `[handleLogin] Unsupported client version: ${getVersionString(data.version)}, socketId=${client.id}`,
+        );
+        const res = new LoginResponseDto({
+          success: false,
+          code: 1003,
+          message: `Unsupported client version. Please update to version ${getVersionString(MIN_CLIENT_VERSION)} or higher.`,
+        });
+        this.emitUserResponse(client, res);
+        return;
+      }
 
       const user = await this.authService.validateUser(
         data.email,
@@ -1193,6 +1249,11 @@ export class RoomGateway
 
       // 활성화된 스페셜카드 데이터 가져오기
       const activeSpecialCards = this.specialCardManagerService.getActiveSpecialCards();
+
+      // 로그 추가: price 필드 확인
+      if (activeSpecialCards.length > 0) {
+        this.logger.log(`[handleLogin] 첫 번째 카드 price 확인: ${activeSpecialCards[0].id} = ${activeSpecialCards[0].price}`);
+      }
 
       const res = new LoginResponseDto({
         success: true,

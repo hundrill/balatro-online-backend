@@ -1,11 +1,17 @@
-import { Controller, Get, Put, Post, Param, Body, Res } from '@nestjs/common';
+import { Controller, Get, Put, Post, Param, Body, Res, UseInterceptors, UploadedFile, Delete } from '@nestjs/common';
 import { Response } from 'express';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { DevToolsService } from './dev-tools.service';
+import { ApkService } from './apk.service';
 import { CardUpdateDto, ChipRechargeDto } from './dto/card-update.dto';
+import { ApkUploadDto } from './dto/apk.dto';
 
 @Controller('dev-tools')
 export class DevToolsController {
-    constructor(private readonly devToolsService: DevToolsService) { }
+    constructor(
+        private readonly devToolsService: DevToolsService,
+        private readonly apkService: ApkService
+    ) { }
 
     @Get()
     getDevToolsPage(@Res() res: Response) {
@@ -317,6 +323,33 @@ export class DevToolsController {
             <button onclick="rechargeChips()" style="background: linear-gradient(45deg, #4CAF50, #45a049); color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-weight: 500;">칩 충전</button>
         </div>
         <div id="recharge-result" style="margin-top: 10px;"></div>
+    </div>
+
+    <!-- APK Management Section -->
+    <div class="card-section">
+        <h2>📱 APK 관리</h2>
+        <div style="margin-bottom: 20px;">
+            <h3 style="color: #333; margin-bottom: 15px;">APK 업로드</h3>
+            <form id="apk-upload-form" enctype="multipart/form-data" style="margin-bottom: 15px;">
+                <div style="display: flex; gap: 20px; align-items: center; flex-wrap: wrap; margin-bottom: 15px;">
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <label style="font-weight: 600; color: #333;">APK 파일:</label>
+                        <input type="file" id="apk-file" name="file" accept=".apk" required style="padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                    </div>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <label style="font-weight: 600; color: #333;">코멘트:</label>
+                        <input type="text" id="apk-comment" name="comment" placeholder="업로드 코멘트를 입력하세요" required style="width: 300px; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                    </div>
+                    <button type="submit" style="background: linear-gradient(45deg, #2196F3, #1976D2); color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-weight: 500;">APK 업로드</button>
+                </div>
+            </form>
+            <div id="apk-upload-result"></div>
+        </div>
+
+        <div>
+            <h3 style="color: #333; margin-bottom: 15px;">APK 목록</h3>
+            <div id="apk-list" style="margin-top: 10px;"></div>
+        </div>
     </div>
     
     <div id="cards-container">
@@ -683,6 +716,9 @@ loadCards();
 // 유저 목록 로드
 loadUsers();
 
+// APK 목록 로드
+loadApkList();
+
 // 유저 목록 로드 함수
 async function loadUsers() {
     try {
@@ -700,6 +736,135 @@ async function loadUsers() {
         });
     } catch (error) {
         console.error('Failed to load users:', error);
+    }
+}
+
+// APK 업로드 폼 이벤트 리스너
+document.getElementById('apk-upload-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData();
+    const fileInput = document.getElementById('apk-file');
+    const commentInput = document.getElementById('apk-comment');
+    
+    if (fileInput.files.length === 0) {
+        document.getElementById('apk-upload-result').innerHTML = '<div style="background: #ffebee; color: #c62828; padding: 10px; border-radius: 4px; border: 1px solid #ef5350;">APK 파일을 선택해주세요.</div>';
+        return;
+    }
+    
+    formData.append('file', fileInput.files[0]);
+    formData.append('comment', commentInput.value);
+    
+    try {
+        const response = await fetch('/dev-tools/apk/upload', {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            document.getElementById('apk-upload-result').innerHTML = \`<div style="background: #e8f5e8; color: #2e7d32; padding: 10px; border-radius: 4px; border: 1px solid #4caf50;">✅ APK 업로드 성공: \${result.originalName}</div>\`;
+            fileInput.value = '';
+            commentInput.value = '';
+            loadApkList();
+        } else {
+            const error = await response.json();
+            document.getElementById('apk-upload-result').innerHTML = \`<div style="background: #ffebee; color: #c62828; padding: 10px; border-radius: 4px; border: 1px solid #ef5350;">❌ APK 업로드 실패: \${error.message}</div>\`;
+        }
+    } catch (error) {
+        console.error('APK upload failed:', error);
+        document.getElementById('apk-upload-result').innerHTML = '<div style="background: #ffebee; color: #c62828; padding: 10px; border-radius: 4px; border: 1px solid #ef5350;">APK 업로드 중 오류가 발생했습니다.</div>';
+    }
+});
+
+// APK 목록 로드
+async function loadApkList() {
+    try {
+        const response = await fetch('/dev-tools/apk/list');
+        const apks = await response.json();
+        
+        const apkListDiv = document.getElementById('apk-list');
+        
+        if (apks.length === 0) {
+            apkListDiv.innerHTML = '<div style="text-align: center; color: #666; padding: 20px;">업로드된 APK가 없습니다.</div>';
+            return;
+        }
+        
+        let html = '<div style="display: grid; gap: 15px;">';
+        apks.forEach(apk => {
+            const uploadDate = new Date(apk.uploadDate).toLocaleString('ko-KR');
+            const fileSize = (apk.size / (1024 * 1024)).toFixed(2);
+            
+            html += \`
+                <div style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 15px; background: #fafafa;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <h4 style="margin: 0; color: #333;">\${apk.originalName}</h4>
+                        <div style="display: flex; gap: 10px;">
+                            <button onclick="downloadApk('\${apk.id}')" style="background: #4CAF50; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">다운로드</button>
+                            <button onclick="deleteApk('\${apk.id}')" style="background: #f44336; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">삭제</button>
+                        </div>
+                    </div>
+                    <div style="color: #666; font-size: 14px;">
+                        <div><strong>코멘트:</strong> \${apk.comment}</div>
+                        <div><strong>업로드 날짜:</strong> \${uploadDate}</div>
+                        <div><strong>파일 크기:</strong> \${fileSize} MB</div>
+                    </div>
+                </div>
+            \`;
+        });
+        html += '</div>';
+        
+        apkListDiv.innerHTML = html;
+    } catch (error) {
+        console.error('Failed to load APK list:', error);
+        document.getElementById('apk-list').innerHTML = '<div style="color: #f44336;">APK 목록을 불러오는데 실패했습니다.</div>';
+    }
+}
+
+// APK 다운로드
+async function downloadApk(apkId) {
+    try {
+        const response = await fetch(\`/dev-tools/apk/download/\${apkId}\`);
+        
+        if (response.ok) {
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = response.headers.get('content-disposition')?.split('filename=')[1]?.replace(/"/g, '') || 'app.apk';
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+        } else {
+            alert('APK 다운로드에 실패했습니다.');
+        }
+    } catch (error) {
+        console.error('APK download failed:', error);
+        alert('APK 다운로드 중 오류가 발생했습니다.');
+    }
+}
+
+// APK 삭제
+async function deleteApk(apkId) {
+    if (!confirm('정말로 이 APK를 삭제하시겠습니까?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(\`/dev-tools/apk/delete/\${apkId}\`, {
+            method: 'DELETE'
+        });
+        
+        if (response.ok) {
+            loadApkList();
+        } else {
+            const error = await response.json();
+            alert(\`APK 삭제 실패: \${error.message}\`);
+        }
+    } catch (error) {
+        console.error('APK delete failed:', error);
+        alert('APK 삭제 중 오류가 발생했습니다.');
     }
 }
 </script>
@@ -728,5 +893,36 @@ async function loadUsers() {
     async updateCard(@Param('cardId') cardId: string, @Body() updateData: CardUpdateDto) {
         const success = await this.devToolsService.updateCard(cardId, updateData);
         return { success, message: success ? 'Card updated successfully' : 'Failed to update card' };
+    }
+
+    // APK 관리 엔드포인트들
+    @Post('apk/upload')
+    @UseInterceptors(FileInterceptor('file'))
+    async uploadApk(@UploadedFile() file: Express.Multer.File, @Body() uploadDto: ApkUploadDto) {
+        const result = await this.apkService.uploadApk(file, uploadDto.comment);
+        return result;
+    }
+
+    @Get('apk/list')
+    getApkList() {
+        return this.apkService.getAllApks();
+    }
+
+    @Get('apk/download/:apkId')
+    async downloadApk(@Param('apkId') apkId: string, @Res() res: Response) {
+        try {
+            const result = await this.apkService.downloadApk(apkId);
+            res.setHeader('Content-Type', 'application/vnd.android.package-archive');
+            res.setHeader('Content-Disposition', `attachment; filename="${result.originalName}"`);
+            res.send(result.buffer);
+        } catch (error) {
+            res.status(404).json({ message: 'APK 파일을 찾을 수 없습니다.' });
+        }
+    }
+
+    @Delete('apk/delete/:apkId')
+    async deleteApk(@Param('apkId') apkId: string) {
+        await this.apkService.deleteApk(apkId);
+        return { success: true, message: 'APK가 삭제되었습니다.' };
     }
 } 

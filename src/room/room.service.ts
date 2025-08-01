@@ -15,7 +15,7 @@ import { UserService } from '../user/user.service';
 import { PaytableService } from './paytable.service';
 import { HandEvaluatorService } from './hand-evaluator.service';
 import { SpecialCardManagerService } from './special-card-manager.service';
-import { CardType, PokerHandResult } from './poker-types';
+import { CardType, PokerHandResult, PokerHand } from './poker-types';
 
 @Injectable()
 export class RoomService {
@@ -130,6 +130,9 @@ export class RoomService {
   // === [5] 유저별 게임 참여 상태 관리 ===
   private userGameStatusMap: Map<string, Map<string, 'active' | 'inactive' | 'afk'>> = new Map(); // roomId -> userId -> status
 
+  // === [6] 유저별 게임 상태 관리 ===
+  private userStatusMap: Map<string, Map<string, 'waiting' | 'playing'>> = new Map(); // roomId -> userId -> status
+
   // 유저별 실제 시드머니 납부 금액 저장
   private readonly userSeedMoneyPayments: Map<string, Map<string, {
     silverPayment: number;  // 실제 납부한 실버칩
@@ -237,6 +240,10 @@ export class RoomService {
       await client.hset(roomKey, 'players', newPlayers);
       await client.sadd(usersKey, userId);
       await this.initializeUserChips(roomId, userId);
+
+      // 유저 상태를 waiting으로 초기화
+      this.setUserStatus(roomId, userId, 'waiting');
+
       return { ...room, players: newPlayers };
     } catch (error: unknown) {
       if (error instanceof HttpException) throw error;
@@ -303,6 +310,13 @@ export class RoomService {
       const currentPlayers = parseInt(room.players || '1', 10);
       const newPlayers = currentPlayers - 1;
       await client.srem(usersKey, userId);
+
+      // 유저 상태 정리
+      const userStatuses = this.userStatusMap.get(roomId);
+      if (userStatuses) {
+        userStatuses.delete(userId);
+      }
+
       if (newPlayers <= 0) {
         await this.deleteRoom(roomId);
         return { deleted: true };
@@ -492,10 +506,27 @@ export class RoomService {
       );
     }
     this.logger.log(`[startGame] userIds 추출 결과: ${userIds.join(',')}`);
-    // userId별로 덱 셔플
+
+    // 라운드에 따라 참여할 유저 결정
+    const prevState = this.gameStates.get(roomId);
+    const round = prevState?.round ?? 1;
+
+    let participatingUserIds: string[];
+
+    if (round === 1) {
+      // 1라운드: 모든 유저 참여
+      participatingUserIds = [...userIds];
+      this.logger.log(`[startGame] 1라운드 - 모든 유저 참여: ${participatingUserIds.join(',')}`);
+    } else {
+      // 2라운드 이상: playing 상태인 유저만 참여
+      participatingUserIds = userIds.filter(uid => this.isUserPlaying(roomId, uid));
+      this.logger.log(`[startGame] ${round}라운드 - playing 상태 유저만 참여: ${participatingUserIds.join(',')}`);
+    }
+
+    // userId별로 덱 셔플 (참여하는 유저만)
     const decks = new Map<string, Card[]>();
     const hands = new Map<string, Card[]>();
-    for (const userId of userIds) {
+    for (const userId of participatingUserIds) {
       let userDeck: Card[];
 
       // 수정된 덱이 있는지 확인
@@ -518,8 +549,6 @@ export class RoomService {
     this.logger.log(
       `[startGame] hands 전체 상태: ${JSON.stringify(Array.from(hands.entries()))}`,
     );
-    const prevState = this.gameStates.get(roomId);
-    const round = prevState?.round ?? 1;
     this.gameStates.set(roomId, {
       decks,
       hands,
@@ -533,6 +562,16 @@ export class RoomService {
     this.logger.log(
       `[startGame] === 게임 상태 저장 완료: roomId=${roomId}, round=${round} ===`,
     );
+
+    // 라운드에 따라 유저 상태 변경
+    if (round === 1) {
+      // 1라운드: 모든 유저를 playing으로 변경
+      this.setAllUsersToPlaying(roomId, userIds);
+      this.logger.log(`[startGame] 1라운드 - 모든 유저를 playing 상태로 변경`);
+    } else {
+      // 2라운드 이상: playing 상태인 유저만 유지, 나머지는 waiting 유지
+      this.logger.log(`[startGame] ${round}라운드 - playing 상태 유저만 게임 참여, 나머지는 waiting 상태 유지`);
+    }
     // 1라운드 시작 시 사용된 조커카드 추적 초기화 및 paytable 데이터 초기화
     if (round === 1) {
       this.usedJokerCardIdsMap.delete(roomId);
@@ -719,9 +758,23 @@ export class RoomService {
   canRevealHandPlay(roomId: string, userIds: string[]): boolean {
     const handMap = this.handPlayMap.get(roomId);
     if (!handMap) return false;
-    const allReady = userIds.every((uid) => handMap.has(uid));
+
+    // playing 상태인 유저들만 필터링
+    const playingUsers = userIds.filter(uid => this.isUserPlaying(roomId, uid));
+
+    // playing 상태인 유저가 없으면 false
+    if (playingUsers.length === 0) {
+      this.logger.log(
+        `[canRevealHandPlay] roomId=${roomId}, no playing users, allReady=false`,
+      );
+      return false;
+    }
+
+    // playing 상태인 유저들이 모두 handPlay를 완료했는지 확인
+    const allReady = playingUsers.every((uid) => handMap.has(uid));
+
     this.logger.log(
-      `[canRevealHandPlay] roomId=${roomId}, allReady=${allReady}, users=${userIds.join(',')}, submitted=${handMap ? Array.from(handMap.keys()).join(',') : ''}`,
+      `[canRevealHandPlay] roomId=${roomId}, allReady=${allReady}, playingUsers=${playingUsers.join(',')}, submitted=${handMap ? Array.from(handMap.keys()).join(',') : ''}`,
     );
     return allReady;
   }
@@ -750,9 +803,23 @@ export class RoomService {
   canStartNextRound(roomId: string, userIds: string[]): boolean {
     const readySet = this.nextRoundReadyMap.get(roomId);
     if (!readySet) return false;
-    const allReady = userIds.every((uid) => readySet.has(uid));
+
+    // playing 상태인 유저들만 필터링
+    const playingUsers = userIds.filter(uid => this.isUserPlaying(roomId, uid));
+
+    // playing 상태인 유저가 없으면 false
+    if (playingUsers.length === 0) {
+      this.logger.log(
+        `[canStartNextRound] roomId=${roomId}, no playing users, allReady=false`,
+      );
+      return false;
+    }
+
+    // playing 상태인 유저들이 모두 nextRound 준비를 완료했는지 확인
+    const allReady = playingUsers.every((uid) => readySet.has(uid));
+
     this.logger.log(
-      `[canStartNextRound] roomId=${roomId}, allReady=${allReady}, users=${userIds.join(',')}, ready=${readySet ? Array.from(readySet).join(',') : ''}`,
+      `[canStartNextRound] roomId=${roomId}, allReady=${allReady}, playingUsers=${playingUsers.join(',')}, ready=${readySet ? Array.from(readySet).join(',') : ''}`,
     );
     return allReady;
   }
@@ -987,6 +1054,7 @@ export class RoomService {
         const cardData = this.specialCardManagerService.getCardById(cardId);
         if (cardData && cardData.pokerHand && cardData.enhanceChips !== undefined && cardData.enhanceMul !== undefined) {
           // paytable에 행성 카드 효과 적용
+          this.paytableService.enhanceLevel(userId, cardData.pokerHand);
           this.paytableService.enhanceChips(userId, cardData.pokerHand, cardData.enhanceChips);
           this.paytableService.enhanceMultiplier(userId, cardData.pokerHand, cardData.enhanceMul);
 
@@ -1392,7 +1460,7 @@ export class RoomService {
   /**
    * 라운드 종료 처리를 합니다.
    */
-  async handleRoundEnd(roomId: string) {
+  async handleRoundEnd(roomId: string, userIds: string[]) {
     const round = this.getRound(roomId) + 1;
 
     const baseSilverSeedChip = this.getBaseSilverSeedChip(roomId);
@@ -1410,6 +1478,10 @@ export class RoomService {
         currentSilverSeedChip: baseSilverSeedChip,
         currentGoldSeedChip: baseGoldSeedChip,
       });
+
+      // 5라운드가 끝났으면 모든 유저 상태를 waiting으로 변경
+      this.setAllUsersToWaiting(roomId, userIds);
+      this.logger.log(`[processHandPlayResult] 5라운드 완료 - 모든 유저 상태를 waiting으로 변경: roomId=${roomId}`);
 
       // 모든 게임 관련 Map 초기화
       this.handPlayMap.delete(roomId);
@@ -1977,7 +2049,7 @@ export class RoomService {
         ownedCards[uid] = this.getUserOwnedCards(roomId, uid);
       }
 
-      // 모든 유저의 점수 계산
+      // playing 상태인 유저들의 점수 계산
       const userScores: Record<string, number> = {};
       const userRandomValues: Record<string, number> = {};
 
@@ -2262,7 +2334,8 @@ export class RoomService {
       // phase를 shop으로 변경
       this.setRoomPhase(roomId, 'shop');
 
-      await this.handleRoundEnd(roomId);
+      await this.handleRoundEnd(roomId, userIds);
+
 
       return {
         roundResult,
@@ -2281,7 +2354,7 @@ export class RoomService {
   async createStartGameInfo(
     roomId: string,
     userId: string,
-    allUserInfos: any[]
+    userIds: string[]
   ): Promise<{
     round: number;
     totalDeckCards: number; // 내 덱의 총 카드 수
@@ -2303,13 +2376,16 @@ export class RoomService {
       totalDeckCards = (gameState.decks.get(userId)?.length || 0) + 8; // 덱 카드 + 핸드 카드 8장
     }
 
-    const userIds = allUserInfos.map(user => user.userId);
+    // playing 상태인 유저들만 필터링
+    const playingUserIds = userIds.filter(uid => this.isUserPlaying(roomId, uid));
+
     const silverTableChip = silverSeedChip * userIds.length;
     const goldTableChip = goldSeedChip * userIds.length;
 
     const userInfo: Record<string, any> = {};
 
-    for (const uid of userIds) {
+    // playing 상태인 유저들만 userInfo에 포함
+    for (const uid of playingUserIds) {
       const userChips = await this.getUserChips(roomId, uid);
 
       // 시드머니 납부 정보 가져오기
@@ -2327,7 +2403,6 @@ export class RoomService {
           goldChipNow: userChips.goldChips
         };
       } else {
-        // 상대방 정보 (카드 제외)
         userInfo[uid] = {
           userFunds: userChips.funds,
           silverChipGain: -seedPayment.silverPayment,
@@ -2349,74 +2424,114 @@ export class RoomService {
     };
   }
 
-  // === 유저별 게임 참여 상태 관리 메서드들 ===
+
+  // === 유저별 게임 상태 관리 메서드들 ===
 
   /**
-   * 유저의 게임 참여 상태를 설정
+   * 유저의 게임 상태를 설정합니다.
    */
-  setUserGameStatus(roomId: string, userId: string, status: 'active' | 'inactive' | 'afk'): void {
-    if (!this.userGameStatusMap.has(roomId)) {
-      this.userGameStatusMap.set(roomId, new Map());
-    }
-    this.userGameStatusMap.get(roomId)!.set(userId, status);
-    this.logger.log(`[setUserGameStatus] roomId=${roomId}, userId=${userId}, status=${status}`);
+  setUserStatus(roomId: string, userId: string, status: 'waiting' | 'playing'): void {
+    const userStatuses = this.getOrCreateMap(this.userStatusMap, roomId, () => new Map());
+    userStatuses.set(userId, status);
+    this.logger.log(`[setUserStatus] userId=${userId}, roomId=${roomId}, status=${status}`);
   }
 
   /**
-   * 유저의 게임 참여 상태를 가져오기
+   * 유저의 게임 상태를 가져옵니다.
    */
-  getUserGameStatus(roomId: string, userId: string): 'active' | 'inactive' | 'afk' | undefined {
-    const statusMap = this.userGameStatusMap.get(roomId);
-    return statusMap?.get(userId);
+  getUserStatus(roomId: string, userId: string): 'waiting' | 'playing' | undefined {
+    const userStatuses = this.userStatusMap.get(roomId);
+    return userStatuses?.get(userId);
   }
 
   /**
-   * 방의 모든 유저 게임 참여 상태 가져오기
+   * 모든 유저의 게임 상태를 가져옵니다.
    */
-  getAllUserGameStatuses(roomId: string): Map<string, 'active' | 'inactive' | 'afk'> {
-    return this.userGameStatusMap.get(roomId) || new Map();
+  getAllUserStatuses(roomId: string): Map<string, 'waiting' | 'playing'> {
+    return this.userStatusMap.get(roomId) || new Map();
   }
 
   /**
-   * 유저가 게임에 활성적으로 참여 중인지 확인
+   * 유저가 playing 상태인지 확인합니다.
    */
-  isUserActive(roomId: string, userId: string): boolean {
-    const status = this.getUserGameStatus(roomId, userId);
-    return status === 'active';
+  isUserPlaying(roomId: string, userId: string): boolean {
+    return this.getUserStatus(roomId, userId) === 'playing';
   }
 
   /**
-   * 방의 모든 유저가 활성 상태인지 확인
+   * 유저가 waiting 상태인지 확인합니다.
    */
-  areAllUsersActive(roomId: string, userIds: string[]): boolean {
-    return userIds.every(userId => this.isUserActive(roomId, userId));
+  isUserWaiting(roomId: string, userId: string): boolean {
+    return this.getUserStatus(roomId, userId) === 'waiting';
   }
 
   /**
-   * 유저를 활성 상태로 설정 (게임 참여 시작)
+   * 방의 모든 유저 상태를 waiting으로 설정합니다.
    */
-  setUserActive(roomId: string, userId: string): void {
-    this.setUserGameStatus(roomId, userId, 'active');
+  setAllUsersToWaiting(roomId: string, userIds: string[]): void {
+    const userStatuses = this.getOrCreateMap(this.userStatusMap, roomId, () => new Map());
+    userIds.forEach(userId => {
+      userStatuses.set(userId, 'waiting');
+    });
+    this.logger.log(`[setAllUsersToWaiting] roomId=${roomId}, userIds=${userIds.join(',')}`);
   }
 
   /**
-   * 유저를 비활성 상태로 설정 (게임 참여 중단)
+   * 방의 모든 유저 상태를 playing으로 설정합니다.
    */
-  setUserInactive(roomId: string, userId: string): void {
-    this.setUserGameStatus(roomId, userId, 'inactive');
+  setAllUsersToPlaying(roomId: string, userIds: string[]): void {
+    const userStatuses = this.getOrCreateMap(this.userStatusMap, roomId, () => new Map());
+    userIds.forEach(userId => {
+      userStatuses.set(userId, 'playing');
+    });
+    this.logger.log(`[setAllUsersToPlaying] roomId=${roomId}, userIds=${userIds.join(',')}`);
   }
 
   /**
-   * 유저를 AFK 상태로 설정 (자리 비움)
-   */
-  setUserAfk(roomId: string, userId: string): void {
-    this.setUserGameStatus(roomId, userId, 'afk');
+ * 유저의 모든 족보 레벨 정보를 가져옵니다.
+ */
+  getUserPaytableLevels(roomId: string, userId: string): Record<string, number> {
+    const levels: Record<string, number> = {};
+
+    // 모든 족보에 대해 레벨 정보 가져오기
+    Object.values(PokerHand).forEach(hand => {
+      if (hand !== PokerHand.None) {
+        levels[hand as string] = this.paytableService.getLevel(userId, hand as PokerHand);
+      }
+    });
+
+    return levels;
   }
 
   /**
-   * 방의 게임 참여 상태 초기화
+   * 유저의 모든 족보 베이스 칩 정보를 가져옵니다.
    */
-  resetUserGameStatuses(roomId: string): void {
-    this.userGameStatusMap.delete(roomId);
+  getUserPaytableBaseChips(roomId: string, userId: string): Record<string, number> {
+    const baseChips: Record<string, number> = {};
+
+    // 모든 족보에 대해 베이스 칩 정보 가져오기
+    Object.values(PokerHand).forEach(hand => {
+      if (hand !== PokerHand.None) {
+        baseChips[hand as string] = this.paytableService.getChips(userId, hand as PokerHand);
+      }
+    });
+
+    return baseChips;
+  }
+
+  /**
+   * 유저의 모든 족보 배수 정보를 가져옵니다.
+   */
+  getUserPaytableMultipliers(roomId: string, userId: string): Record<string, number> {
+    const multipliers: Record<string, number> = {};
+
+    // 모든 족보에 대해 배수 정보 가져오기
+    Object.values(PokerHand).forEach(hand => {
+      if (hand !== PokerHand.None) {
+        multipliers[hand as string] = this.paytableService.getMultiplier(userId, hand as PokerHand);
+      }
+    });
+
+    return multipliers;
   }
 }

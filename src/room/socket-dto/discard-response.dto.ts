@@ -1,15 +1,25 @@
 import { BaseSocketDto } from './base-socket.dto';
-import { IsInt, IsArray } from 'class-validator';
+import { IsInt, IsArray, IsString, IsOptional } from 'class-validator';
 import { Card } from '../deck.util';
 
 export class DiscardResponseDto extends BaseSocketDto {
     override responseEventName = 'DiscardResponse';
 
-    @IsArray()
-    newHand: Card[];
+    @IsOptional()
+    @IsString()
+    userId?: string;
 
+    @IsOptional()
+    @IsInt()
+    discardCount?: number;
+
+    @IsOptional()
     @IsArray()
-    discarded: Card[];
+    newHand?: Card[];
+
+    @IsOptional()
+    @IsArray()
+    discarded?: Card[];
 
     @IsInt()
     remainingDiscards: number;

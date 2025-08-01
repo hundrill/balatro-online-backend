@@ -12,25 +12,11 @@ export class RedisService implements OnModuleDestroy {
       retryDelayOnFailover: 100,
       enableReadyCheck: false,
       lazyConnect: true,
-      connectTimeout: 10000,
-      commandTimeout: 5000,
     };
 
     // Railway에서는 REDIS_URL을 사용
     if (process.env.REDIS_URL) {
-      try {
-        this.client = new Redis(process.env.REDIS_URL, redisOptions);
-        this.logger.log('Redis client created with REDIS_URL');
-      } catch (error) {
-        this.logger.error('Failed to create Redis client with REDIS_URL', error);
-        // Redis 연결 실패 시 더미 클라이언트 생성
-        this.client = new Redis({
-          host: 'localhost',
-          port: 6379,
-          lazyConnect: true,
-          maxRetriesPerRequest: 0,
-        });
-      }
+      this.client = new Redis(process.env.REDIS_URL, redisOptions);
     } else {
       // 로컬 개발용
       redisOptions = {
@@ -40,8 +26,6 @@ export class RedisService implements OnModuleDestroy {
         retryDelayOnFailover: 100,
         enableReadyCheck: false,
         lazyConnect: true,
-        connectTimeout: 10000,
-        commandTimeout: 5000,
       };
 
       if (process.env.REDIS_PASSWORD) {

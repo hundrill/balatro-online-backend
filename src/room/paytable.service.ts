@@ -33,7 +33,6 @@ export class PaytableService {
     private readonly userCounts: Map<string, Map<PokerHand, number>> = new Map();
     private readonly userBaseChips: Map<string, Map<PokerHand, number>> = new Map(); // 유저별 baseChips
     private readonly userMultipliers: Map<string, Map<PokerHand, number>> = new Map(); // 유저별 multipliers
-    private readonly userTotalBonusChips: Map<string, number> = new Map();
 
     // 유저별 데이터 초기화
     private initializeUserData(userId: string): void {
@@ -42,7 +41,6 @@ export class PaytableService {
             this.userCounts.set(userId, new Map());
             this.userBaseChips.set(userId, new Map());
             this.userMultipliers.set(userId, new Map());
-            this.userTotalBonusChips.set(userId, 0);
 
             // 모든 족보에 대해 기본값 설정
             Object.values(PokerHand).forEach(hand => {
@@ -70,8 +68,7 @@ export class PaytableService {
     getChips(userId: string, hand: PokerHand): number {
         this.initializeUserData(userId);
         const baseChip = this.userBaseChips.get(userId)!.get(hand) || 0;
-        const bonusChips = this.userTotalBonusChips.get(userId) || 0;
-        return baseChip + bonusChips;
+        return baseChip;
     }
 
     getMultiplier(userId: string, hand: PokerHand): number {
@@ -110,6 +107,5 @@ export class PaytableService {
         this.userCounts.clear();
         this.userBaseChips.clear();
         this.userMultipliers.clear();
-        this.userTotalBonusChips.clear();
     }
 } 
