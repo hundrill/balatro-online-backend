@@ -823,11 +823,43 @@ async function loadApkList() {
 
 // APK 다운로드
 async function downloadApk(apkId) {
+    const downloadButton = event.target;
+    const originalText = downloadButton.textContent;
+    
     try {
+        // 다운로드 버튼 상태 변경
+        downloadButton.textContent = '다운로드 중...';
+        downloadButton.disabled = true;
+        
         const response = await fetch(\`/dev-tools/apk/download/\${apkId}\`);
         
         if (response.ok) {
-            const blob = await response.blob();
+            // Content-Length 헤더에서 파일 크기 확인
+            const contentLength = response.headers.get('content-length');
+            const totalSize = contentLength ? parseInt(contentLength) : 0;
+            
+            // ReadableStream을 사용하여 진행률 추적
+            const reader = response.body.getReader();
+            const chunks = [];
+            let receivedLength = 0;
+            
+            while (true) {
+                const { done, value } = await reader.read();
+                
+                if (done) break;
+                
+                chunks.push(value);
+                receivedLength += value.length;
+                
+                // 진행률 업데이트 (1MB마다)
+                if (totalSize > 0 && receivedLength % (1024 * 1024) < value.length) {
+                    const progress = Math.round((receivedLength / totalSize) * 100);
+                    downloadButton.textContent = \`다운로드 중... \${progress}%\`;
+                }
+            }
+            
+            // Blob 생성 및 다운로드
+            const blob = new Blob(chunks, { type: 'application/vnd.android.package-archive' });
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
@@ -836,12 +868,25 @@ async function downloadApk(apkId) {
             a.click();
             window.URL.revokeObjectURL(url);
             document.body.removeChild(a);
+            
+            // 성공 메시지
+            downloadButton.textContent = '다운로드 완료!';
+            setTimeout(() => {
+                downloadButton.textContent = originalText;
+                downloadButton.disabled = false;
+            }, 2000);
+            
         } else {
-            alert('APK 다운로드에 실패했습니다.');
+            const errorData = await response.json().catch(() => ({}));
+            alert(\`APK 다운로드에 실패했습니다: \${errorData.message || '알 수 없는 오류'}\`);
+            downloadButton.textContent = originalText;
+            downloadButton.disabled = false;
         }
     } catch (error) {
         console.error('APK download failed:', error);
         alert('APK 다운로드 중 오류가 발생했습니다.');
+        downloadButton.textContent = originalText;
+        downloadButton.disabled = false;
     }
 }
 
@@ -912,11 +957,29 @@ async function deleteApk(apkId) {
     async downloadApk(@Param('apkId') apkId: string, @Res() res: Response) {
         try {
             const result = await this.apkService.downloadApk(apkId);
+
+            // 응답 헤더 설정
             res.setHeader('Content-Type', 'application/vnd.android.package-archive');
             res.setHeader('Content-Disposition', `attachment; filename="${result.originalName}"`);
-            res.send(result.buffer);
+            res.setHeader('Content-Length', result.size.toString());
+            res.setHeader('Cache-Control', 'no-cache');
+            res.setHeader('Accept-Ranges', 'bytes');
+
+            // 스트림으로 파일 전송
+            result.stream.pipe(res);
+
+            // 스트림 에러 처리
+            result.stream.on('error', (error) => {
+                console.error('Stream error:', error);
+                if (!res.headersSent) {
+                    res.status(500).json({ message: '파일 전송 중 오류가 발생했습니다.' });
+                }
+            });
+
         } catch (error) {
-            res.status(404).json({ message: 'APK 파일을 찾을 수 없습니다.' });
+            if (!res.headersSent) {
+                res.status(404).json({ message: 'APK 파일을 찾을 수 없습니다.' });
+            }
         }
     }
 

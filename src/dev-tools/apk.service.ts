@@ -1,9 +1,10 @@
 import { Injectable, Logger, BadRequestException, NotFoundException } from '@nestjs/common';
-import { writeFile, readFile, unlink, mkdir } from 'fs/promises';
+import { writeFile, readFile, unlink, mkdir, stat } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join } from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { ApkInfoDto } from './dto/apk.dto';
+import { createReadStream as createReadStreamSync } from 'fs';
 
 @Injectable()
 export class ApkService {
@@ -86,7 +87,13 @@ export class ApkService {
         }
     }
 
-    async downloadApk(apkId: string): Promise<{ buffer: Buffer; filename: string; originalName: string }> {
+    async downloadApk(apkId: string): Promise<{
+        stream: NodeJS.ReadableStream;
+        filename: string;
+        originalName: string;
+        size: number;
+        filepath: string;
+    }> {
         const apkInfo = this.apkList.find(apk => apk.id === apkId);
         if (!apkInfo) {
             throw new NotFoundException('APK 파일을 찾을 수 없습니다.');
@@ -95,11 +102,21 @@ export class ApkService {
         const filepath = join(this.uploadDir, apkInfo.filename);
 
         try {
-            const buffer = await readFile(filepath);
+            // 파일 존재 여부 확인
+            if (!existsSync(filepath)) {
+                throw new NotFoundException('APK 파일이 존재하지 않습니다.');
+            }
+
+            // 파일 크기 확인
+            const stats = await stat(filepath);
+            const stream = createReadStreamSync(filepath);
+
             return {
-                buffer,
+                stream,
                 filename: apkInfo.filename,
-                originalName: apkInfo.originalName
+                originalName: apkInfo.originalName,
+                size: stats.size,
+                filepath
             };
         } catch (error) {
             this.logger.error(`APK 다운로드 실패: ${error.message}`);
