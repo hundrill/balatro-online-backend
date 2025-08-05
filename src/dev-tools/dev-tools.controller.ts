@@ -3,7 +3,7 @@ import { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { DevToolsService } from './dev-tools.service';
 import { ApkService } from './apk.service';
-import { FeedbackService, CreateFeedbackDto } from './feedback.service';
+import { FeedbackService, CreateFeedbackDto, UpdateFeedbackDto } from './feedback.service';
 import { CardUpdateDto, ChipRechargeDto } from './dto/card-update.dto';
 import { ApkUploadDto } from './dto/apk.dto';
 
@@ -1279,11 +1279,19 @@ function renderFeedbacks(feedbacks) {
                         <div style="color: #666; font-size: 12px;">\${createdAt}</div>
                     </div>
                     <div style="display: flex; gap: 10px;">
+                        <button onclick="showEditForm('\${feedback.id}', '\${feedback.content.replace(/'/g, "\\'")}')" style="background: #FF9800; color: white; padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">편집</button>
                         <button onclick="showReplyForm('\${feedback.id}')" style="background: #2196F3; color: white; padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">답글</button>
                         <button onclick="deleteFeedback('\${feedback.id}')" style="background: #f44336; color: white; padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">삭제</button>
                     </div>
                 </div>
-                <div style="background: white; padding: 10px; border-radius: 4px; border: 1px solid #ddd; margin-bottom: 10px; white-space: pre-wrap;">\${feedback.content}</div>
+                <div id="feedback-content-\${feedback.id}" style="background: white; padding: 10px; border-radius: 4px; border: 1px solid #ddd; margin-bottom: 10px; white-space: pre-wrap;">\${feedback.content}</div>
+                <div id="edit-form-\${feedback.id}" style="display: none; margin-bottom: 10px;">
+                    <textarea id="edit-content-\${feedback.id}" placeholder="수정할 내용을 입력하세요..." style="width: 100%; height: 80px; padding: 8px; border: 1px solid #ddd; border-radius: 4px; resize: vertical; font-size: 12px;"></textarea>
+                    <div style="display: flex; gap: 10px; margin-top: 10px;">
+                        <button onclick="updateFeedback('\${feedback.id}')" style="background: #4CAF50; color: white; padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">수정</button>
+                        <button onclick="hideEditForm('\${feedback.id}')" style="background: #666; color: white; padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">취소</button>
+                    </div>
+                </div>
                 <div id="reply-form-\${feedback.id}" style="display: none; margin-top: 10px;">
                     <textarea id="reply-content-\${feedback.id}" placeholder="답글을 입력하세요..." style="width: 100%; height: 60px; padding: 6px; border: 1px solid #ddd; border-radius: 4px; resize: vertical; font-size: 12px;"></textarea>
                     <div style="display: flex; gap: 10px; margin-top: 10px;">
@@ -1303,9 +1311,17 @@ function renderFeedbacks(feedbacks) {
                             <div style="flex: 1;">
                                 <div style="color: #666; font-size: 11px;">\${replyCreatedAt}</div>
                             </div>
+                            <button onclick="showEditForm('\${reply.id}', '\${reply.content.replace(/'/g, "\\'")}')" style="background: #FF9800; color: white; padding: 4px 8px; border: none; border-radius: 4px; cursor: pointer; font-size: 11px;">편집</button>
                             <button onclick="deleteFeedback('\${reply.id}')" style="background: #f44336; color: white; padding: 4px 8px; border: none; border-radius: 4px; cursor: pointer; font-size: 11px;">삭제</button>
                         </div>
-                        <div style="background: white; padding: 8px; border-radius: 4px; border: 1px solid #ddd; font-size: 13px; white-space: pre-wrap;">\${reply.content}</div>
+                        <div id="feedback-content-\${reply.id}" style="background: white; padding: 8px; border-radius: 4px; border: 1px solid #ddd; font-size: 13px; white-space: pre-wrap;">\${reply.content}</div>
+                        <div id="edit-form-\${reply.id}" style="display: none; margin-top: 8px;">
+                            <textarea id="edit-content-\${reply.id}" placeholder="수정할 내용을 입력하세요..." style="width: 100%; height: 60px; padding: 6px; border: 1px solid #ddd; border-radius: 4px; resize: vertical; font-size: 11px;"></textarea>
+                            <div style="display: flex; gap: 8px; margin-top: 8px;">
+                                <button onclick="updateFeedback('\${reply.id}')" style="background: #4CAF50; color: white; padding: 4px 8px; border: none; border-radius: 4px; cursor: pointer; font-size: 11px;">수정</button>
+                                <button onclick="hideEditForm('\${reply.id}')" style="background: #666; color: white; padding: 4px 8px; border: none; border-radius: 4px; cursor: pointer; font-size: 11px;">취소</button>
+                            </div>
+                        </div>
                     </div>
                 \`;
             });
@@ -1353,6 +1369,15 @@ async function addFeedback() {
     }
 }
 
+function showEditForm(feedbackId, currentContent) {
+    document.getElementById(\`edit-form-\${feedbackId}\`).style.display = 'block';
+    document.getElementById(\`edit-content-\${feedbackId}\`).value = currentContent;
+}
+
+function hideEditForm(feedbackId) {
+    document.getElementById(\`edit-form-\${feedbackId}\`).style.display = 'none';
+}
+
 function showReplyForm(feedbackId) {
     document.getElementById(\`reply-form-\${feedbackId}\`).style.display = 'block';
 }
@@ -1393,6 +1418,39 @@ async function addReply(parentId) {
     } catch (error) {
         console.error('Add reply failed:', error);
         alert('답글 등록 중 오류가 발생했습니다.');
+    }
+}
+
+async function updateFeedback(feedbackId) {
+    const content = document.getElementById(\`edit-content-\${feedbackId}\`).value.trim();
+    
+    if (!content) {
+        alert('내용을 입력해주세요.');
+        return;
+    }
+    
+    try {
+        const response = await fetch(\`/dev-tools/feedback/\${feedbackId}\`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                content: content
+            })
+        });
+        
+        if (response.ok) {
+            hideEditForm(feedbackId);
+            loadFeedbacks();
+            alert('피드백이 수정되었습니다.');
+        } else {
+            const error = await response.json();
+            alert('피드백 수정에 실패했습니다: ' + error.message);
+        }
+    } catch (error) {
+        console.error('Update feedback failed:', error);
+        alert('피드백 수정 중 오류가 발생했습니다.');
     }
 }
 
@@ -1555,6 +1613,11 @@ document.addEventListener('DOMContentLoaded', function() {
     @Post('feedback')
     async createFeedback(@Body() createDto: CreateFeedbackDto) {
         return this.feedbackService.createFeedback(createDto);
+    }
+
+    @Put('feedback/:id')
+    async updateFeedback(@Param('id') id: string, @Body() updateDto: UpdateFeedbackDto) {
+        return this.feedbackService.updateFeedback(id, updateDto);
     }
 
     @Delete('feedback/:id')

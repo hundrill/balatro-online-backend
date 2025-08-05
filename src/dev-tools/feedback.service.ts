@@ -6,6 +6,10 @@ export interface CreateFeedbackDto {
     parentId?: string;
 }
 
+export interface UpdateFeedbackDto {
+    content: string;
+}
+
 export interface FeedbackWithReplies {
     id: string;
     content: string;
@@ -85,6 +89,23 @@ export class FeedbackService {
             return { success: true };
         } catch (error) {
             this.logger.error('[Feedback] 피드백 삭제 실패:', error);
+            throw error;
+        }
+    }
+
+    async updateFeedback(id: string, data: UpdateFeedbackDto) {
+        try {
+            const feedback = await this.prisma.feedback.update({
+                where: { id },
+                data: {
+                    content: data.content,
+                },
+            });
+
+            this.logger.log(`[Feedback] 피드백 수정 완료: ${id}`);
+            return feedback;
+        } catch (error) {
+            this.logger.error('[Feedback] 피드백 수정 실패:', error);
             throw error;
         }
     }
