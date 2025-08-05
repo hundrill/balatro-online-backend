@@ -1,5 +1,13 @@
 import { BaseSocketDto } from './base-socket.dto';
-import { IsString, IsInt, IsArray, IsOptional } from 'class-validator';
+import { IsString, IsInt, IsArray, IsOptional, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
+import { SpecialCard } from '../special-card-manager.service';
+
+// 게임 설정값들을 위한 인터페이스
+export interface GameSettings {
+    // 버리기 남은 횟수에 따른 지급 funds 값 (단일 고정값)
+    discardRemainingFunds: number;
+}
 
 export class LoginResponseDto extends BaseSocketDto {
     override responseEventName = 'LoginResponse';
@@ -21,7 +29,12 @@ export class LoginResponseDto extends BaseSocketDto {
 
     @IsOptional()
     @IsArray()
-    specialCards?: any[];
+    specialCards?: SpecialCard[];
+
+    @IsOptional()
+    @ValidateNested()
+    @Type(() => Object)
+    gameSettings?: GameSettings;
 
     constructor(init?: Partial<LoginResponseDto>) {
         super();

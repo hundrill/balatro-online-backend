@@ -45,6 +45,8 @@ import { UseSpecialCardRequestDto } from './socket-dto/use-special-card-request.
 import { UseSpecialCardResponseDto } from './socket-dto/use-special-card-response.dto';
 import { SpecialCardManagerService } from './special-card-manager.service';
 import { isClientVersionSupported, MIN_CLIENT_VERSION, getVersionString } from '../common/constants/version.constants';
+import { DevToolsService } from '../dev-tools/dev-tools.service';
+import { GameSettingsService } from '../common/services/game-settings.service';
 
 interface RoomUserInfo {
   userId: string;
@@ -79,6 +81,8 @@ export class RoomGateway
     private readonly userService: UserService,
     private readonly authService: AuthService,
     private readonly specialCardManagerService: SpecialCardManagerService,
+    private readonly devToolsService: DevToolsService,
+    private readonly gameSettingsService: GameSettingsService,
   ) { }
 
   afterInit(server: any) {
@@ -1255,6 +1259,9 @@ export class RoomGateway
         this.logger.log(`[handleLogin] 첫 번째 카드 price 확인: ${activeSpecialCards[0].id} = ${activeSpecialCards[0].price}`);
       }
 
+      // 게임 설정 가져오기
+      const gameSettings = await this.gameSettingsService.getGameSettings();
+
       const res = new LoginResponseDto({
         success: true,
         code: 0,
@@ -1264,7 +1271,8 @@ export class RoomGateway
         silverChip: user.silverChip,
         goldChip: user.goldChip,
         createdAt: user.createdAt.toISOString(),
-        specialCards: activeSpecialCards
+        specialCards: activeSpecialCards,
+        gameSettings: gameSettings
       });
       this.emitUserResponse(client, res);
 

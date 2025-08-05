@@ -39,7 +39,6 @@ export interface SpecialCard {
     needCardCount?: number;
     isActive?: boolean;
     pokerHand?: PokerHand;
-
 }
 
 // 특수 카드 데이터 인터페이스 (내부용)

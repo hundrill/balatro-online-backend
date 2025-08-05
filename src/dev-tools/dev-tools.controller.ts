@@ -1,8 +1,9 @@
-import { Controller, Get, Put, Post, Param, Body, Res, UseInterceptors, UploadedFile, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Res, UseInterceptors, UploadedFile } from '@nestjs/common';
 import { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { DevToolsService } from './dev-tools.service';
 import { ApkService } from './apk.service';
+import { FeedbackService, CreateFeedbackDto } from './feedback.service';
 import { CardUpdateDto, ChipRechargeDto } from './dto/card-update.dto';
 import { ApkUploadDto } from './dto/apk.dto';
 
@@ -10,7 +11,8 @@ import { ApkUploadDto } from './dto/apk.dto';
 export class DevToolsController {
     constructor(
         private readonly devToolsService: DevToolsService,
-        private readonly apkService: ApkService
+        private readonly apkService: ApkService,
+        private readonly feedbackService: FeedbackService
     ) { }
 
     @Get()
@@ -306,6 +308,18 @@ export class DevToolsController {
         <h1>🎮 개발 도구</h1>
     </div>
     
+    <!-- Feedback Section -->
+    <div class="card-section">
+        <h2>💬 피드백</h2>
+        <div style="margin-bottom: 20px;">
+            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                <button onclick="addFeedback()" style="background: #4CAF50; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer;">피드백 작성</button>
+            </div>
+            <textarea id="feedback-content" placeholder="게임 테스트 중 발견한 문제점이나 개선사항을 작성해주세요..." style="width: 100%; height: 80px; padding: 8px; border: 1px solid #ddd; border-radius: 4px; resize: vertical;"></textarea>
+        </div>
+        <div id="feedback-list" style="margin-top: 20px;"></div>
+    </div>
+    
     <!-- Chip Recharge Section -->
     <div class="card-section">
         <h2>💰 테스트 칩 충전</h2>
@@ -349,6 +363,15 @@ export class DevToolsController {
         <div>
             <h3 style="color: #333; margin-bottom: 15px;">APK 목록</h3>
             <div id="apk-list" style="margin-top: 10px;"></div>
+        </div>
+    </div>
+
+    <!-- Game Settings Management Section -->
+    <div class="card-section">
+        <h2>⚙️ 게임 설정 관리</h2>
+        <div>
+            <h3 style="color: #333; margin-bottom: 15px;">게임 설정 목록</h3>
+            <div id="game-settings-list" style="margin-top: 10px;"></div>
         </div>
     </div>
     
@@ -719,6 +742,9 @@ loadUsers();
 // APK 목록 로드
 loadApkList();
 
+// 게임 설정 목록 로드
+loadGameSettings();
+
 // 유저 목록 로드 함수
 async function loadUsers() {
     try {
@@ -912,6 +938,491 @@ async function deleteApk(apkId) {
         alert('APK 삭제 중 오류가 발생했습니다.');
     }
 }
+
+// 게임 설정 목록 로드 함수
+async function loadGameSettings() {
+    try {
+        const response = await fetch('/dev-tools/game-settings');
+        const settings = await response.json();
+        
+        const settingsListDiv = document.getElementById('game-settings-list');
+        
+        if (settings.length === 0) {
+            settingsListDiv.innerHTML = '<div style="text-align: center; color: #666; padding: 20px;">등록된 게임 설정이 없습니다.</div>';
+            return;
+        }
+        
+        let html = '<div style="display: grid; gap: 15px;">';
+        settings.forEach(setting => {
+            const createdDate = new Date(setting.createdAt).toLocaleString('ko-KR');
+            const updatedDate = new Date(setting.updatedAt).toLocaleString('ko-KR');
+            
+            // roundRankFunds 설정인 경우 특별한 표시
+            if (setting.name === 'roundRankFunds') {
+                try {
+                    const roundRankData = JSON.parse(setting.value);
+                    html += \`
+                        <div style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 15px; background: #fafafa;">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px;">
+                                <div style="flex: 1;">
+                                    <h4 style="margin: 0 0 5px 0; color: #333;">\${setting.name}</h4>
+                                    <div style="font-size: 14px; color: #555; margin-bottom: 10px;">\${setting.description || '설명 없음'}</div>
+                                </div>
+                                <div style="display: flex; gap: 10px;">
+                                    <button onclick="editGameSetting('\${setting.id}')" style="background: #2196F3; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">편집</button>
+                                </div>
+                            </div>
+                            <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 10px;">
+                    \`;
+                    
+                    for (let round = 1; round <= 5; round++) {
+                        html += \`
+                            <div style="border: 1px solid #ddd; border-radius: 4px; padding: 10px; background: white;">
+                                <div style="font-weight: bold; text-align: center; margin-bottom: 8px; color: #333;">\${round}라운드</div>
+                        \`;
+                        
+                        for (let rank = 1; rank <= 4; rank++) {
+                            const value = roundRankData[round]?.[rank] || 0;
+                            html += \`
+                                <div style="font-size: 12px; margin-bottom: 4px; display: flex; justify-content: space-between;">
+                                    <span>\${rank}등:</span>
+                                    <span style="font-weight: bold;">\${value}</span>
+                                </div>
+                            \`;
+                        }
+                        
+                        html += \`</div>\`;
+                    }
+                    
+                    html += \`
+                            </div>
+                            <div style="text-align: right; font-size: 12px; color: #666;">수정일: \${updatedDate}</div>
+                        </div>
+                    \`;
+                } catch (e) {
+                    // JSON 파싱 실패 시 일반 표시
+                    html += \`
+                        <div style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 15px; background: #fafafa;">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
+                                <div style="flex: 1;">
+                                    <h4 style="margin: 0 0 5px 0; color: #333;">\${setting.name}</h4>
+                                    <div style="font-size: 14px; color: #555; margin-bottom: 10px;">\${setting.description || '설명 없음'}</div>
+                                </div>
+                                <div style="display: flex; gap: 10px;">
+                                    <button onclick="editGameSetting('\${setting.id}')" style="background: #2196F3; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">편집</button>
+                                </div>
+                            </div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 10px;">
+                                <div>
+                                    <strong>설정값:</strong>
+                                    <div style="background: white; padding: 8px; border-radius: 4px; border: 1px solid #ddd; font-family: monospace;">\${setting.value}</div>
+                                </div>
+                                <div>
+                                    <strong>수정일:</strong>
+                                    <div style="font-size: 12px; color: #666;">\${updatedDate}</div>
+                                </div>
+                            </div>
+                        </div>
+                    \`;
+                }
+            } else {
+                // 일반 설정 표시
+                html += \`
+                    <div style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 15px; background: #fafafa;">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
+                            <div style="flex: 1;">
+                                <h4 style="margin: 0 0 5px 0; color: #333;">\${setting.name}</h4>
+                                <div style="font-size: 14px; color: #555; margin-bottom: 10px;">\${setting.description || '설명 없음'}</div>
+                            </div>
+                            <div style="display: flex; gap: 10px;">
+                                <button onclick="editGameSetting('\${setting.id}')" style="background: #2196F3; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">편집</button>
+                            </div>
+                        </div>
+                        <div style="margin-bottom: 10px;">
+                            <strong>설정값:</strong>
+                            <div style="background: white; padding: 8px; border-radius: 4px; border: 1px solid #ddd; font-family: monospace;">\${setting.value}</div>
+                        </div>
+                        <div style="text-align: right; font-size: 12px; color: #666;">수정일: \${updatedDate}</div>
+                    </div>
+                \`;
+            }
+        });
+        html += '</div>';
+        
+        settingsListDiv.innerHTML = html;
+    } catch (error) {
+        console.error('Failed to load game settings:', error);
+        document.getElementById('game-settings-list').innerHTML = '<div style="color: #f44336;">게임 설정 목록을 불러오는데 실패했습니다.</div>';
+    }
+}
+
+// 게임 설정 편집 함수
+async function editGameSetting(settingId) {
+    try {
+        const response = await fetch(\`/dev-tools/game-settings/\${settingId}\`);
+        const result = await response.json();
+        
+        if (!result.success) {
+            alert('게임 설정을 찾을 수 없습니다.');
+            return;
+        }
+        
+        const setting = result.data;
+        
+        // roundRankFunds 설정인 경우 특별한 편집 UI 제공
+        if (setting.name === 'roundRankFunds') {
+            await editRoundRankFunds(setting);
+            return;
+        }
+        
+        // 일반 설정 편집
+        const newValue = prompt('새로운 설정값을 입력하세요:', setting.value);
+        if (newValue === null) return; // 취소
+        
+        const newDescription = prompt('설정 설명을 입력하세요:', setting.description || '');
+        if (newDescription === null) return; // 취소
+        
+        const updateResponse = await fetch(\`/dev-tools/game-settings/\${settingId}\`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                value: newValue,
+                description: newDescription
+            })
+        });
+        
+        if (updateResponse.ok) {
+            const result = await updateResponse.json();
+            alert('✅ ' + result.message);
+            loadGameSettings();
+        } else {
+            const error = await updateResponse.json();
+            alert('❌ ' + error.message);
+        }
+    } catch (error) {
+        console.error('Game setting edit failed:', error);
+        alert('게임 설정 편집 중 오류가 발생했습니다.');
+    }
+}
+
+// 라운드별 등수 funds 편집 함수
+async function editRoundRankFunds(setting) {
+    try {
+        let roundRankData;
+        try {
+            roundRankData = JSON.parse(setting.value);
+        } catch (e) {
+            roundRankData = {
+                "1": { "1": 100, "2": 50, "3": 25, "4": 10 },
+                "2": { "1": 150, "2": 75, "3": 40, "4": 15 },
+                "3": { "1": 200, "2": 100, "3": 50, "4": 20 },
+                "4": { "1": 250, "2": 125, "3": 60, "4": 25 },
+                "5": { "1": 300, "2": 150, "3": 75, "4": 30 }
+            };
+        }
+        
+        // 편집 모달 생성
+        const modal = document.createElement('div');
+        modal.style.cssText = \`
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        \`;
+        
+        const modalContent = document.createElement('div');
+        modalContent.style.cssText = \`
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            max-width: 800px;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        \`;
+        
+        let html = \`
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #667eea;">
+                <h2 style="margin: 0; color: #333;">라운드별 등수 Funds 설정</h2>
+                <button onclick="this.closest('.modal').remove()" style="background: none; border: none; font-size: 1.5em; cursor: pointer; color: #666;">&times;</button>
+            </div>
+            <div style="margin-bottom: 20px;">
+                <p style="color: #666; margin: 0;">각 라운드별로 1등부터 4등까지의 지급 funds를 설정하세요.</p>
+            </div>
+        \`;
+        
+        // 1-5라운드, 1-4등 입력창 생성
+        for (let round = 1; round <= 5; round++) {
+            html += \`
+                <div style="margin-bottom: 25px; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background: #fafafa;">
+                    <h3 style="margin: 0 0 15px 0; color: #333; text-align: center;">\${round}라운드</h3>
+                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px;">
+            \`;
+            
+            for (let rank = 1; rank <= 4; rank++) {
+                const value = roundRankData[round]?.[rank] || 0;
+                html += \`
+                    <div>
+                        <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #333;">\${rank}등:</label>
+                        <input type="number" 
+                               id="round_\${round}_rank_\${rank}" 
+                               value="\${value}" 
+                               min="0" 
+                               style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; text-align: center;">
+                    </div>
+                \`;
+            }
+            
+            html += \`
+                    </div>
+                </div>
+            \`;
+        }
+        
+        html += \`
+            <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee;">
+                <button onclick="this.closest('.modal').remove()" style="background: #f44336; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-weight: 500;">취소</button>
+                <button onclick="saveRoundRankFunds('\${setting.id}')" style="background: #4CAF50; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-weight: 500;">저장</button>
+            </div>
+        \`;
+        
+        modalContent.innerHTML = html;
+        modal.appendChild(modalContent);
+        modal.className = 'modal';
+        document.body.appendChild(modal);
+        
+    } catch (error) {
+        console.error('Round rank funds edit failed:', error);
+        alert('라운드별 등수 funds 편집 중 오류가 발생했습니다.');
+    }
+}
+
+// 라운드별 등수 funds 저장 함수
+async function saveRoundRankFunds(settingId) {
+    try {
+        const roundRankData = {};
+        
+        // 모든 입력값 수집
+        for (let round = 1; round <= 5; round++) {
+            roundRankData[round] = {};
+            for (let rank = 1; rank <= 4; rank++) {
+                const input = document.getElementById(\`round_\${round}_rank_\${rank}\`);
+                if (input) {
+                    roundRankData[round][rank] = parseInt(input.value) || 0;
+                }
+            }
+        }
+        
+        const updateResponse = await fetch(\`/dev-tools/game-settings/\${settingId}\`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                value: JSON.stringify(roundRankData)
+            })
+        });
+        
+        if (updateResponse.ok) {
+            const result = await updateResponse.json();
+            alert('✅ ' + result.message);
+            // 성공 메시지 확인 후 모달 닫기
+            const modal = document.querySelector('.modal');
+            if (modal) {
+                modal.remove();
+            }
+            loadGameSettings();
+        } else {
+            const error = await updateResponse.json();
+            alert('❌ ' + error.message);
+        }
+    } catch (error) {
+        console.error('Save round rank funds failed:', error);
+        alert('라운드별 등수 funds 저장 중 오류가 발생했습니다.');
+    }
+}
+
+// 피드백 관련 함수들
+async function loadFeedbacks() {
+    try {
+        const response = await fetch('/dev-tools/feedback');
+        const feedbacks = await response.json();
+        renderFeedbacks(feedbacks);
+    } catch (error) {
+        console.error('Failed to load feedbacks:', error);
+        document.getElementById('feedback-list').innerHTML = '<div style="color: #f44336;">피드백 목록을 불러오는데 실패했습니다.</div>';
+    }
+}
+
+function renderFeedbacks(feedbacks) {
+    const feedbackListDiv = document.getElementById('feedback-list');
+    if (feedbacks.length === 0) {
+        feedbackListDiv.innerHTML = '<div style="text-align: center; color: #666; padding: 20px;">등록된 피드백이 없습니다.</div>';
+        return;
+    }
+
+    let html = '<div style="display: flex; flex-direction: column; gap: 15px;">';
+    feedbacks.forEach(feedback => {
+        const createdAt = new Date(feedback.createdAt).toLocaleString('ko-KR');
+        html += \`
+            <div style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 15px; background: #fafafa;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
+                    <div style="flex: 1;">
+                        <div style="color: #666; font-size: 12px;">\${createdAt}</div>
+                    </div>
+                    <div style="display: flex; gap: 10px;">
+                        <button onclick="showReplyForm('\${feedback.id}')" style="background: #2196F3; color: white; padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">답글</button>
+                        <button onclick="deleteFeedback('\${feedback.id}')" style="background: #f44336; color: white; padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">삭제</button>
+                    </div>
+                </div>
+                <div style="background: white; padding: 10px; border-radius: 4px; border: 1px solid #ddd; margin-bottom: 10px; white-space: pre-wrap;">\${feedback.content}</div>
+                <div id="reply-form-\${feedback.id}" style="display: none; margin-top: 10px;">
+                    <textarea id="reply-content-\${feedback.id}" placeholder="답글을 입력하세요..." style="width: 100%; height: 60px; padding: 6px; border: 1px solid #ddd; border-radius: 4px; resize: vertical; font-size: 12px;"></textarea>
+                    <div style="display: flex; gap: 10px; margin-top: 10px;">
+                        <button onclick="addReply('\${feedback.id}')" style="background: #4CAF50; color: white; padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">답글 작성</button>
+                        <button onclick="hideReplyForm('\${feedback.id}')" style="background: #666; color: white; padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">취소</button>
+                    </div>
+                </div>
+                <div id="replies-\${feedback.id}" style="margin-left: 20px; margin-top: 10px;">
+        \`;
+        
+        if (feedback.replies && feedback.replies.length > 0) {
+            feedback.replies.forEach(reply => {
+                const replyCreatedAt = new Date(reply.createdAt).toLocaleString('ko-KR');
+                html += \`
+                    <div style="border-left: 3px solid #2196F3; padding-left: 10px; margin-bottom: 10px;">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 5px;">
+                            <div style="flex: 1;">
+                                <div style="color: #666; font-size: 11px;">\${replyCreatedAt}</div>
+                            </div>
+                            <button onclick="deleteFeedback('\${reply.id}')" style="background: #f44336; color: white; padding: 4px 8px; border: none; border-radius: 4px; cursor: pointer; font-size: 11px;">삭제</button>
+                        </div>
+                        <div style="background: white; padding: 8px; border-radius: 4px; border: 1px solid #ddd; font-size: 13px; white-space: pre-wrap;">\${reply.content}</div>
+                    </div>
+                \`;
+            });
+        }
+        
+        html += \`
+                </div>
+            </div>
+        \`;
+    });
+    html += '</div>';
+    feedbackListDiv.innerHTML = html;
+}
+
+async function addFeedback() {
+    const content = document.getElementById('feedback-content').value.trim();
+    
+    if (!content) {
+        alert('내용을 입력해주세요.');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/dev-tools/feedback', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                content: content
+            })
+        });
+        
+        if (response.ok) {
+            document.getElementById('feedback-content').value = '';
+            loadFeedbacks();
+            alert('피드백이 등록되었습니다.');
+        } else {
+            const error = await response.json();
+            alert('피드백 등록에 실패했습니다: ' + error.message);
+        }
+    } catch (error) {
+        console.error('Add feedback failed:', error);
+        alert('피드백 등록 중 오류가 발생했습니다.');
+    }
+}
+
+function showReplyForm(feedbackId) {
+    document.getElementById(\`reply-form-\${feedbackId}\`).style.display = 'block';
+}
+
+function hideReplyForm(feedbackId) {
+    document.getElementById(\`reply-form-\${feedbackId}\`).style.display = 'none';
+}
+
+async function addReply(parentId) {
+    const content = document.getElementById(\`reply-content-\${parentId}\`).value.trim();
+    
+    if (!content) {
+        alert('내용을 입력해주세요.');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/dev-tools/feedback', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                content: content,
+                parentId: parentId
+            })
+        });
+        
+        if (response.ok) {
+            document.getElementById(\`reply-content-\${parentId}\`).value = '';
+            hideReplyForm(parentId);
+            loadFeedbacks();
+            alert('답글이 등록되었습니다.');
+        } else {
+            const error = await response.json();
+            alert('답글 등록에 실패했습니다: ' + error.message);
+        }
+    } catch (error) {
+        console.error('Add reply failed:', error);
+        alert('답글 등록 중 오류가 발생했습니다.');
+    }
+}
+
+async function deleteFeedback(feedbackId) {
+    if (!confirm('정말 삭제하시겠습니까?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(\`/dev-tools/feedback/\${feedbackId}\`, {
+            method: 'DELETE'
+        });
+        
+        if (response.ok) {
+            loadFeedbacks();
+            alert('피드백이 삭제되었습니다.');
+        } else {
+            const error = await response.json();
+            alert('피드백 삭제에 실패했습니다: ' + error.message);
+        }
+    } catch (error) {
+        console.error('Delete feedback failed:', error);
+        alert('피드백 삭제 중 오류가 발생했습니다.');
+    }
+}
+
+// 페이지 로드 시 피드백 목록 로드
+document.addEventListener('DOMContentLoaded', function() {
+    loadFeedbacks();
+});
 </script>
     </body>
     </html>
@@ -987,5 +1498,67 @@ async function deleteApk(apkId) {
     async deleteApk(@Param('apkId') apkId: string) {
         await this.apkService.deleteApk(apkId);
         return { success: true, message: 'APK가 삭제되었습니다.' };
+    }
+
+    // GameSetting 관련 엔드포인트들
+    @Get('game-settings')
+    async getAllGameSettings() {
+        return this.devToolsService.getAllGameSettings();
+    }
+
+    @Get('game-settings/:id')
+    async getGameSettingById(@Param('id') id: string) {
+        const setting = await this.devToolsService.getGameSettingById(id);
+        if (!setting) {
+            return { success: false, message: '게임 설정을 찾을 수 없습니다.' };
+        }
+        return { success: true, data: setting };
+    }
+
+    @Post('game-settings')
+    async createGameSetting(@Body() createDto: { id: string; name: string; value: any; description?: string }) {
+        const setting = await this.devToolsService.createGameSetting(
+            createDto.id,
+            createDto.name,
+            createDto.value,
+            createDto.description
+        );
+        return { success: true, data: setting, message: '게임 설정이 생성되었습니다.' };
+    }
+
+    @Put('game-settings/:id')
+    async updateGameSetting(
+        @Param('id') id: string,
+        @Body() updateDto: { name?: string; value?: any; description?: string }
+    ) {
+        const setting = await this.devToolsService.updateGameSetting(id, updateDto);
+        return { success: true, data: setting, message: '게임 설정이 업데이트되었습니다.' };
+    }
+
+    @Delete('game-settings/:id')
+    async deleteGameSetting(@Param('id') id: string) {
+        await this.devToolsService.deleteGameSetting(id);
+        return { success: true, message: '게임 설정이 삭제되었습니다.' };
+    }
+
+    @Get('game-settings/client/all')
+    async getGameSettingsForClient() {
+        return this.devToolsService.getGameSettingsForClient();
+    }
+
+    // 피드백 관련 API
+    @Get('feedback')
+    async getAllFeedbacks() {
+        return this.feedbackService.getAllFeedbacks();
+    }
+
+    @Post('feedback')
+    async createFeedback(@Body() createDto: CreateFeedbackDto) {
+        return this.feedbackService.createFeedback(createDto);
+    }
+
+    @Delete('feedback/:id')
+    async deleteFeedback(@Param('id') id: string) {
+        return this.feedbackService.deleteFeedback(id);
     }
 } 

@@ -78,3 +78,31 @@ model SpecialCard {
 
   @@index([id], map: "SpecialCard_id_key")
 }
+
+model GameSetting {
+  id                    String   @id
+  name                  String   @unique
+  value                 String   @db.Text // JSON 형태로 저장
+  description           String?
+  isActive              Boolean  @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([id], map: "GameSetting_id_key")
+}
+
+model Feedback {
+  id          String   @id @default(cuid())
+  content     String   @db.Text
+  author      String   // 작성자 (이메일 또는 닉네임)
+  assignee    String?  // 담당자 (처리할 개발자)
+  parentId    String?  // 답글인 경우 부모 댓글 ID
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // 답글 관계
+  parent      Feedback? @relation("FeedbackReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies     Feedback[] @relation("FeedbackReplies")
+
+  @@index([parentId])
+}

@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma.service';
 import { SpecialCard, SpecialCardType } from '../room/special-card-manager.service';
 import { SpecialCardManagerService } from '../room/special-card-manager.service';
 import { RedisService } from '../redis/redis.service';
+import { GameSettingsService } from '../common/services/game-settings.service';
 
 @Injectable()
 export class DevToolsService implements OnModuleInit {
@@ -17,6 +18,7 @@ export class DevToolsService implements OnModuleInit {
         private readonly prisma: PrismaService,
         private readonly specialCardManagerService: SpecialCardManagerService,
         private readonly redisService: RedisService,
+        private readonly gameSettingsService: GameSettingsService,
     ) { }
 
 
@@ -298,12 +300,136 @@ export class DevToolsService implements OnModuleInit {
                     email: true,
                     nickname: true,
                     silverChip: true,
-                }
+                    goldChip: true,
+                    createdAt: true,
+                },
+                orderBy: {
+                    createdAt: 'desc',
+                },
             });
             return users;
         } catch (error) {
-            this.logger.error('[DevTools] 유저 목록 조회 실패:', error);
-            return [];
+            this.logger.error('[DevTools] 사용자 목록 조회 실패:', error);
+            throw error;
+        }
+    }
+
+    // GameSetting 관련 메서드들
+    async getAllGameSettings() {
+        try {
+            const settings = await this.prisma.gameSetting.findMany({
+                orderBy: {
+                    createdAt: 'desc',
+                },
+            });
+            return settings.map(setting => ({
+                ...setting,
+                value: JSON.parse(setting.value), // JSON 문자열을 객체로 변환
+            }));
+        } catch (error) {
+            this.logger.error('[DevTools] 게임 설정 목록 조회 실패:', error);
+            throw error;
+        }
+    }
+
+    async getGameSettingById(id: string) {
+        try {
+            const setting = await this.prisma.gameSetting.findUnique({
+                where: { id },
+            });
+            if (!setting) {
+                return null;
+            }
+            return {
+                ...setting,
+                value: JSON.parse(setting.value),
+            };
+        } catch (error) {
+            this.logger.error('[DevTools] 게임 설정 조회 실패:', error);
+            throw error;
+        }
+    }
+
+    async createGameSetting(id: string, name: string, value: any, description?: string) {
+        try {
+            const setting = await this.prisma.gameSetting.create({
+                data: {
+                    id,
+                    name,
+                    value: JSON.stringify(value),
+                    description,
+                    isActive: true,
+                },
+            });
+            this.logger.log(`[DevTools] 게임 설정 생성 완료: ${id}`);
+            return {
+                ...setting,
+                value: JSON.parse(setting.value),
+            };
+        } catch (error) {
+            this.logger.error('[DevTools] 게임 설정 생성 실패:', error);
+            throw error;
+        }
+    }
+
+    async updateGameSetting(id: string, updateData: { name?: string; value?: any; description?: string }) {
+        try {
+            const updatePayload: any = {};
+            if (updateData.name !== undefined) updatePayload.name = updateData.name;
+            if (updateData.value !== undefined) updatePayload.value = JSON.stringify(updateData.value);
+            if (updateData.description !== undefined) updatePayload.description = updateData.description;
+
+            const setting = await this.prisma.gameSetting.update({
+                where: { id },
+                data: updatePayload,
+            });
+            this.logger.log(`[DevTools] 게임 설정 업데이트 완료: ${id}`);
+
+            // 게임 설정 캐시 무효화
+            await this.gameSettingsService.invalidateCache();
+
+            return {
+                ...setting,
+                value: JSON.parse(setting.value),
+            };
+        } catch (error) {
+            this.logger.error('[DevTools] 게임 설정 업데이트 실패:', error);
+            throw error;
+        }
+    }
+
+    async deleteGameSetting(id: string) {
+        try {
+            await this.prisma.gameSetting.delete({
+                where: { id },
+            });
+            this.logger.log(`[DevTools] 게임 설정 삭제 완료: ${id}`);
+            return true;
+        } catch (error) {
+            this.logger.error('[DevTools] 게임 설정 삭제 실패:', error);
+            throw error;
+        }
+    }
+
+    async getGameSettingsForClient() {
+        try {
+            const settings = await this.prisma.gameSetting.findMany({
+                where: { isActive: true },
+            });
+
+            const gameSettings: any = {};
+            settings.forEach(setting => {
+                try {
+                    gameSettings[setting.name] = JSON.parse(setting.value);
+                } catch (error) {
+                    this.logger.error(`[DevTools] 게임 설정 파싱 실패: ${setting.name}`, error);
+                }
+            });
+
+            return gameSettings;
+        } catch (error) {
+            this.logger.error('[DevTools] 클라이언트용 게임 설정 조회 실패:', error);
+            throw error;
         }
     }
 } 

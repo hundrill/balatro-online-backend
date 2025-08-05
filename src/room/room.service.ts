@@ -16,6 +16,7 @@ import { PaytableService } from './paytable.service';
 import { HandEvaluatorService } from './hand-evaluator.service';
 import { SpecialCardManagerService } from './special-card-manager.service';
 import { CardType, PokerHandResult, PokerHand } from './poker-types';
+import { GameSettingsService } from '../common/services/game-settings.service';
 
 @Injectable()
 export class RoomService {
@@ -58,6 +59,7 @@ export class RoomService {
     private readonly paytableService: PaytableService,
     private readonly handEvaluatorService: HandEvaluatorService,
     private readonly specialCardManagerService: SpecialCardManagerService,
+    private readonly gameSettingsService: GameSettingsService,
   ) { }
 
   private gameStates: Map<
@@ -2054,15 +2056,24 @@ export class RoomService {
       const userRandomValues: Record<string, number> = {};
 
       for (const userId of userIds) {
-        await this.updateUserFunds(roomId, userId, 4);
-        const updatedChips = await this.getUserChips(roomId, userId);
-
+        // 남은 버리기 횟수 계산
         let remainingDiscards = 4;
         const discardUserMap = this.getDiscardCountMap(roomId);
         if (discardUserMap) {
           const used = discardUserMap.get(userId) ?? 0;
           remainingDiscards = 4 - used;
         }
+
+        // 게임 설정에서 버리기 남은 횟수에 따른 지급 funds 값 가져오기
+        const discardRemainingFunds = await this.gameSettingsService.getDiscardRemainingFunds();
+        const totalDiscardFunds = discardRemainingFunds * remainingDiscards;
+        await this.updateUserFunds(roomId, userId, totalDiscardFunds);
+
+        this.logger.log(
+          `[processHandPlayResult] 버리기 funds 지급: ` +
+          `유저=${userId}, 남은버리기=${remainingDiscards}, 기본값=${discardRemainingFunds}, 지급funds=${totalDiscardFunds}`
+        );
+        // const updatedChips = await this.getUserChips(roomId, userId);
 
         const { remainingDeck, remainingSevens } = this.getUserDeckInfo(roomId, userId);
 
@@ -2299,6 +2310,32 @@ export class RoomService {
           throw new Error('칩 업데이트 실패');
         }
 
+        // 현재 라운드 정보 가져오기
+        const currentRound = this.getRound(roomId);
+
+        // 모든 유저의 점수를 기준으로 순위 결정 (1등부터 4등까지)
+        const allUserScores = userIds.map(uid => ({ userId: uid, score: userScores[uid] || 0 }));
+        const sortedUsers = allUserScores
+          .sort((a, b) => b.score - a.score) // 점수 내림차순 정렬
+          .slice(0, 4); // 상위 4명만
+
+        // 순위별 funds 지급
+        for (let i = 0; i < sortedUsers.length; i++) {
+          const rank = i + 1; // 1등, 2등, 3등, 4등
+          const userId = sortedUsers[i].userId;
+
+          // GameSettings에서 해당 라운드와 순위에 맞는 funds 값 가져오기
+          const rankFunds = await this.gameSettingsService.getRoundRankFunds(currentRound, rank);
+
+          // 해당 유저에게 순위별 funds 지급
+          await this.updateUserFunds(roomId, userId, rankFunds);
+
+          this.logger.log(
+            `[processHandPlayResult] 순위별 funds 지급: ` +
+            `라운드=${currentRound}, 순위=${rank}, 유저=${userId}, 점수=${sortedUsers[i].score}, 지급funds=${rankFunds}`
+          );
+        }
+
         // 업데이트된 칩 정보 가져오기
         const finalUpdatedChips = await this.getUserChips(roomId, userId);
 
@@ -2335,7 +2372,6 @@ export class RoomService {
       this.setRoomPhase(roomId, 'shop');
 
       await this.handleRoundEnd(roomId, userIds);
-
 
       return {
         roundResult,

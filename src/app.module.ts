@@ -11,6 +11,7 @@ import { GameHistoryModule } from './game-history/game-history.module';
 import { LobbyModule } from './lobby/lobby.module';
 import { AdminModule } from './admin/admin.module';
 import { DevToolsModule } from './dev-tools/dev-tools.module';
+import { CommonModule } from './common/common.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { DevToolsModule } from './dev-tools/dev-tools.module';
     LobbyModule,
     AdminModule,
     DevToolsModule,
+    CommonModule,
   ],
   controllers: [AppController],
   providers: [AppService],
