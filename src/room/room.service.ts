@@ -2193,9 +2193,9 @@ export class RoomService {
       // 각 유저의 funds 변화를 추적하기 위한 맵
       const fundsBeforeMap: Map<string, number> = new Map();
 
-      const ownedCards: Record<string, string[]> = {};
+      const ownedCards: Record<string, SpecialCardData[]> = {};
       for (const uid of userIds) {
-        ownedCards[uid] = this.getUserOwnedCards(roomId, uid).map(card => card.id);
+        ownedCards[uid] = this.getUserOwnedCards(roomId, uid);
 
         // funds 변화 추적을 위해 현재 funds 저장
         const currentChips = await this.getUserChips(roomId, uid);
@@ -2443,7 +2443,6 @@ export class RoomService {
           remainingDiscards,
           remainingDeck,
           remainingSevens,
-          ownedCards: ownedCards[userId] || [],
         };
       }
 
@@ -2554,7 +2553,7 @@ export class RoomService {
     roomId: string,
     userIds: string[],
     allHandPlayCards: Map<string, Card[]>,
-    ownedCards: Record<string, string[]>
+    ownedCards: Record<string, SpecialCardData[]>
   ): Promise<{
     userScores: Record<string, number>;
   }> {

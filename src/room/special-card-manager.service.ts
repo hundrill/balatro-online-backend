@@ -1490,11 +1490,10 @@ export class SpecialCardManagerService {
     }
 
     // 조커 효과 적용
-    applyJokerEffects(timing: JokerEffectTiming, context: HandContext, ownedJokers: string[]): boolean {
+    applyJokerEffects(timing: JokerEffectTiming, context: HandContext, ownedJokers: SpecialCardData[]): boolean {
         let isApplied = false;
 
-        for (const jokerId of ownedJokers) {
-            const jokerData = this.getCardById(jokerId);
+        for (const jokerData of ownedJokers) {
             if (!jokerData) continue;
 
             // 새로운 다중 효과/조건 시스템 사용
@@ -1535,7 +1534,7 @@ export class SpecialCardManagerService {
     calculateFinalScore(
         userId: string,
         handResult: any,
-        ownedJokers: string[],
+        ownedJokers: SpecialCardData[],
         remainingDiscards: number = 0,
         remainingDeck: number = 0,
         remainingSevens: number = 0
