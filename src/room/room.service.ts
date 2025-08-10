@@ -493,29 +493,33 @@ export class RoomService {
 
   canStart(roomId: string): boolean {
     try {
-      // 1. 게임에 참여 중인 유저들만 가져오기
-      const allUserIds = this.getRoomUserIds(roomId);
-      if (allUserIds.length === 0) {
+      // Gateway 인스턴스 확인
+      const gateway = this.getGatewayInstance();
+      if (!gateway || typeof gateway.server?.of !== 'function') {
+        this.logger.warn(
+          '[canStart] RoomGateway 인스턴스 또는 server가 없습니다.',
+        );
+        return false;
+      }
+
+      // 방에 있는 모든 유저 ID 가져오기
+      const userIds = this.getRoomUserIds(roomId);
+      if (userIds.length === 0) {
         this.logger.warn(`[canStart] roomId=${roomId}에 유저가 없음`);
         return false;
       }
 
-      // 2. playing 상태인 유저들만 필터링
-      const playingUserIds = this.getPlayingUserIds(roomId, allUserIds);
-      if (playingUserIds.length === 0) {
-        this.logger.warn(`[canStart] roomId=${roomId}에 게임 참여 중인 유저가 없음`);
-        return false;
-      }
-
-      // 3. 준비된 유저들 가져오기
+      // 준비된 유저들 가져오기
       const roomState = this.getRoomState(roomId);
       const readyUsers = Array.from(roomState.gameReadySet);
 
-      // 4. 게임 참여 중인 유저들이 모두 준비되었는지 확인
-      const allReady = playingUserIds.every((userId) => readyUsers.includes(userId));
+      // 모든 유저가 준비되었는지 확인
+      const allReady =
+        userIds.length > 0 &&
+        userIds.every((userId) => readyUsers.includes(userId));
 
       this.logger.log(
-        `[canStart] roomId=${roomId}, allReady=${allReady}, playingUsers=${playingUserIds.join(',')}, ready=${readyUsers.join(',')}`,
+        `[canStart] roomId=${roomId}, allReady=${allReady}, users=${userIds.join(',')}, ready=${readyUsers.join(',')}`,
       );
 
       return allReady;
