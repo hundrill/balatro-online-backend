@@ -1465,8 +1465,13 @@ export class SpecialCardManagerService {
         this.allSpecialCards.set(cardData.id, cardData);
     }
 
-    // ID로 특수 카드 가져오기 (새로운 인스턴스 반환)
+    // ID로 특수 카드 정보 가져오기 (참조)
     getCardById(id: string): SpecialCardData | null {
+        const card = this.allSpecialCards.get(id);
+        return card ?? null;
+    }
+
+    createCardById(id: string): SpecialCardData | null {
         const card = this.allSpecialCards.get(id);
         if (!card) return null;
 
@@ -1485,11 +1490,10 @@ export class SpecialCardManagerService {
     }
 
     // 조커 효과 적용
-    applyJokerEffects(timing: JokerEffectTiming, context: HandContext, ownedJokers: string[]): boolean {
+    applyJokerEffects(timing: JokerEffectTiming, context: HandContext, ownedJokers: SpecialCardData[]): boolean {
         let isApplied = false;
 
-        for (const jokerId of ownedJokers) {
-            const jokerData = this.getCardById(jokerId);
+        for (const jokerData of ownedJokers) {
             if (!jokerData) continue;
 
             // 새로운 다중 효과/조건 시스템 사용
@@ -1530,7 +1534,7 @@ export class SpecialCardManagerService {
     calculateFinalScore(
         userId: string,
         handResult: any,
-        ownedJokers: string[],
+        ownedJokerData: SpecialCardData[],
         remainingDiscards: number = 0,
         remainingDeck: number = 0,
         remainingSevens: number = 0
@@ -1544,7 +1548,8 @@ export class SpecialCardManagerService {
         );
 
         // OnHandPlay 효과 적용
-        this.applyJokerEffects(JokerEffectTiming.OnHandPlay, context, ownedJokers);
+        // const ownedJokerData = ownedJokers.map(id => this.getCardById(id)).filter(Boolean) as SpecialCardData[];
+        this.applyJokerEffects(JokerEffectTiming.OnHandPlay, context, ownedJokerData);
 
         // 카드별 점수 계산 및 OnScoring 효과 적용 (handResult.usedCards에 포함된 카드만)
         console.log(`\x1b[36m[SCORING_DEBUG] context.playedCards 개수: ${context.playedCards.length}\x1b[0m`);
@@ -1567,11 +1572,11 @@ export class SpecialCardManagerService {
             context.chips += cardValue;
             context.currentCardData = card;
 
-            this.applyJokerEffects(JokerEffectTiming.OnScoring, context, ownedJokers);
+            this.applyJokerEffects(JokerEffectTiming.OnScoring, context, ownedJokerData);
         }
 
         // OnAfterScoring 효과 적용
-        this.applyJokerEffects(JokerEffectTiming.OnAfterScoring, context, ownedJokers);
+        this.applyJokerEffects(JokerEffectTiming.OnAfterScoring, context, ownedJokerData);
 
         return {
             finalChips: context.chips,
@@ -1601,7 +1606,7 @@ export class SpecialCardManagerService {
 
         // 🧪 테스트용: joker_24만 뽑히도록 임시 수정
         // TODO: 테스트 완료 후 아래 주석 처리된 원본 코드로 복구
-        // const jokerTest = this.getCardById('joker_14');
+        // const jokerTest = this.getCardById('joker_10');
         // if (jokerTest) {
         //     return [jokerTest, jokerTest, jokerTest, jokerTest, jokerTest]; // 5개 모두 joker_24로 채움
         // }

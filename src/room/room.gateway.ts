@@ -733,9 +733,7 @@ export class RoomGateway
         new NextRoundReadyResponseDto({ userId }),
       );
 
-      const userIds = this.getRoomUserIds(roomId);
-
-      if (this.roomService.canStartNextRound(roomId, userIds)) {
+      if (this.roomService.canStartNextRound(roomId)) {
         this.logger.log(
           `[handleNextRound] 모든 유저 nextRound 완료, 다음 라운드 시작: roomId=${roomId}`,
         );
@@ -1197,9 +1195,9 @@ export class RoomGateway
           `[handleFoldRequest] fold 성공: roomId=${roomId}, userId=${userId}, isGameRestarting=${result.isGameRestarting || false}`
         );
 
-        if (this.roomService.canStart(roomId)) {
+        if (this.roomService.canStartNextRound(roomId)) {
           this.logger.log(
-            `[handleReady] 모든 유저 준비 완료, 게임 시작: roomId=${roomId}`,
+            `[handleNextRound] 모든 유저 nextRound 완료, 다음 라운드 시작: roomId=${roomId}`,
           );
           await this.startGameForRoom(roomId);
         }

@@ -478,11 +478,11 @@ export class RoomService {
     if (!gateway?.server?.of || !gateway.socketSessions) {
       return [];
     }
-    
+
     const adapter = gateway.server.of('/').adapter;
     const room = adapter.rooms.get(roomId);
     if (!room) return [];
-    
+
     const userIds: string[] = [];
     for (const socketId of room) {
       const session = gateway.socketSessions.get(socketId);
@@ -870,9 +870,10 @@ export class RoomService {
     this.logger.log(`[nextRoundReady] userId=${userId}, roomId=${roomId}`);
   }
 
-  canStartNextRound(roomId: string, userIds: string[]): boolean {
+  canStartNextRound(roomId: string): boolean {
     const roomState = this.getRoomState(roomId);
     const readySet = roomState.nextRoundReadySet;
+    const userIds = this.getRoomUserIds(roomId);
 
     // playing 상태인 유저들만 필터링
     const playingUsers = this.getPlayingUserIds(roomId, userIds);
@@ -990,8 +991,8 @@ export class RoomService {
       }
       // 3. 조커 카드인 경우에만 개수 제한 및 중복 구매 방지 체크
       if (this.specialCardManagerService.isJokerCard(cardId)) {
-        const ownedCardIds = this.getUserOwnedCards(roomId, userId);
-        const ownedJokerCount = ownedCardIds.filter(id => this.specialCardManagerService.isJokerCard(id)).length;
+        const ownedCards = this.getUserOwnedCards(roomId, userId);
+        const ownedJokerCount = ownedCards.filter(card => this.specialCardManagerService.isJokerCard(card.id)).length;
         if (ownedJokerCount >= 5) {
           this.logger.warn(
             `[buyCard] userId=${userId}는 이미 조커카드를 5장 보유 중. 구매 불가.`,
@@ -1004,7 +1005,7 @@ export class RoomService {
           this.logger.log(`[buyCard] 구매 시도 조커 갯수: ${ownedJokerCount}`);
         }
         // 4. 이미 소유한 조커인지 확인 (중복 구매 방지)
-        if (ownedCardIds.includes(cardId)) {
+        if (ownedCards.some(card => card.id === cardId)) {
           this.logger.warn(
             `[buyCard] userId=${userId}는 이미 cardId=${cardId} 조커를 보유 중. 중복 구매 불가.`,
           );
@@ -1043,9 +1044,14 @@ export class RoomService {
       if (this.specialCardManagerService.isJokerCard(cardId)) {
         // 조커 카드 처리
         const userCards = roomState.userOwnedCardsMap.get(userId) ?? [];
-        userCards.push(shopCard);
-        roomState.userOwnedCardsMap.set(userId, userCards);
-        this.logger.log(`[buyCard] userId=${userId}의 조커 카드 ${cardId}를 userOwnedCardsMap에 추가했습니다.`);
+        const newCard = this.specialCardManagerService.createCardById(cardId);
+        if (newCard) {
+          userCards.push(newCard);
+          roomState.userOwnedCardsMap.set(userId, userCards);
+          this.logger.log(`[buyCard] userId=${userId}의 조커 카드 ${cardId}를 userOwnedCardsMap에 추가했습니다.`);
+        } else {
+          this.logger.warn(`[buyCard] 조커 카드 ${cardId}를 생성할 수 없습니다.`);
+        }
       } else if (this.specialCardManagerService.isTarotCard(cardId)) {
         // 타로 카드 처리 - 덱 수정 로직
         this.logger.log(`[buyCard] userId=${userId}의 타로 카드 ${cardId}를 처리합니다.`);
@@ -1064,7 +1070,12 @@ export class RoomService {
           // 기존 타로 카드 처리 로직
           // 타로 카드를 userTarotCardsMap에 저장
           const userTarotCards = roomState.userTarotCardsMap.get(userId) ?? [];
-          userTarotCards.push(shopCard);
+          const newCard = this.specialCardManagerService.createCardById(cardId);
+          if (newCard) {
+            userTarotCards.push(newCard);
+          } else {
+            this.logger.warn(`[buyCard] 타로 카드 ${cardId}를 생성할 수 없습니다.`);
+          }
           roomState.userTarotCardsMap.set(userId, userTarotCards);
           this.logger.log(`[buyCard] userId=${userId}의 타로 카드 ${cardId}를 userTarotCardsMap에 추가했습니다.`);
 
@@ -1136,10 +1147,9 @@ export class RoomService {
   getUserOwnedCards(
     roomId: string,
     userId: string,
-  ): string[] {
+  ): SpecialCardData[] {
     const roomState = this.getRoomState(roomId);
-    const cards = roomState.userOwnedCardsMap.get(userId) ?? [];
-    return cards.map(card => card.id);
+    return roomState.userOwnedCardsMap.get(userId) ?? [];
   }
 
   getRound(roomId: string): number {
@@ -1355,8 +1365,8 @@ export class RoomService {
       );
 
       // 1. 유저가 보유한 카드 목록에서 해당 카드 찾기
-      const ownedCardIds = this.getUserOwnedCards(roomId, userId);
-      const cardIndex = ownedCardIds.indexOf(cardId);
+      const ownedCards = this.getUserOwnedCards(roomId, userId);
+      const cardIndex = ownedCards.findIndex(card => card.id === cardId);
 
       if (cardIndex === -1) {
         this.logger.warn(
@@ -2183,7 +2193,7 @@ export class RoomService {
       // 각 유저의 funds 변화를 추적하기 위한 맵
       const fundsBeforeMap: Map<string, number> = new Map();
 
-      const ownedCards: Record<string, string[]> = {};
+      const ownedCards: Record<string, SpecialCardData[]> = {};
       for (const uid of userIds) {
         ownedCards[uid] = this.getUserOwnedCards(roomId, uid);
 
@@ -2544,7 +2554,7 @@ export class RoomService {
     roomId: string,
     userIds: string[],
     allHandPlayCards: Map<string, Card[]>,
-    ownedCards: Record<string, string[]>
+    ownedCards: Record<string, SpecialCardData[]>
   ): Promise<{
     userScores: Record<string, number>;
   }> {
