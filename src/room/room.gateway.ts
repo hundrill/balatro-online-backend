@@ -1196,6 +1196,14 @@ export class RoomGateway
         this.logger.log(
           `[handleFoldRequest] fold 성공: roomId=${roomId}, userId=${userId}, isGameRestarting=${result.isGameRestarting || false}`
         );
+
+        if (this.roomService.canStart(roomId)) {
+          this.logger.log(
+            `[handleReady] 모든 유저 준비 완료, 게임 시작: roomId=${roomId}`,
+          );
+          await this.startGameForRoom(roomId);
+        }
+
       } else {
         // fold 실패 시 요청한 유저에게만 에러 응답
         this.emitUserResponse(
