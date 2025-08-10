@@ -65,6 +65,11 @@ export class HandContext {
     public remainingSevens: number = 0;
     public randomValue: number = 0;
 
+    // 추가된 속성들 (클라이언트와 동일)
+    public unUsedHandType: string = '';
+    public roundNumber: number = 1;
+    public ownedJokers: string[] = [];
+
     // 사용하지 않은 카드 중 특정 무늬의 개수를 반환
     countUnUsedCardsOfSuit(suit: CardType): number {
         return this.unUsedCards.filter(card => card.suit === suit).length;

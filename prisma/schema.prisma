@@ -62,6 +62,9 @@ model SpecialCard {
   id                String   @id
   name              String
   description       String?
+  descriptionKo     String?  @db.Text
+  descriptionId     String?  @db.Text
+  descriptionEn     String?  @db.Text
   price             Int      @default(0)
   sprite            Int      @default(0)
   type              String   @default("Joker")
@@ -73,6 +76,26 @@ model SpecialCard {
   enhanceChips      Int?     @default(0)
   enhanceMul        Float?   @default(0)
   isActive          Boolean  @default(true)
+  
+  // 2개 고정 조건-효과 시스템 필드들
+  // 첫 번째 조건-효과 쌍
+  conditionType1     String?  // 조건 타입
+  conditionValue1    String?  // 조건 값
+  conditionOperator1 String?  // 조건 연산자
+  conditionNumeric1  Int?     // 조건 숫자 값
+  effectTiming1      String?  // 효과 타이밍
+  effectType1        String?  // 효과 타입
+  effectTarget1      String?  // 효과 표시 대상 (Card/Joker)
+  
+  // 두 번째 조건-효과 쌍
+  conditionType2     String?  // 조건 타입
+  conditionValue2    String?  // 조건 값
+  conditionOperator2 String?  // 조건 연산자
+  conditionNumeric2  Int?     // 조건 숫자 값
+  effectTiming2      String?  // 효과 타이밍
+  effectType2        String?  // 효과 타입
+  effectTarget2      String?  // 효과 표시 대상 (Card/Joker)
+  
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 

@@ -43,16 +43,26 @@ import { BettingRequestDto } from './socket-dto/betting-request.dto';
 import { BettingResponseDto } from './socket-dto/betting-response.dto';
 import { UseSpecialCardRequestDto } from './socket-dto/use-special-card-request.dto';
 import { UseSpecialCardResponseDto } from './socket-dto/use-special-card-response.dto';
+import { FoldRequestDto } from './socket-dto/fold-request.dto';
+import { FoldResponseDto } from './socket-dto/fold-response.dto';
 import { SpecialCardManagerService } from './special-card-manager.service';
 import { isClientVersionSupported, MIN_CLIENT_VERSION, getVersionString } from '../common/constants/version.constants';
 import { DevToolsService } from '../dev-tools/dev-tools.service';
 import { GameSettingsService } from '../common/services/game-settings.service';
+import { TranslationKeys } from '../common/translation-keys.enum';
+import { LocalizationService } from '../common/services/localization.service';
+
+interface SocketSession {
+  userId: string;
+  roomId: string | null;
+  language: string;
+}
 
 interface RoomUserInfo {
   userId: string;
   nickname: string | null;
-  silverChip: number;
-  goldChip: number;
+  chips: number;  // 현재 칩 타입에 따른 칩 수량
+  funds: number;  // 자금
   isPlaying: boolean;
   ownedCards: string[];
   paytableLevels: Record<string, number>;
@@ -72,9 +82,7 @@ export class RoomGateway
 
   private readonly logger = new Logger(RoomGateway.name);
 
-  private socketIdToUserId: Map<string, string> = new Map();
-
-  private socketIdToRoomIds: Map<string, Set<string>> = new Map();
+  private socketSessions: Map<string, SocketSession> = new Map();
 
   constructor(
     private readonly roomService: RoomService,
@@ -83,6 +91,7 @@ export class RoomGateway
     private readonly specialCardManagerService: SpecialCardManagerService,
     private readonly devToolsService: DevToolsService,
     private readonly gameSettingsService: GameSettingsService,
+    private readonly localizationService: LocalizationService,
   ) { }
 
   afterInit(server: any) {
@@ -90,6 +99,47 @@ export class RoomGateway
   }
 
   // === 유틸리티 메서드들 ===
+
+  /**
+   * 사용자 언어 설정을 가져옵니다.
+   */
+  private getUserLanguage(client: Socket): string {
+    return this.socketSessions.get(client.id)?.language || 'en';
+  }
+
+  /**
+   * 사용자 ID를 가져옵니다.
+   */
+  private getUserId(socketId: string): string | null {
+    return this.socketSessions.get(socketId)?.userId || null;
+  }
+
+  /**
+   * 사용자 방 ID를 가져옵니다.
+   */
+  private getUserRoomId(socketId: string): string | null {
+    return this.socketSessions.get(socketId)?.roomId || null;
+  }
+
+  /**
+   * 사용자를 방에 추가합니다.
+   */
+  private addUserToRoom(socketId: string, roomId: string): void {
+    const session = this.socketSessions.get(socketId);
+    if (session) {
+      session.roomId = roomId;
+    }
+  }
+
+  /**
+   * 사용자를 방에서 제거합니다.
+   */
+  private removeUserFromRoom(socketId: string): void {
+    const session = this.socketSessions.get(socketId);
+    if (session) {
+      session.roomId = null;
+    }
+  }
 
   /**
    * 소켓 응답 전송
@@ -126,7 +176,7 @@ export class RoomGateway
 
     if (room) {
       for (const socketId of room) {
-        const userId = this.socketIdToUserId.get(socketId);
+        const userId = this.getUserId(socketId);
         if (userId && userId !== excludeUserId) {
           this.emitUserResponseBySocketId(socketId, res);
         }
@@ -144,7 +194,7 @@ export class RoomGateway
 
     if (room) {
       for (const socketId of room) {
-        const userId = this.socketIdToUserId.get(socketId);
+        const userId = this.getUserId(socketId);
         if (userId) userIds.push(userId);
       }
     }
@@ -170,12 +220,14 @@ export class RoomGateway
    * 사용자 등록 검증
    */
   private validateUserRegistration(client: Socket): string | null {
-    const userId = this.socketIdToUserId.get(client.id);
+    const userId = this.getUserId(client.id);
     if (!userId) {
       this.logger.warn(`userId not found for socketId=${client.id}`);
       this.emitUserResponse(
         client,
-        new ErrorResponseDto({ message: 'User not registered' }),
+        new ErrorResponseDto({
+          message: this.localizationService.getText(TranslationKeys.UserNotFound, this.getUserLanguage(client))
+        }),
       );
       return null;
     }
@@ -188,38 +240,31 @@ export class RoomGateway
   private async getRoomUserInfos(roomId: string): Promise<RoomUserInfo[]> {
     const userIds = this.getRoomUserIds(roomId);
 
+    // RoomService에서 유저 정보 가져오기
+    const roomUserInfos = await this.roomService.getRoomUserInfos(roomId, userIds);
+
     const users = await Promise.all(
       userIds.map(async (userId) => {
         const user = await this.userService.findByEmail(userId);
-
-        // 유저의 게임 참여 상태 확인
-        const isPlaying = this.roomService.isUserPlaying(roomId, userId);
-
-        // 유저가 소유 중인 조커 카드 리스트 가져오기
-        const ownedCards = this.roomService.getUserOwnedCards(roomId, userId);
-
-        // 유저의 페이테이블 족보 레벨 정보 가져오기
-        const paytableLevels = this.roomService.getUserPaytableLevels(roomId, userId);
-        const paytableBaseChips = this.roomService.getUserPaytableBaseChips(roomId, userId);
-        const paytableMultipliers = this.roomService.getUserPaytableMultipliers(roomId, userId);
+        const roomUserInfo = roomUserInfos[userId];
 
         return user
           ? {
             userId: user.email,
             nickname: user.nickname,
-            silverChip: user.silverChip,
-            goldChip: user.goldChip,
-            isPlaying,
-            ownedCards,
-            paytableLevels,
-            paytableBaseChips,
-            paytableMultipliers,
+            chips: roomUserInfo.chips,
+            funds: roomUserInfo.funds,
+            isPlaying: roomUserInfo.isPlaying,
+            ownedCards: roomUserInfo.ownedCards,
+            paytableLevels: roomUserInfo.paytableLevels,
+            paytableBaseChips: roomUserInfo.paytableBaseChips,
+            paytableMultipliers: roomUserInfo.paytableMultipliers,
           }
           : {
             userId,
             nickname: null,
-            silverChip: 0,
-            goldChip: 0,
+            chips: 0,
+            funds: 0,
             isPlaying: false,
             ownedCards: [],
             paytableLevels: {},
@@ -235,7 +280,7 @@ export class RoomGateway
    * 게임 시작 로직 (handleReady와 handleNextRound에서 공통 사용)
    */
   private async startGameForRoom(roomId: string) {
-    this.roomService.startGame(roomId);
+    await this.roomService.startGame(roomId);
 
     const userIds = this.getRoomUserIds(roomId);
     const adapter = this.server.of('/').adapter;
@@ -243,12 +288,8 @@ export class RoomGateway
 
     if (!room) return;
 
-    // 상대방 유저들의 전체 정보 가져오기
-    // const allUserInfos = await this.getRoomUserInfos(roomId);
-    // const const userIds = this.getRoomUserIds(roomId);
-
     for (const socketId of room) {
-      const uid = this.socketIdToUserId.get(socketId);
+      const uid = this.getUserId(socketId);
       if (!uid) continue;
 
       const gameInfo = await this.roomService.createStartGameInfo(roomId, uid, userIds);
@@ -258,10 +299,9 @@ export class RoomGateway
         new StartGameResponseDto({
           round: gameInfo.round,
           totalDeckCards: gameInfo.totalDeckCards,
-          silverSeedChip: gameInfo.silverSeedChip,
-          goldSeedChip: gameInfo.goldSeedChip,
-          silverTableChip: gameInfo.silverTableChip,
-          goldTableChip: gameInfo.goldTableChip,
+          seedAmount: gameInfo.seedAmount,
+          bettingAmount: gameInfo.bettingAmount,
+          chipsTable: gameInfo.chipsTable,
           userInfo: gameInfo.userInfo,
         }),
       );
@@ -287,7 +327,8 @@ export class RoomGateway
 
   async handleDisconnect(client: Socket) {
     try {
-      const userId = this.socketIdToUserId.get(client.id);
+      const session = this.socketSessions.get(client.id);
+      const userId = session?.userId;
       this.logger.log(
         `[handleDisconnect] WebSocket client disconnected: socketId=${client.id}, userId=${userId}`,
       );
@@ -296,40 +337,34 @@ export class RoomGateway
         await this.authService.removeConnection(userId);
       }
 
-      this.socketIdToUserId.delete(client.id);
-      const joinedRoomIds = this.socketIdToRoomIds.get(client.id)
-        ? Array.from(this.socketIdToRoomIds.get(client.id)!)
-        : [];
-      this.socketIdToRoomIds.delete(client.id);
+      // 세션에서 방 정보 가져오기
+      const roomId = session?.roomId;
+      const joinedRoomIds = roomId ? [roomId] : [];
 
-      if (userId) {
-        for (const roomId of joinedRoomIds) {
-          // 연결이 끊어질 때도 칩 정보를 DB에 저장
-          await this.roomService.saveUserChipsOnLeave(roomId, userId);
+      // 세션 삭제
+      this.socketSessions.delete(client.id);
 
-          await this.roomService.removeUserFromRoom(
-            roomId,
-            userId,
-            this.socketIdToRoomIds,
-            this.socketIdToUserId,
-          );
-        }
+      if (userId && roomId) {
+        // 연결이 끊어질 때도 칩 정보를 DB에 저장
+        await this.roomService.saveUserChipsOnLeave(roomId, userId);
 
+        await this.roomService.removeUserFromRoom(
+          roomId,
+          userId,
+          this.socketSessions,
+        );
+      }
+
+      this.logger.log(
+        `[handleDisconnect] removeUserFromRoom called for userId=${userId} in rooms=${JSON.stringify(joinedRoomIds)}`,
+      );
+
+      if (roomId) {
+        const users = await this.getRoomUserInfos(roomId);
         this.logger.log(
-          `[handleDisconnect] removeUserFromRoom called for userId=${userId} in rooms=${JSON.stringify(joinedRoomIds)}`,
+          `[handleDisconnect] roomUsers emit: roomId=${roomId}, users=${JSON.stringify(users)}`,
         );
-
-        for (const roomId of joinedRoomIds) {
-          const users = await this.getRoomUserInfos(roomId);
-          this.logger.log(
-            `[handleDisconnect] roomUsers emit: roomId=${roomId}, users=${JSON.stringify(users)}`,
-          );
-          this.emitRoomResponse(roomId, new RoomUsersResponseDto({ users }));
-        }
-      } else {
-        this.logger.warn(
-          `[handleDisconnect] userId not found for socketId=${client.id}`,
-        );
+        this.emitRoomResponse(roomId, new RoomUsersResponseDto({ users }));
       }
     } catch (error) {
       this.logger.error(
@@ -352,12 +387,13 @@ export class RoomGateway
       );
 
       await client.join(data.roomId);
-      this.socketIdToUserId.set(client.id, data.userId);
 
-      if (!this.socketIdToRoomIds.has(client.id)) {
-        this.socketIdToRoomIds.set(client.id, new Set());
-      }
-      this.socketIdToRoomIds.get(client.id)!.add(data.roomId);
+      // 세션 생성 또는 업데이트
+      this.socketSessions.set(client.id, {
+        userId: data.userId,
+        roomId: data.roomId,
+        language: this.getUserLanguage(client)
+      });
 
       this.emitUserResponse(client, new JoinRoomResponseDto({}));
 
@@ -377,7 +413,9 @@ export class RoomGateway
       );
       this.emitUserResponse(
         client,
-        new ErrorResponseDto({ message: 'Failed to join room' }),
+        new ErrorResponseDto({
+          message: this.localizationService.getText(TranslationKeys.RoomNotFound, this.getUserLanguage(client))
+        }),
       );
     }
   }
@@ -388,21 +426,20 @@ export class RoomGateway
     @ConnectedSocket() client: Socket,
   ) {
     try {
-      const userId = this.socketIdToUserId.get(client.id);
+      const session = this.socketSessions.get(client.id);
+      const userId = session?.userId;
+      const roomId = session?.roomId;
 
-      // socketId로 roomId 찾기
-      const roomIds = this.socketIdToRoomIds.get(client.id);
-      if (!roomIds || roomIds.size === 0) {
+      if (!roomId) {
         this.logger.warn(`[handleLeaveRoom] socketId=${client.id}가 속한 방을 찾을 수 없습니다.`);
         this.emitUserResponse(
           client,
-          new ErrorResponseDto({ message: '방을 찾을 수 없습니다.' }),
+          new ErrorResponseDto({
+            message: this.localizationService.getText(TranslationKeys.RoomNotFound, this.getUserLanguage(client))
+          }),
         );
         return;
       }
-
-      // 첫 번째 방 사용 (일반적으로 한 유저는 하나의 방에만 속함)
-      const roomId = Array.from(roomIds)[0];
 
       this.logger.log(
         `[handleLeaveRoom] leaveRoom: socketId=${client.id}, userId=${userId}, roomId=${roomId}, payload=${JSON.stringify(data)}`,
@@ -415,19 +452,17 @@ export class RoomGateway
         );
         this.emitUserResponse(
           client,
-          new ErrorResponseDto({ message: '게임 진행 중에는 방을 나갈 수 없습니다.' }),
+          new ErrorResponseDto({
+            message: this.localizationService.getText(TranslationKeys.GameNotStarted, this.getUserLanguage(client))
+          }),
         );
         return;
       }
 
       await client.leave(roomId);
 
-      if (this.socketIdToRoomIds.has(client.id)) {
-        this.socketIdToRoomIds.get(client.id)!.delete(roomId);
-        if (this.socketIdToRoomIds.get(client.id)!.size === 0) {
-          this.socketIdToRoomIds.delete(client.id);
-        }
-      }
+      // 세션에서 방 제거
+      this.removeUserFromRoom(client.id);
 
       if (userId) {
         // 방에서 퇴장할 때 칩 정보를 DB에 저장
@@ -437,8 +472,7 @@ export class RoomGateway
         await this.roomService.removeUserFromRoom(
           roomId,
           userId,
-          this.socketIdToRoomIds,
-          this.socketIdToUserId,
+          this.socketSessions,
         );
 
         this.logger.log(
@@ -465,7 +499,9 @@ export class RoomGateway
       );
       this.emitUserResponse(
         client,
-        new ErrorResponseDto({ message: 'Failed to leave room' }),
+        new ErrorResponseDto({
+          message: this.localizationService.getText(TranslationKeys.RoomNotFound, this.getUserLanguage(client))
+        }),
       );
     }
   }
@@ -481,18 +517,17 @@ export class RoomGateway
     if (!userId) return;
 
     // socketId로 roomId 찾기
-    const roomIds = this.socketIdToRoomIds.get(client.id);
-    if (!roomIds || roomIds.size === 0) {
+    const roomId = this.getUserRoomId(client.id);
+    if (!roomId) {
       this.logger.warn(`[handleReady] socketId=${client.id}가 속한 방을 찾을 수 없습니다.`);
       this.emitUserResponse(
         client,
-        new ErrorResponseDto({ message: '방을 찾을 수 없습니다.' }),
+        new ErrorResponseDto({
+          message: this.localizationService.getText(TranslationKeys.RoomNotFound, this.getUserLanguage(client))
+        }),
       );
       return;
     }
-
-    // 첫 번째 방 사용 (일반적으로 한 유저는 하나의 방에만 속함)
-    const roomId = Array.from(roomIds)[0];
 
     this.logger.log(
       `[handleReady] ready: socketId=${client.id}, userId=${userId}, roomId=${roomId}, payload=${JSON.stringify(data)}`,
@@ -523,18 +558,17 @@ export class RoomGateway
       if (!userId) return;
 
       // socketId로 roomId 찾기
-      const roomIds = this.socketIdToRoomIds.get(client.id);
-      if (!roomIds || roomIds.size === 0) {
+      const roomId = this.getUserRoomId(client.id);
+      if (!roomId) {
         this.logger.warn(`[handleDiscard] socketId=${client.id}가 속한 방을 찾을 수 없습니다.`);
         this.emitUserResponse(
           client,
-          new ErrorResponseDto({ message: '방을 찾을 수 없습니다.' }),
+          new ErrorResponseDto({
+            message: this.localizationService.getText(TranslationKeys.RoomNotFound, this.getUserLanguage(client))
+          }),
         );
         return;
       }
-
-      // 첫 번째 방 사용 (일반적으로 한 유저는 하나의 방에만 속함)
-      const roomId = Array.from(roomIds)[0];
 
       if (!this.validateRoomPhase(roomId, 'playing', userId)) return;
 
@@ -544,7 +578,7 @@ export class RoomGateway
           client,
           new DiscardResponseDto({
             success: false,
-            message: '버리기는 라운드당 최대 4번만 가능합니다.',
+            message: TranslationKeys.InvalidDiscard,
           }),
         );
         return;
@@ -580,7 +614,7 @@ export class RoomGateway
       );
       this.emitUserResponse(
         client,
-        new ErrorResponseDto({ message: 'Failed to discard cards' }),
+        new ErrorResponseDto({ message: TranslationKeys.InvalidDiscard }),
       );
     }
   }
@@ -595,18 +629,15 @@ export class RoomGateway
       if (!userId) return;
 
       // socketId로 roomId 찾기
-      const roomIds = this.socketIdToRoomIds.get(client.id);
-      if (!roomIds || roomIds.size === 0) {
+      const roomId = this.getUserRoomId(client.id);
+      if (!roomId) {
         this.logger.warn(`[handleHandPlayReady] socketId=${client.id}가 속한 방을 찾을 수 없습니다.`);
         this.emitUserResponse(
           client,
-          new ErrorResponseDto({ message: '방을 찾을 수 없습니다.' }),
+          new ErrorResponseDto({ message: TranslationKeys.RoomNotFound }),
         );
         return;
       }
-
-      // 첫 번째 방 사용 (일반적으로 한 유저는 하나의 방에만 속함)
-      const roomId = Array.from(roomIds)[0];
 
       if (!this.validateRoomPhase(roomId, 'playing', userId)) return;
 
@@ -630,7 +661,7 @@ export class RoomGateway
       const userIds = this.getRoomUserIds(roomId);
 
       // playing 상태인 유저들만 필터링
-      const playingUserIds = userIds.filter(uid => this.roomService.isUserPlaying(roomId, uid));
+      const playingUserIds = this.roomService.getPlayingUserIds(roomId, userIds);
 
       if (this.roomService.canRevealHandPlay(roomId, userIds)) {
         try {
@@ -641,7 +672,7 @@ export class RoomGateway
 
           if (room) {
             for (const socketId of room) {
-              const uid = this.socketIdToUserId.get(socketId);
+              const uid = this.getUserId(socketId);
               if (!uid) continue;
 
               const res = new HandPlayResultResponseDto({
@@ -663,7 +694,7 @@ export class RoomGateway
       );
       this.emitUserResponse(
         client,
-        new ErrorResponseDto({ message: 'Failed to submit hand play' }),
+        new ErrorResponseDto({ message: TranslationKeys.InvalidRequest }),
       );
     }
   }
@@ -678,18 +709,15 @@ export class RoomGateway
       if (!userId) return;
 
       // socketId로 roomId 찾기
-      const roomIds = this.socketIdToRoomIds.get(client.id);
-      if (!roomIds || roomIds.size === 0) {
+      const roomId = this.getUserRoomId(client.id);
+      if (!roomId) {
         this.logger.warn(`[handleNextRound] socketId=${client.id}가 속한 방을 찾을 수 없습니다.`);
         this.emitUserResponse(
           client,
-          new ErrorResponseDto({ message: '방을 찾을 수 없습니다.' }),
+          new ErrorResponseDto({ message: TranslationKeys.RoomNotFound }),
         );
         return;
       }
-
-      // 첫 번째 방 사용 (일반적으로 한 유저는 하나의 방에만 속함)
-      const roomId = Array.from(roomIds)[0];
 
       this.logger.log(
         `[handleNextRound] nextRound: socketId=${client.id}, userId=${userId}, roomId=${roomId}, payload=${JSON.stringify(data)}`,
@@ -716,7 +744,7 @@ export class RoomGateway
     } catch (error) {
       this.emitUserResponse(
         client,
-        new ErrorResponseDto({ message: 'Failed to start next round' }),
+        new ErrorResponseDto({ message: TranslationKeys.InvalidRequest }),
       );
     }
   }
@@ -737,18 +765,15 @@ export class RoomGateway
       );
 
       // socketId로 roomId 찾기
-      const roomIds = this.socketIdToRoomIds.get(client.id);
-      if (!roomIds || roomIds.size === 0) {
+      const roomId = this.getUserRoomId(client.id);
+      if (!roomId) {
         this.logger.warn(`[handleBuyCard] socketId=${client.id}가 속한 방을 찾을 수 없습니다.`);
         this.emitUserResponse(
           client,
-          new ErrorResponseDto({ message: '방을 찾을 수 없습니다.' }),
+          new ErrorResponseDto({ message: TranslationKeys.RoomNotFound }),
         );
         return;
       }
-
-      // 첫 번째 방 사용 (일반적으로 한 유저는 하나의 방에만 속함)
-      const roomId = Array.from(roomIds)[0];
 
       if (!this.validateRoomPhase(roomId, 'shop', userId)) return;
 
@@ -769,7 +794,7 @@ export class RoomGateway
           userId: userId,
           cardId: data.cardId,
           funds: result.funds ?? 0,
-          message: '카드 구매가 완료되었습니다.',
+          message: this.localizationService.getText(TranslationKeys.CardPurchaseCompleted, this.getUserLanguage(client)),
           firstDeckCards: result.firstDeckCards, // 수정된 덱의 앞 8장
           planetCardIds: result.planetCardIds, // tarot_10용 행성 카드 ID 리스트
         });
@@ -781,7 +806,7 @@ export class RoomGateway
           userId: userId,
           cardId: data.cardId,
           funds: result.funds ?? 0,
-          message: '카드 구매가 완료되었습니다.',
+          message: this.localizationService.getText(TranslationKeys.CardPurchaseCompleted, this.getUserLanguage(client)),
           planetCardIds: result.planetCardIds, // tarot_10용 행성 카드 ID 리스트
         });
         this.emitRoomResponseExceptUser(roomId, userId, otherUsersResponse);
@@ -796,7 +821,7 @@ export class RoomGateway
           userId: userId,
           cardId: data.cardId,
           funds: result.funds ?? 0,
-          message: result.message,
+          message: this.localizationService.getText(result.message as TranslationKeys, this.getUserLanguage(client)),
         });
 
         this.emitUserResponse(client, res);
@@ -808,7 +833,7 @@ export class RoomGateway
       );
       this.emitUserResponse(
         client,
-        new ErrorResponseDto({ message: 'Failed to buy card' }),
+        new ErrorResponseDto({ message: TranslationKeys.PurchaseFailed }),
       );
     }
   }
@@ -823,8 +848,8 @@ export class RoomGateway
       if (!userId) return;
 
       // socketId로 roomId 찾기
-      const roomIds = this.socketIdToRoomIds.get(client.id);
-      if (!roomIds || roomIds.size === 0) {
+      const roomId = this.getUserRoomId(client.id);
+      if (!roomId) {
         this.logger.warn(
           `[handleSellCard] socketId=${client.id}가 어떤 방에도 속해있지 않습니다.`,
         );
@@ -832,14 +857,11 @@ export class RoomGateway
           client,
           new SellCardResponseDto({
             success: false,
-            message: '방에 속해있지 않습니다.',
+            message: TranslationKeys.RoomNotFound,
           }),
         );
         return;
       }
-
-      // 첫 번째 방 사용 (일반적으로 하나의 방에만 속함)
-      const roomId = Array.from(roomIds)[0];
 
       this.logger.log(
         `[handleSellCard] sellCard: socketId=${client.id}, userId=${userId}, roomId=${roomId}, cardId=${data.cardId}`,
@@ -857,7 +879,7 @@ export class RoomGateway
         );
         const res = new SellCardResponseDto({
           success: true,
-          message: result.message,
+          message: this.localizationService.getText(result.message as TranslationKeys, this.getUserLanguage(client)),
           userId: userId,
           soldCardId: result.soldCardId,
           funds: result.funds ?? 0,
@@ -869,7 +891,7 @@ export class RoomGateway
         );
         const res = new SellCardResponseDto({
           success: false,
-          message: result.message,
+          message: this.localizationService.getText(result.message as TranslationKeys, this.getUserLanguage(client)),
           userId: userId,
           funds: result.funds ?? 0,
         });
@@ -882,7 +904,7 @@ export class RoomGateway
       );
       const res = new SellCardResponseDto({
         success: false,
-        message: '판매 중 오류가 발생했습니다.',
+        message: TranslationKeys.SaleFailed,
       });
       this.emitUserResponse(client, res);
     }
@@ -898,18 +920,15 @@ export class RoomGateway
       if (!userId) return;
 
       // socketId로 roomId 찾기
-      const roomIds = this.socketIdToRoomIds.get(client.id);
-      if (!roomIds || roomIds.size === 0) {
+      const roomId = this.getUserRoomId(client.id);
+      if (!roomId) {
         this.logger.warn(`[handleReRollShop] socketId=${client.id}가 속한 방을 찾을 수 없습니다.`);
         this.emitUserResponse(
           client,
-          new ErrorResponseDto({ message: '방을 찾을 수 없습니다.' }),
+          new ErrorResponseDto({ message: TranslationKeys.RoomNotFound }),
         );
         return;
       }
-
-      // 첫 번째 방 사용 (일반적으로 한 유저는 하나의 방에만 속함)
-      const roomId = Array.from(roomIds)[0];
 
       this.logger.log(
         `[handleReRollShop] reRollShop: socketId=${client.id}, userId=${userId}, roomId=${roomId}, payload=${JSON.stringify(data)}`,
@@ -923,7 +942,7 @@ export class RoomGateway
         );
         const res = new ReRollShopResponseDto({
           success: false,
-          message: '다시뽑기에는 5 funds가 필요합니다.',
+          message: TranslationKeys.InsufficientFunds,
           cards: [],
         });
         this.emitUserResponse(client, res);
@@ -940,7 +959,7 @@ export class RoomGateway
         );
         const res = new ReRollShopResponseDto({
           success: false,
-          message: '다시뽑기 중 오류가 발생했습니다.',
+          message: TranslationKeys.RerollFailed,
           cards: [],
         });
         this.emitUserResponse(client, res);
@@ -978,7 +997,7 @@ export class RoomGateway
       );
       const res = new ReRollShopResponseDto({
         success: false,
-        message: '다시뽑기 중 오류가 발생했습니다.',
+        message: TranslationKeys.RerollFailed,
         cards: [],
       });
       this.emitUserResponse(client, res);
@@ -995,8 +1014,8 @@ export class RoomGateway
       if (!userId) return;
 
       // socketId로 roomId 찾기
-      const roomIds = this.socketIdToRoomIds.get(client.id);
-      if (!roomIds || roomIds.size === 0) {
+      const roomId = this.getUserRoomId(client.id);
+      if (!roomId) {
         this.logger.warn(
           `[handleReorderJokers] socketId=${client.id}가 어떤 방에도 속해있지 않습니다.`,
         );
@@ -1004,16 +1023,13 @@ export class RoomGateway
           client,
           new ReorderJokersResponseDto({
             success: false,
-            message: '방에 속해있지 않습니다.',
+            message: TranslationKeys.RoomNotFound,
             userId: userId,
             jokerIds: [],
           }),
         );
         return;
       }
-
-      // 첫 번째 방 사용 (일반적으로 하나의 방에만 속함)
-      const roomId = Array.from(roomIds)[0];
 
       this.logger.log(
         `[handleReorderJokers] reorderJokers: socketId=${client.id}, userId=${userId}, roomId=${roomId}, jokerIds=${JSON.stringify(data.jokerIds)}`,
@@ -1044,7 +1060,7 @@ export class RoomGateway
         // 실패 시 요청한 유저에게만 알림
         const res = new ReorderJokersResponseDto({
           success: false,
-          message: result.message,
+          message: this.localizationService.getText(result.message as TranslationKeys, this.getUserLanguage(client)),
           userId: userId,
           jokerIds: [],
         });
@@ -1055,10 +1071,10 @@ export class RoomGateway
         `[handleReorderJokers] Error in reorderJokers: socketId=${client.id}, jokerIds=${JSON.stringify(data.jokerIds)}`,
         error instanceof Error ? error.stack : String(error),
       );
-      const userId = this.socketIdToUserId.get(client.id) || '';
+      const userId = this.getUserId(client.id) || '';
       const res = new ReorderJokersResponseDto({
         success: false,
-        message: '순서 변경 중 오류가 발생했습니다.',
+        message: TranslationKeys.InvalidJokerOrder,
         userId: userId,
         jokerIds: [],
       });
@@ -1078,18 +1094,17 @@ export class RoomGateway
       if (!userId) return;
 
       // socketId로 roomId 찾기
-      const roomIds = this.socketIdToRoomIds.get(client.id);
-      if (!roomIds || roomIds.size === 0) {
+      const roomId = this.getUserRoomId(client.id);
+      if (!roomId) {
         this.logger.warn(`[handleBetting] socketId=${client.id}가 속한 방을 찾을 수 없습니다.`);
         this.emitUserResponse(
           client,
-          new ErrorResponseDto({ message: '방을 찾을 수 없습니다.' }),
+          new ErrorResponseDto({
+            message: this.localizationService.getText(TranslationKeys.RoomNotFound, this.getUserLanguage(client))
+          }),
         );
         return;
       }
-
-      // 첫 번째 방 사용 (일반적으로 한 유저는 하나의 방에만 속함)
-      const roomId = Array.from(roomIds)[0];
 
       this.logger.log(
         `[handleBetting] betting: socketId=${client.id}, userId=${userId}, roomId=${roomId}, payload=${JSON.stringify(data)}`,
@@ -1099,14 +1114,13 @@ export class RoomGateway
 
       if (result.success) {
         this.logger.log(
-          `[handleBetting] 베팅 성공: userId=${userId}, currentSilverSeed=${result.currentSilverSeed}, currentGoldSeed=${result.currentGoldSeed}`,
+          `[handleBetting] 베팅 성공: userId=${userId}, currentSeedAmount=${result.currentSeedAmount}, currentBettingAmount=${result.currentBettingAmount}`,
         );
 
         // 성공 시 모든 유저에게 알림
         const res = new BettingResponseDto({
           userId: userId,
-          currentSilverSeed: result.currentSilverSeed!,
-          currentGoldSeed: result.currentGoldSeed!,
+          currentBettingAmount: result.currentBettingAmount!,
         });
         this.emitRoomResponse(roomId, res);
       } else {
@@ -1117,10 +1131,9 @@ export class RoomGateway
         // 실패 시 요청한 유저에게만 알림
         const res = new BettingResponseDto({
           success: false,
-          message: result.message,
+          message: this.localizationService.getText(result.message as TranslationKeys, this.getUserLanguage(client)),
           userId: userId,
-          currentSilverSeed: 0,
-          currentGoldSeed: 0,
+          currentBettingAmount: 0,
         });
         this.emitUserResponse(client, res);
       }
@@ -1129,13 +1142,12 @@ export class RoomGateway
         `[handleBetting] Error in betting: socketId=${client.id}`,
         error instanceof Error ? error.stack : String(error),
       );
-      const userId = this.socketIdToUserId.get(client.id) || '';
+      const userId = this.getUserId(client.id) || '';
       const res = new BettingResponseDto({
         success: false,
-        message: '베팅 중 오류가 발생했습니다.',
+        message: TranslationKeys.BettingFailed,
         userId: userId,
-        currentSilverSeed: 0,
-        currentGoldSeed: 0,
+        currentBettingAmount: 0,
       });
       this.emitUserResponse(client, res);
     }
@@ -1143,7 +1155,71 @@ export class RoomGateway
 
   // === 특별 카드 사용 ===
 
-  @SubscribeMessage('UseSpecialCardRequest')
+  @SubscribeMessage(FoldRequestDto.requestEventName)
+  async handleFoldRequest(
+    @MessageBody() data: FoldRequestDto,
+    @ConnectedSocket() client: Socket,
+  ) {
+    try {
+      const userId = this.validateUserRegistration(client);
+      if (!userId) {
+        this.emitUserResponse(client, new ErrorResponseDto({ message: TranslationKeys.UserNotFound }));
+        return;
+      }
+
+      // 유저가 속한 방 찾기
+      const roomId = this.getUserRoomId(client.id);
+      if (!roomId) {
+        this.emitUserResponse(client, new ErrorResponseDto({ message: TranslationKeys.RoomNotFound }));
+        return;
+      }
+
+      // fold 처리
+      const result = await this.roomService.handleFold(roomId, userId);
+
+      if (result.success) {
+        // fold 결과가 있으면 모든 유저에게 fold 응답 전송
+        if (result.userId) {
+          this.emitRoomResponse(
+            roomId,
+            new FoldResponseDto({
+              userId: result.userId,
+              isGameRestarting: result.isGameRestarting || false,
+              lastWinnerId: result.lastWinnerId,
+              chipsReward: result.chipsReward,
+              finalChips: result.finalChips,
+              finalFunds: result.finalFunds
+            })
+          );
+        }
+
+        this.logger.log(
+          `[handleFoldRequest] fold 성공: roomId=${roomId}, userId=${userId}, isGameRestarting=${result.isGameRestarting || false}`
+        );
+      } else {
+        // fold 실패 시 요청한 유저에게만 에러 응답
+        this.emitUserResponse(
+          client,
+          new ErrorResponseDto({ message: result.message })
+        );
+
+        this.logger.warn(
+          `[handleFoldRequest] fold 실패: roomId=${roomId}, userId=${userId}, message=${result.message}`
+        );
+      }
+    } catch (error) {
+      this.logger.error(
+        `[handleFoldRequest] Error in handleFoldRequest: socketId=${client.id}`,
+        (error as Error).stack,
+      );
+      this.emitUserResponse(
+        client,
+        new ErrorResponseDto({ message: TranslationKeys.InvalidRequest })
+      );
+    }
+  }
+
+  @SubscribeMessage(UseSpecialCardRequestDto.requestEventName)
   async handleUseSpecialCardRequest(
     @MessageBody() data: UseSpecialCardRequestDto,
     @ConnectedSocket() client: Socket,
@@ -1152,16 +1228,16 @@ export class RoomGateway
     if (!userId) {
       this.emitUserResponse(client, new ErrorResponseDto({
         success: false,
-        message: '사용자 인증이 필요합니다.',
+        message: TranslationKeys.AuthenticationFailed,
       }));
       return;
     }
 
-    const roomId = this.socketIdToRoomIds.get(client.id)?.values().next().value;
+    const roomId = this.getUserRoomId(client.id);
     if (!roomId) {
       this.emitUserResponse(client, new ErrorResponseDto({
         success: false,
-        message: '방에 입장되어 있지 않습니다.',
+        message: this.localizationService.getText(TranslationKeys.NotInRoom, this.getUserLanguage(client)),
       }));
       return;
     }
@@ -1174,7 +1250,7 @@ export class RoomGateway
     // 요청한 유저에게는 카드 정보 포함하여 응답
     const requesterResponse = new UseSpecialCardResponseDto({
       success: result.success,
-      message: result.message,
+      message: this.localizationService.getText(result.message as TranslationKeys, this.getUserLanguage(client)),
       userId: userId,
       cardId: data.cardId,
       selectedCards: result.selectedCards,
@@ -1185,7 +1261,7 @@ export class RoomGateway
     // 다른 유저들에게는 카드 정보 없이 응답
     const otherUsersResponse = new UseSpecialCardResponseDto({
       success: result.success,
-      message: result.message,
+      message: this.localizationService.getText(result.message as TranslationKeys, this.getUserLanguage(client)),
       userId: userId,
       cardId: data.cardId,
       // selectedCards와 resultCards 제외
@@ -1214,7 +1290,7 @@ export class RoomGateway
         const res = new LoginResponseDto({
           success: false,
           code: 1003,
-          message: `Unsupported client version. Please update to version ${getVersionString(MIN_CLIENT_VERSION)} or higher.`,
+          message: this.localizationService.getText(TranslationKeys.ClientVersionIncompatible, this.getUserLanguage(client), getVersionString(data.version), `Required: ${getVersionString(MIN_CLIENT_VERSION)} or higher`),
         });
         this.emitUserResponse(client, res);
         return;
@@ -1228,7 +1304,7 @@ export class RoomGateway
         const res = new LoginResponseDto({
           success: false,
           code: 1001,
-          message: 'Invalid credentials',
+          message: TranslationKeys.AuthenticationFailed,
         });
         this.emitUserResponse(client, res);
         return;
@@ -1246,7 +1322,12 @@ export class RoomGateway
         return;
       }
 
-      this.socketIdToUserId.set(client.id, user.email);
+      // 세션 생성
+      this.socketSessions.set(client.id, {
+        userId: user.email,
+        roomId: null,
+        language: data.language || 'en'
+      });
 
       // 로그인할 때마다 DB에서 스페셜카드 데이터 다시 읽어들이기
       await this.specialCardManagerService.initializeCards(this.roomService['prisma']);
@@ -1254,18 +1335,46 @@ export class RoomGateway
       // 활성화된 스페셜카드 데이터 가져오기
       const activeSpecialCards = this.specialCardManagerService.getActiveSpecialCards();
 
-      // 로그 추가: price 필드 확인
-      if (activeSpecialCards.length > 0) {
-        this.logger.log(`[handleLogin] 첫 번째 카드 price 확인: ${activeSpecialCards[0].id} = ${activeSpecialCards[0].price}`);
+      // 로그 추가: 처음 5개 카드의 모든 데이터 출력
+      this.logger.log(`[handleLogin] 활성화된 스페셜카드 총 개수: ${activeSpecialCards.length}`);
+
+      for (let i = 0; i < Math.min(5, activeSpecialCards.length); i++) {
+        const card = activeSpecialCards[i];
+        this.logger.log(`[handleLogin] 카드 ${i + 1}:`, {
+          id: card.id,
+          name: card.name,
+          description: card.description,
+          price: card.price,
+          sprite: card.sprite,
+          type: card.type,
+          baseValue: card.baseValue,
+          increase: card.increase,
+          decrease: card.decrease,
+          maxValue: card.maxValue,
+          needCardCount: card.needCardCount,
+          enhanceChips: card.enhanceChips,
+          enhanceMul: card.enhanceMul,
+          isActive: card.isActive,
+          // 조건-효과 시스템 데이터
+          effectTimings: card.effectTimings,
+          effectTypes: card.effectTypes,
+          effectOnCards: card.effectOnCards,
+          conditionTypes: card.conditionTypes,
+          conditionValues: card.conditionValues,
+          conditionOperators: card.conditionOperators,
+          conditionNumericValues: card.conditionNumericValues
+        });
       }
 
       // 게임 설정 가져오기
+      // 로그인 시에는 캐시를 무효화하여 DB에서 최신 설정을 다시 로드
+      await this.gameSettingsService.invalidateCache();
       const gameSettings = await this.gameSettingsService.getGameSettings();
 
       const res = new LoginResponseDto({
         success: true,
         code: 0,
-        message: 'Login successful',
+        message: TranslationKeys.Login,
         email: user.email,
         nickname: user.nickname,
         silverChip: user.silverChip,
@@ -1283,7 +1392,7 @@ export class RoomGateway
       const res = new LoginResponseDto({
         success: false,
         code: 1000,
-        message: 'Internal server error',
+        message: TranslationKeys.ServerError,
       });
       this.emitUserResponse(client, res);
     }
@@ -1291,7 +1400,7 @@ export class RoomGateway
 
   onModuleInit() {
     (
-      global as unknown as { roomGatewayInstance: unknown }
+      global as unknown as { roomGatewayInstance: RoomGateway }
     ).roomGatewayInstance = this;
     this.logger.log('[RoomGateway] 글로벌 인스턴스 등록 완료');
   }

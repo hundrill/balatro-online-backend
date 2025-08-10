@@ -1,0 +1,412 @@
+{
+    "translations": [
+        {
+            "key": "login",
+            "value": "Login berhasil"
+        },
+        {
+            "key": "logging_in",
+            "value": "Sedang login..."
+        },
+        {
+            "key": "quick_start",
+            "value": "Mulai Cepat"
+        },
+        {
+            "key": "no_limit",
+            "value": "Tidak terbatas"
+        },
+        {
+            "key": "win",
+            "value": "Menang"
+        },
+        {
+            "key": "table_chip",
+            "value": "Chip Meja"
+        },
+        {
+            "key": "upgrade_run",
+            "value": "Tingkatkan run Anda!"
+        },
+        {
+            "key": "round",
+            "value": "Ronde"
+        },
+        {
+            "key": "round_score",
+            "value": "Skor Ronde"
+        },
+        {
+            "key": "poker_hand",
+            "value": "Tangan Poker"
+        },
+        {
+            "key": "poker_hand_none",
+            "value": "Tidak ada"
+        },
+        {
+            "key": "poker_hand_highcard",
+            "value": "Kartu Tinggi"
+        },
+        {
+            "key": "poker_hand_onepair",
+            "value": "Satu Pasang"
+        },
+        {
+            "key": "poker_hand_twopair",
+            "value": "Dua Pasang"
+        },
+        {
+            "key": "poker_hand_threeofakind",
+            "value": "Tiga Sejenis"
+        },
+        {
+            "key": "poker_hand_straight",
+            "value": "Lurus"
+        },
+        {
+            "key": "poker_hand_flush",
+            "value": "Flush"
+        },
+        {
+            "key": "poker_hand_fullhouse",
+            "value": "Full House"
+        },
+        {
+            "key": "poker_hand_fourofakind",
+            "value": "Empat Sejenis"
+        },
+        {
+            "key": "poker_hand_straightflush",
+            "value": "Lurus Flush"
+        },
+        {
+            "key": "game_result",
+            "value": "Hasil Permainan"
+        },
+        {
+            "key": "cash_out",
+            "value": "Tarik Tunai:"
+        },
+        {
+            "key": "waiting",
+            "value": "Menunggu"
+        },
+        {
+            "key": "use",
+            "value": "Gunakan"
+        },
+        {
+            "key": "ready",
+            "value": "Siap"
+        },
+        {
+            "key": "exit",
+            "value": "Keluar"
+        },
+        {
+            "key": "fold",
+            "value": "Lipat"
+        },
+        {
+            "key": "new_joker_card_ready",
+            "value": "Kartu Joker baru siap!"
+        },
+        {
+            "key": "preparing_new_joker_card",
+            "value": "Menyiapkan kartu joker baru..."
+        },
+        {
+            "key": "client_version_incompatible",
+            "value": "Versi klien tidak kompatibel dengan server.\nVersi saat ini: {0}\n{1}"
+        },
+        {
+            "key": "login_error_occurred",
+            "value": "Terjadi kesalahan saat memproses login.\n{0}"
+        },
+        {
+            "key": "login_error_general",
+            "value": "Terjadi kesalahan saat memproses login."
+        },
+        {
+            "key": "creating_room",
+            "value": "Membuat ruangan..."
+        },
+        {
+            "key": "entering_channel",
+            "value": "Memasuki saluran..."
+        },
+        {
+            "key": "silver_chip_requirement",
+            "value": "Chip perak harus 100 atau lebih untuk masuk."
+        },
+        {
+            "key": "gold_chip_requirement_1",
+            "value": "Chip emas harus 1 atau lebih untuk masuk."
+        },
+        {
+            "key": "gold_chip_requirement_100",
+            "value": "Chip emas harus 100 atau lebih untuk masuk."
+        },
+        {
+            "key": "gold_chip_requirement_1000",
+            "value": "Chip emas harus 1000 atau lebih untuk masuk."
+        },
+        {
+            "key": "room_creation_failed",
+            "value": "Gagal membuat ruangan: {0}"
+        },
+        {
+            "key": "entering_room",
+            "value": "Memasuki ruangan..."
+        },
+        {
+            "key": "room_list_fetch_failed",
+            "value": "Gagal mengambil daftar ruangan: {0}"
+        },
+        {
+            "key": "discard_failed",
+            "value": "Gagal membuang: {0}"
+        },
+        {
+            "key": "purchase_failed",
+            "value": "Gagal membeli!\n{0}"
+        },
+        {
+            "key": "joker_order_change_failed",
+            "value": "Gagal mengubah urutan joker!\n{0}"
+        },
+        {
+            "key": "joker_sold_complete",
+            "value": "Joker '{0}' berhasil dijual."
+        },
+        {
+            "key": "sale_failed",
+            "value": "Gagal menjual: {0}"
+        },
+        {
+            "key": "reroll_failed",
+            "value": "Gagal mengocok ulang: {0}"
+        },
+        {
+            "key": "all_rounds_completed",
+            "value": "Semua ronde telah selesai."
+        },
+        {
+            "key": "betting_completed",
+            "value": "Taruhan selesai!\nBiji perak: {0}\nBiji emas: {1}"
+        },
+        {
+            "key": "betting_failed",
+            "value": "Gagal bertaruh: {0}"
+        },
+        {
+            "key": "special_card_use_failed",
+            "value": "Gagal menggunakan kartu khusus!\n{0}"
+        },
+        {
+            "key": "fold_shop_phase_only",
+            "value": "Lipat hanya dapat dilakukan pada fase toko."
+        },
+        {
+            "key": "fold_playing_status_only",
+            "value": "Lipat hanya dapat dilakukan saat bermain."
+        },
+        {
+            "key": "service_preparing",
+            "value": "Layanan sedang disiapkan"
+        },
+        {
+            "key": "invalid_request",
+            "value": "Permintaan tidak valid"
+        },
+        {
+            "key": "user_not_found",
+            "value": "Pengguna tidak ditemukan"
+        },
+        {
+            "key": "room_not_found",
+            "value": "Ruangan tidak ditemukan"
+        },
+        {
+            "key": "room_full",
+            "value": "Ruangan penuh"
+        },
+        {
+            "key": "insufficient_funds",
+            "value": "Dana tidak mencukupi"
+        },
+        {
+            "key": "invalid_card_id",
+            "value": "ID kartu tidak valid"
+        },
+        {
+            "key": "invalid_phase",
+            "value": "Fase tidak valid"
+        },
+        {
+            "key": "not_playing",
+            "value": "Tidak sedang bermain"
+        },
+        {
+            "key": "already_betting",
+            "value": "Sudah bertaruh"
+        },
+        {
+            "key": "invalid_betting_amount",
+            "value": "Jumlah taruhan tidak valid"
+        },
+        {
+            "key": "card_not_owned",
+            "value": "Kartu tidak dimiliki"
+        },
+        {
+            "key": "invalid_joker_order",
+            "value": "Urutan joker tidak valid"
+        },
+        {
+            "key": "shop_not_available",
+            "value": "Toko tidak tersedia"
+        },
+        {
+            "key": "game_not_started",
+            "value": "Permainan belum dimulai"
+        },
+        {
+            "key": "round_not_ended",
+            "value": "Ronde belum berakhir"
+        },
+        {
+            "key": "invalid_discard",
+            "value": "Pembuangan tidak valid"
+        },
+        {
+            "key": "no_cards_selected",
+            "value": "Tidak ada kartu yang dipilih"
+        },
+        {
+            "key": "too_many_cards_selected",
+            "value": "Terlalu banyak kartu yang dipilih"
+        },
+        {
+            "key": "invalid_special_card_use",
+            "value": "Penggunaan kartu khusus tidak valid"
+        },
+        {
+            "key": "special_card_not_owned",
+            "value": "Kartu khusus tidak dimiliki"
+        },
+        {
+            "key": "invalid_tarot_target",
+            "value": "Target tarot tidak valid"
+        },
+        {
+            "key": "invalid_planet_target",
+            "value": "Target planet tidak valid"
+        },
+        {
+            "key": "network_error",
+            "value": "Kesalahan jaringan"
+        },
+        {
+            "key": "server_error",
+            "value": "Kesalahan server"
+        },
+        {
+            "key": "database_error",
+            "value": "Kesalahan database"
+        },
+        {
+            "key": "authentication_failed",
+            "value": "Autentikasi gagal"
+        },
+        {
+            "key": "session_expired",
+            "value": "Sesi telah berakhir"
+        },
+        {
+            "key": "rate_limit_exceeded",
+            "value": "Batas permintaan terlampaui"
+        },
+        {
+            "key": "maintenance_mode",
+            "value": "Mode pemeliharaan"
+        },
+        {
+            "key": "version_mismatch",
+            "value": "Ketidakcocokan versi"
+        },
+        {
+            "key": "card_purchase_completed",
+            "value": "Pembelian kartu selesai"
+        },
+        {
+            "key": "not_in_room",
+            "value": "Tidak berada di ruangan"
+        },
+        {
+            "key": "joker_limit_exceeded",
+            "value": "Kartu joker hanya dapat dimiliki maksimal 5"
+        },
+        {
+            "key": "joker_already_owned",
+            "value": "Kartu joker yang sudah dimiliki tidak dapat dibeli lagi"
+        },
+        {
+            "key": "insufficient_funds_for_card",
+            "value": "Dana tidak mencukupi untuk pembelian kartu"
+        },
+        {
+            "key": "card_sale_completed",
+            "value": "Penjualan kartu selesai"
+        },
+        {
+            "key": "card_sale_failed",
+            "value": "Penjualan kartu gagal"
+        },
+        {
+            "key": "joker_not_found",
+            "value": "Kartu joker tidak ditemukan"
+        },
+        {
+            "key": "joker_not_owned",
+            "value": "Kartu joker tidak dimiliki"
+        },
+        {
+            "key": "joker_count_mismatch",
+            "value": "Jumlah joker tidak cocok"
+        },
+        {
+            "key": "joker_order_changed",
+            "value": "Urutan joker berubah"
+        },
+        {
+            "key": "card_not_exists",
+            "value": "Kartu tidak ada"
+        },
+        {
+            "key": "tarot_card_not_purchased",
+            "value": "Kartu tarot belum dibeli"
+        },
+        {
+            "key": "invalid_card_combination",
+            "value": "Kombinasi kartu tidak valid"
+        },
+        {
+            "key": "special_card_use_completed",
+            "value": "Penggunaan kartu khusus selesai"
+        },
+        {
+            "key": "last_player_wins",
+            "value": "Pemain terakhir menang dan permainan baru dimulai"
+        },
+        {
+            "key": "fold_completed",
+            "value": "Lipat selesai"
+        },
+        {
+            "key": "fold_failed",
+            "value": "Lipat gagal"
+        }
+    ]
+}

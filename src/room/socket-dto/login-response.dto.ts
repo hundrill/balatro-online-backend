@@ -1,7 +1,6 @@
 import { BaseSocketDto } from './base-socket.dto';
 import { IsString, IsInt, IsArray, IsOptional, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
-import { SpecialCard } from '../special-card-manager.service';
 
 // 게임 설정값들을 위한 인터페이스
 export interface GameSettings {
@@ -29,7 +28,7 @@ export class LoginResponseDto extends BaseSocketDto {
 
     @IsOptional()
     @IsArray()
-    specialCards?: SpecialCard[];
+    specialCards?: any[];
 
     @IsOptional()
     @ValidateNested()

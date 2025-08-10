@@ -1,4 +1,4 @@
-import { IsString, IsNumber, IsOptional } from 'class-validator';
+import { IsString, IsNumber, IsOptional, IsArray } from 'class-validator';
 
 export class CardUpdateDto {
     @IsString()
@@ -11,6 +11,18 @@ export class CardUpdateDto {
     @IsString()
     @IsOptional()
     description?: string;
+
+    @IsString()
+    @IsOptional()
+    descriptionKo?: string;
+
+    @IsString()
+    @IsOptional()
+    descriptionId?: string;
+
+    @IsString()
+    @IsOptional()
+    descriptionEn?: string;
 
     @IsNumber()
     @IsOptional()
@@ -36,6 +48,66 @@ export class CardUpdateDto {
     @IsOptional()
     maxValue?: number;
 
+    // 2개 고정 조건-효과 시스템 필드들
+    // 첫 번째 조건-효과 쌍
+    @IsString()
+    @IsOptional()
+    conditionType1?: string;
+
+    @IsString()
+    @IsOptional()
+    conditionValue1?: string;
+
+    @IsString()
+    @IsOptional()
+    conditionOperator1?: string;
+
+    @IsNumber()
+    @IsOptional()
+    conditionNumeric1?: number;
+
+    @IsString()
+    @IsOptional()
+    effectTiming1?: string;
+
+    @IsString()
+    @IsOptional()
+    effectType1?: string;
+
+    @IsString()
+    @IsOptional()
+    effectTarget1?: string;
+
+    // 두 번째 조건-효과 쌍
+    @IsString()
+    @IsOptional()
+    conditionType2?: string;
+
+    @IsString()
+    @IsOptional()
+    conditionValue2?: string;
+
+    @IsString()
+    @IsOptional()
+    conditionOperator2?: string;
+
+    @IsNumber()
+    @IsOptional()
+    conditionNumeric2?: number;
+
+    @IsString()
+    @IsOptional()
+    effectTiming2?: string;
+
+    @IsString()
+    @IsOptional()
+    effectType2?: string;
+
+    @IsString()
+    @IsOptional()
+    effectTarget2?: string;
+
+    // 기존 필드들 (하위 호환성 유지)
     @IsString()
     @IsOptional()
     timing_draw?: string;

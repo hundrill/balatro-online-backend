@@ -1,0 +1,412 @@
+{
+    "translations": [
+        {
+            "key": "login",
+            "value": "Login successful"
+        },
+        {
+            "key": "logging_in",
+            "value": "Logging in..."
+        },
+        {
+            "key": "quick_start",
+            "value": "Quick Start"
+        },
+        {
+            "key": "no_limit",
+            "value": "No Limit"
+        },
+        {
+            "key": "win",
+            "value": "Win"
+        },
+        {
+            "key": "table_chip",
+            "value": "Table Chip"
+        },
+        {
+            "key": "upgrade_run",
+            "value": "Upgrade your run!"
+        },
+        {
+            "key": "round",
+            "value": "Round"
+        },
+        {
+            "key": "round_score",
+            "value": "Round Score"
+        },
+        {
+            "key": "poker_hand",
+            "value": "Poker Hand"
+        },
+        {
+            "key": "poker_hand_none",
+            "value": "None"
+        },
+        {
+            "key": "poker_hand_highcard",
+            "value": "High Card"
+        },
+        {
+            "key": "poker_hand_onepair",
+            "value": "One Pair"
+        },
+        {
+            "key": "poker_hand_twopair",
+            "value": "Two Pair"
+        },
+        {
+            "key": "poker_hand_threeofakind",
+            "value": "Three of a Kind"
+        },
+        {
+            "key": "poker_hand_straight",
+            "value": "Straight"
+        },
+        {
+            "key": "poker_hand_flush",
+            "value": "Flush"
+        },
+        {
+            "key": "poker_hand_fullhouse",
+            "value": "Full House"
+        },
+        {
+            "key": "poker_hand_fourofakind",
+            "value": "Four of a Kind"
+        },
+        {
+            "key": "poker_hand_straightflush",
+            "value": "Straight Flush"
+        },
+        {
+            "key": "game_result",
+            "value": "Game Result"
+        },
+        {
+            "key": "cash_out",
+            "value": "Cash Out:"
+        },
+        {
+            "key": "waiting",
+            "value": "Waiting"
+        },
+        {
+            "key": "use",
+            "value": "Use"
+        },
+        {
+            "key": "ready",
+            "value": "Ready"
+        },
+        {
+            "key": "exit",
+            "value": "Exit"
+        },
+        {
+            "key": "fold",
+            "value": "Fold"
+        },
+        {
+            "key": "new_joker_card_ready",
+            "value": "New joker card is ready!"
+        },
+        {
+            "key": "preparing_new_joker_card",
+            "value": "Preparing new joker card..."
+        },
+        {
+            "key": "client_version_incompatible",
+            "value": "Client version is incompatible with server.\nCurrent version: {0}\n{1}"
+        },
+        {
+            "key": "login_error_occurred",
+            "value": "An error occurred during login.\n{0}"
+        },
+        {
+            "key": "login_error_general",
+            "value": "An error occurred during login."
+        },
+        {
+            "key": "creating_room",
+            "value": "Creating room..."
+        },
+        {
+            "key": "entering_channel",
+            "value": "Entering channel..."
+        },
+        {
+            "key": "silver_chip_requirement",
+            "value": "You need at least 100 silver chips to enter."
+        },
+        {
+            "key": "gold_chip_requirement_1",
+            "value": "You need at least 1 gold chip to enter."
+        },
+        {
+            "key": "gold_chip_requirement_100",
+            "value": "You need at least 100 gold chips to enter."
+        },
+        {
+            "key": "gold_chip_requirement_1000",
+            "value": "You need at least 1000 gold chips to enter."
+        },
+        {
+            "key": "room_creation_failed",
+            "value": "Room creation failed: {0}"
+        },
+        {
+            "key": "entering_room",
+            "value": "Entering room..."
+        },
+        {
+            "key": "room_list_fetch_failed",
+            "value": "Failed to fetch room list: {0}"
+        },
+        {
+            "key": "discard_failed",
+            "value": "Discard failed: {0}"
+        },
+        {
+            "key": "purchase_failed",
+            "value": "Purchase failed!\n{0}"
+        },
+        {
+            "key": "joker_order_change_failed",
+            "value": "Joker order change failed!\n{0}"
+        },
+        {
+            "key": "joker_sold_complete",
+            "value": "Joker '{0}' sale completed."
+        },
+        {
+            "key": "sale_failed",
+            "value": "Sale failed: {0}"
+        },
+        {
+            "key": "reroll_failed",
+            "value": "Re-roll failed: {0}"
+        },
+        {
+            "key": "all_rounds_completed",
+            "value": "All rounds have been completed."
+        },
+        {
+            "key": "betting_completed",
+            "value": "Betting completed!\nSilver seed: {0}\nGold seed: {1}"
+        },
+        {
+            "key": "betting_failed",
+            "value": "Betting failed: {0}"
+        },
+        {
+            "key": "special_card_use_failed",
+            "value": "Special card use failed!\n{0}"
+        },
+        {
+            "key": "fold_shop_phase_only",
+            "value": "You can only fold during the shop phase."
+        },
+        {
+            "key": "fold_playing_status_only",
+            "value": "You can only fold while playing."
+        },
+        {
+            "key": "service_preparing",
+            "value": "Service is being prepared"
+        },
+        {
+            "key": "invalid_request",
+            "value": "Invalid request"
+        },
+        {
+            "key": "user_not_found",
+            "value": "User not found"
+        },
+        {
+            "key": "room_not_found",
+            "value": "Room not found"
+        },
+        {
+            "key": "room_full",
+            "value": "Room is full"
+        },
+        {
+            "key": "insufficient_funds",
+            "value": "Insufficient funds"
+        },
+        {
+            "key": "invalid_card_id",
+            "value": "Invalid card ID"
+        },
+        {
+            "key": "invalid_phase",
+            "value": "Invalid phase"
+        },
+        {
+            "key": "not_playing",
+            "value": "Not playing"
+        },
+        {
+            "key": "already_betting",
+            "value": "Already betting"
+        },
+        {
+            "key": "invalid_betting_amount",
+            "value": "Invalid betting amount"
+        },
+        {
+            "key": "card_not_owned",
+            "value": "Card not owned"
+        },
+        {
+            "key": "invalid_joker_order",
+            "value": "Invalid joker order"
+        },
+        {
+            "key": "shop_not_available",
+            "value": "Shop not available"
+        },
+        {
+            "key": "game_not_started",
+            "value": "Game not started"
+        },
+        {
+            "key": "round_not_ended",
+            "value": "Round not ended"
+        },
+        {
+            "key": "invalid_discard",
+            "value": "Invalid discard"
+        },
+        {
+            "key": "no_cards_selected",
+            "value": "No cards selected"
+        },
+        {
+            "key": "too_many_cards_selected",
+            "value": "Too many cards selected"
+        },
+        {
+            "key": "invalid_special_card_use",
+            "value": "Invalid special card use"
+        },
+        {
+            "key": "special_card_not_owned",
+            "value": "Special card not owned"
+        },
+        {
+            "key": "invalid_tarot_target",
+            "value": "Invalid tarot target"
+        },
+        {
+            "key": "invalid_planet_target",
+            "value": "Invalid planet target"
+        },
+        {
+            "key": "network_error",
+            "value": "Network error"
+        },
+        {
+            "key": "server_error",
+            "value": "Server error"
+        },
+        {
+            "key": "database_error",
+            "value": "Database error"
+        },
+        {
+            "key": "authentication_failed",
+            "value": "Authentication failed"
+        },
+        {
+            "key": "session_expired",
+            "value": "Session expired"
+        },
+        {
+            "key": "rate_limit_exceeded",
+            "value": "Rate limit exceeded"
+        },
+        {
+            "key": "maintenance_mode",
+            "value": "Maintenance mode"
+        },
+        {
+            "key": "version_mismatch",
+            "value": "Version mismatch"
+        },
+        {
+            "key": "card_purchase_completed",
+            "value": "Card purchase completed"
+        },
+        {
+            "key": "not_in_room",
+            "value": "Not in room"
+        },
+        {
+            "key": "joker_limit_exceeded",
+            "value": "Joker cards can only be owned up to 5"
+        },
+        {
+            "key": "joker_already_owned",
+            "value": "Already owned joker card cannot be purchased again"
+        },
+        {
+            "key": "insufficient_funds_for_card",
+            "value": "Insufficient funds for card purchase"
+        },
+        {
+            "key": "card_sale_completed",
+            "value": "Card sale completed"
+        },
+        {
+            "key": "card_sale_failed",
+            "value": "Card sale failed"
+        },
+        {
+            "key": "joker_not_found",
+            "value": "Joker card not found"
+        },
+        {
+            "key": "joker_not_owned",
+            "value": "Joker card not owned"
+        },
+        {
+            "key": "joker_count_mismatch",
+            "value": "Joker count mismatch"
+        },
+        {
+            "key": "joker_order_changed",
+            "value": "Joker order changed"
+        },
+        {
+            "key": "card_not_exists",
+            "value": "Card does not exist"
+        },
+        {
+            "key": "tarot_card_not_purchased",
+            "value": "Tarot card not purchased"
+        },
+        {
+            "key": "invalid_card_combination",
+            "value": "Invalid card combination"
+        },
+        {
+            "key": "special_card_use_completed",
+            "value": "Special card use completed"
+        },
+        {
+            "key": "last_player_wins",
+            "value": "Last player wins and new game starts"
+        },
+        {
+            "key": "fold_completed",
+            "value": "Fold completed"
+        },
+        {
+            "key": "fold_failed",
+            "value": "Fold failed"
+        }
+    ]
+}

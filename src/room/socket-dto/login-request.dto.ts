@@ -1,5 +1,5 @@
 import { BaseSocketDto } from './base-socket.dto';
-import { IsEmail, IsString, IsNumber } from 'class-validator';
+import { IsEmail, IsString, IsNumber, IsOptional } from 'class-validator';
 
 export class LoginRequestDto extends BaseSocketDto {
     static readonly requestEventName = 'LoginRequest';
@@ -12,4 +12,8 @@ export class LoginRequestDto extends BaseSocketDto {
 
     @IsNumber()
     version: number;
+
+    @IsOptional()
+    @IsString()
+    language?: string;
 }

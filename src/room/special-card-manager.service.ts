@@ -16,14 +16,157 @@ export enum JokerEffectTiming {
     OnAfterScoring = 'OnAfterScoring',
 }
 
-// 조커 효과 인터페이스
-export interface JokerEffect {
-    timing: JokerEffectTiming;
-    applyEffect: (context: HandContext, self: SpecialCardData) => boolean;
+// 효과 타입 정의 (클라이언트와 동일)
+export enum EffectType {
+    AddMultiplier,
+    AddMultiplierByRandomValue,
+    MulMultiplier,
+
+    AddChips,
+    MulChips,
+
+    GrowBaseValue,
+    DecrementBaseValue
 }
 
-// 특수 카드 데이터 인터페이스 (기존 SpecialCard와 호환)
+// 연산자 타입 정의
+export enum OperatorType {
+    None,
+    Equals,
+    GreaterOrEqual,
+    LessOrEqual
+}
+
+// 조건 타입 정의 (클라이언트와 동일)
+export enum ConditionType {
+    CardSuit,           // 카드 무늬
+    CardRank,           // 카드 숫자
+    HandType,           // 핸드 종류
+    HasPair,            // 페어 포함 여부
+    HasTriple,          // 트리플 포함 여부
+    HasPairInUnUsed,    // 미사용 카드에 페어 포함 여부
+    HasTripleInUnUsed,  // 미사용 카드에 트리플 포함 여부
+    UnUsedHandType,     // 미사용 카드 핸드 종류
+    UnUsedSuitCount,    // 미사용 카드 특정 무늬 개수
+    UsedAceCount,       // 사용된 에이스 개수
+    RemainingSevens,    // 남은 7 카드 개수
+    RemainingDeck,      // 남은 덱 카드 개수
+    UsedSuitCount,      // 사용된 특정 무늬 카드 개수
+    RemainingDiscards,  // 남은 버리기 횟수
+    IsEvenCard,         // 짝수 카드 여부
+    IsOddCard,         // 홀수 카드 여부
+    Always              // 항상 참
+}
+
+// ===== Enum parsing helpers (convert DB strings to enum values) =====
+function parseConditionType(value: string | null | undefined): ConditionType | undefined {
+    switch (value) {
+        case 'CardSuit': return ConditionType.CardSuit;
+        case 'CardRank': return ConditionType.CardRank;
+        case 'HandType': return ConditionType.HandType;
+        case 'HasPair': return ConditionType.HasPair;
+        case 'HasTriple': return ConditionType.HasTriple;
+        case 'HasPairInUnUsed': return ConditionType.HasPairInUnUsed;
+        case 'HasTripleInUnUsed': return ConditionType.HasTripleInUnUsed;
+        case 'UnUsedHandType': return ConditionType.UnUsedHandType;
+        case 'UnUsedSuitCount': return ConditionType.UnUsedSuitCount;
+        case 'UsedAceCount': return ConditionType.UsedAceCount;
+        case 'RemainingSevens': return ConditionType.RemainingSevens;
+        case 'RemainingDeck': return ConditionType.RemainingDeck;
+        case 'UsedSuitCount': return ConditionType.UsedSuitCount;
+        case 'RemainingDiscards': return ConditionType.RemainingDiscards;
+        case 'IsEvenCard': return ConditionType.IsEvenCard;
+        case 'IsOddCard': return ConditionType.IsOddCard;
+        case 'Always': return ConditionType.Always;
+        default: return undefined;
+    }
+}
+
+function parseOperatorType(value: string | null | undefined): OperatorType {
+    switch (value) {
+        case 'Equals': return OperatorType.Equals;
+        case 'GreaterOrEqual': return OperatorType.GreaterOrEqual;
+        case 'LessOrEqual': return OperatorType.LessOrEqual;
+        default: return OperatorType.None;
+    }
+}
+
+function parseEffectType(value: string | null | undefined): EffectType | undefined {
+    switch (value) {
+        case 'AddMultiplier': return EffectType.AddMultiplier;
+        case 'AddMultiplierByRandomValue': return EffectType.AddMultiplierByRandomValue;
+        case 'MulMultiplier': return EffectType.MulMultiplier;
+        case 'AddChips': return EffectType.AddChips;
+        case 'MulChips': return EffectType.MulChips;
+        case 'GrowBaseValue': return EffectType.GrowBaseValue;
+        case 'DecrementBaseValue': return EffectType.DecrementBaseValue;
+        default: return undefined;
+    }
+}
+
+function parseJokerEffectTiming(value: string | null | undefined): JokerEffectTiming | undefined {
+    switch (value) {
+        case 'OnScoring': return JokerEffectTiming.OnScoring;
+        case 'OnHandPlay': return JokerEffectTiming.OnHandPlay;
+        case 'OnAfterScoring': return JokerEffectTiming.OnAfterScoring;
+        default: return undefined;
+    }
+}
+
+// 조건 데이터 구조 (클라이언트와 동일)
+export interface EffectCondition {
+    type: ConditionType;
+    value: string;        // 조건 값 (예: "Diamonds", "OnePair", "joker_1")
+    operatorType: OperatorType; // 연산자 (enum으로 타입 안전성 강화)
+    numericValue: number;  // 수치 비교용 값
+}
+
+// 효과 데이터 구조 (클라이언트와 동일)
+export interface EffectData {
+    effectType: EffectType;   // 효과 타입 (enum으로 타입 안전성 강화)
+    effectOnCard: boolean;   // true: 카드에 효과, false: 조커에 효과 (기본값: 조커)
+    conditionValue: string;
+}
+
+// Prisma SpecialCard 모델과 호환되는 타입
 export interface SpecialCard {
+    id: string;
+    name: string;
+    description: string | null;
+    price: number;
+    sprite: number;
+    type: string;
+    basevalue: number | null;
+    increase: number | null;
+    decrease: number | null;
+    maxvalue: number | null;
+    need_card_count: number | null;
+    enhanceChips: number | null;
+    enhanceMul: number | null;
+    isActive: boolean;
+
+    // 2개 고정 조건-효과 시스템 필드들
+    conditionType1: string | null;
+    conditionValue1: string | null;
+    conditionOperator1: string | null;
+    conditionNumeric1: number | null;
+    effectTiming1: string | null;
+    effectType1: string | null;
+    effectTarget1: string | null;
+
+    conditionType2: string | null;
+    conditionValue2: string | null;
+    conditionOperator2: string | null;
+    conditionNumeric2: number | null;
+    effectTiming2: string | null;
+    effectType2: string | null;
+    effectTarget2: string | null;
+
+    createdAt: Date;
+    updatedAt: Date;
+}
+
+export interface SpecialCardData {
     type: SpecialCardType;
     id: string;
     name: string;
@@ -39,11 +182,185 @@ export interface SpecialCard {
     needCardCount?: number;
     isActive?: boolean;
     pokerHand?: PokerHand;
+
+    // 다중 타이밍/효과 지원 필드들 (클라이언트와 동일)
+    effectTimings?: JokerEffectTiming[];     // 여러 타이밍을 저장
+    effectTypes?: EffectType[];              // 여러 효과 타입을 저장 (enum으로 타입 안전성 강화)
+    effectOnCards?: boolean[];               // 각 효과의 대상들
+    conditionTypes?: ConditionType[];        // 여러 조건 타입을 저장
+    conditionValues?: string[];              // 각 조건의 값들
+    conditionOperators?: OperatorType[];     // 각 조건의 연산자들 (enum으로 타입 안전성 강화)
+    conditionNumericValues?: number[];       // 각 조건의 수치값들
 }
 
-// 특수 카드 데이터 인터페이스 (내부용)
-export interface SpecialCardData extends SpecialCard {
-    effects?: JokerEffect[];
+// 조건 평가기 (클라이언트와 동일)
+export class ConditionEvaluator {
+    private static getCardTypeFromString(suitString: string): CardType {
+        switch (suitString) {
+            case "Hearts": return CardType.Hearts;
+            case "Diamonds": return CardType.Diamonds;
+            case "Clubs": return CardType.Clubs;
+            case "Spades": return CardType.Spades;
+            default: return CardType.Hearts;
+        }
+    }
+
+    static evaluateConditions(conditions: EffectCondition[], context: HandContext, cardData: SpecialCardData): boolean {
+        if (!conditions || conditions.length === 0)
+            return true; // 조건이 없으면 항상 참
+
+        for (const condition of conditions) {
+            if (!this.evaluateCondition(condition, context, cardData))
+                return false;
+        }
+        return true;
+    }
+
+    static evaluateCondition(condition: EffectCondition, context: HandContext, cardData: SpecialCardData): boolean {
+        switch (condition.type) {
+            case ConditionType.CardSuit:
+                const targetSuit = this.getCardTypeFromString(condition.value);
+                return context.currentCardData?.suit === targetSuit;
+
+            case ConditionType.CardRank:
+                return context.currentCardData?.rank.toString() === condition.value;
+
+            case ConditionType.HandType:
+                return context.pokerHand === condition.value;
+
+            case ConditionType.HasPair:
+                return context.hasPairInPlayedCards();
+
+            case ConditionType.HasTriple:
+                return context.hasTripleInPlayedCards();
+
+            case ConditionType.HasPairInUnUsed:
+                return context.hasPairInUnUsedCards();
+
+            case ConditionType.HasTripleInUnUsed:
+                return context.hasTripleInUnUsedCards();
+
+            case ConditionType.UnUsedHandType:
+                return context.unUsedHandType === condition.value;
+
+            case ConditionType.UnUsedSuitCount:
+                const suitType = this.getCardTypeFromString(condition.value);
+                return this.compareNumeric(context.countUnUsedCardsOfSuit(suitType), condition.operatorType, condition.numericValue);
+
+            case ConditionType.UsedAceCount:
+                return this.compareNumeric(context.countAcesInUsedCards(), condition.operatorType, condition.numericValue);
+
+            case ConditionType.RemainingSevens:
+                return this.compareNumeric(context.remainingSevens, condition.operatorType, condition.numericValue);
+
+            case ConditionType.RemainingDeck:
+                return this.compareNumeric(context.remainingDeck, condition.operatorType, condition.numericValue);
+
+            case ConditionType.UsedSuitCount:
+                return this.compareNumeric(context.countSuitInUsedCards(this.getCardTypeFromString(condition.value)), condition.operatorType, condition.numericValue);
+
+            case ConditionType.RemainingDiscards:
+                return this.compareNumeric(context.remainingDiscards, condition.operatorType, condition.numericValue);
+
+            case ConditionType.IsEvenCard:
+                return context.isCurrentCardDataEvenRank();
+
+            case ConditionType.IsOddCard:
+                return !context.isCurrentCardDataEvenRank();
+
+            case ConditionType.Always:
+                return true;
+
+            default:
+                return false;
+        }
+    }
+
+    private static compareNumeric(actual: number, operatorType: OperatorType, expected: number): boolean {
+        switch (operatorType) {
+            case OperatorType.Equals: return actual === expected;
+            case OperatorType.GreaterOrEqual: return actual >= expected;
+            case OperatorType.LessOrEqual: return actual <= expected;
+            default: return false;
+        }
+    }
+}
+
+// 효과 적용기 (클라이언트와 동일)
+export class EffectApplier {
+    private static getCardTypeFromString(suitString: string): CardType {
+        switch (suitString) {
+            case "Hearts": return CardType.Hearts;
+            case "Diamonds": return CardType.Diamonds;
+            case "Clubs": return CardType.Clubs;
+            case "Spades": return CardType.Spades;
+            default: return CardType.Hearts;
+        }
+    }
+
+    static applyEffect(condition: EffectCondition, effect: EffectData, context: HandContext, cardData: SpecialCardData): boolean {
+        switch (effect.effectType) {
+            case EffectType.AddMultiplier:
+                let addMul = cardData.baseValue || 0;
+
+                if (condition.type === ConditionType.UnUsedSuitCount) {
+                    const suitType = this.getCardTypeFromString(condition.value);
+                    addMul = context.countUnUsedCardsOfSuit(suitType) * (cardData.baseValue || 0);
+                } else if (condition.type === ConditionType.RemainingSevens) {
+                    addMul = context.remainingSevens * (cardData.baseValue || 0);
+                } else if (condition.type === ConditionType.RemainingDeck) {
+                    addMul = context.remainingDeck * (cardData.baseValue || 0);
+                } else if (condition.type === ConditionType.UsedAceCount) {
+                    addMul = context.countAcesInUsedCards() * (cardData.baseValue || 0);
+                }
+
+                context.multiplier += addMul;
+                return true;
+
+            case EffectType.MulMultiplier:
+                context.multiplier *= cardData.baseValue || 1;
+                return true;
+
+            case EffectType.AddChips:
+                let addChips = cardData.baseValue || 0;
+
+                if (condition.type === ConditionType.UsedAceCount) {
+                    addChips = context.countAcesInUsedCards() * (cardData.baseValue || 0);
+                } else if (condition.type === ConditionType.RemainingDiscards) {
+                    addChips = context.remainingDiscards * (cardData.baseValue || 0);
+                } else if (condition.type === ConditionType.RemainingDeck) {
+                    addChips = context.remainingDeck * (cardData.baseValue || 0);
+                }
+
+                context.chips += Math.floor(addChips);
+                return true;
+
+            case EffectType.MulChips:
+                context.chips *= cardData.baseValue || 1;
+                return true;
+
+            case EffectType.AddMultiplierByRandomValue:
+                context.multiplier += context.randomValue || 0;
+                return true;
+
+            case EffectType.GrowBaseValue:
+                cardData.baseValue = (cardData.baseValue || 0) + (cardData.increase || 0);
+                if (cardData.baseValue > (cardData.maxValue || 999)) {
+                    cardData.baseValue = cardData.maxValue || 999;
+                }
+                return true;
+
+            case EffectType.DecrementBaseValue:
+                cardData.baseValue = (cardData.baseValue || 0) - (cardData.decrease || 0);
+                if (cardData.baseValue < (cardData.maxValue || 0)) {
+                    cardData.baseValue = cardData.maxValue || 0;
+                }
+                return true;
+
+            default:
+                return false;
+        }
+    }
 }
 
 @Injectable()
@@ -59,7 +376,7 @@ export class SpecialCardManagerService {
 
     // 특수 카드 초기화
     private initializeSpecialCards(): void {
-        // 조커 카드 등록 (1~47번)
+        // 조커 카드 등록 (1~47번) - 클라이언트와 동일한 새로운 방식
         this.registerSpecialCard({
             type: SpecialCardType.Joker,
             id: 'joker_1',
@@ -68,16 +385,14 @@ export class SpecialCardManagerService {
             price: 2,
             sprite: 0,
             baseValue: 2,
-            effects: [{
-                timing: JokerEffectTiming.OnScoring,
-                applyEffect: (context: HandContext, self: SpecialCardData) => {
-                    if (context.currentCardData?.suit === CardType.Diamonds) {
-                        context.multiplier += self.baseValue || 0;
-                        return true;
-                    }
-                    return false;
-                }
-            }]
+            // 새로운 다중 효과/조건 시스템 (클라이언트와 동일)
+            effectTimings: [JokerEffectTiming.OnScoring],
+            effectTypes: [EffectType.AddMultiplier],
+            effectOnCards: [false],
+            conditionTypes: [ConditionType.CardSuit],
+            conditionValues: ['Diamonds'],
+            conditionOperators: [OperatorType.Equals],
+            conditionNumericValues: [0]
         });
 
         this.registerSpecialCard({
@@ -88,16 +403,14 @@ export class SpecialCardManagerService {
             price: 3,
             sprite: 1,
             baseValue: 2,
-            effects: [{
-                timing: JokerEffectTiming.OnScoring,
-                applyEffect: (context: HandContext, self: SpecialCardData) => {
-                    if (context.hasPairInPlayedCards()) {
-                        context.multiplier += self.baseValue || 0;
-                        return true;
-                    }
-                    return false;
-                }
-            }]
+            // 새로운 다중 효과/조건 시스템 (클라이언트와 동일)
+            effectTimings: [JokerEffectTiming.OnScoring],
+            effectTypes: [EffectType.AddMultiplier],
+            effectOnCards: [false],
+            conditionTypes: [ConditionType.HasPair],
+            conditionValues: [''],
+            conditionOperators: [OperatorType.None],
+            conditionNumericValues: [0]
         });
 
         this.registerSpecialCard({
@@ -110,25 +423,14 @@ export class SpecialCardManagerService {
             baseValue: 1,
             increase: 0.2,
             maxValue: 30,
-            effects: [{
-                timing: JokerEffectTiming.OnHandPlay,
-                applyEffect: (context: HandContext, self: SpecialCardData) => {
-                    if (context.pokerHand === PokerHand.OnePair) {
-                        context.multiplier *= self.baseValue || 1;
-                        return true;
-                    }
-                    return false;
-                }
-            }, {
-                timing: JokerEffectTiming.OnAfterScoring,
-                applyEffect: (context: HandContext, self: SpecialCardData) => {
-                    if (context.pokerHand === PokerHand.OnePair) {
-                        self.baseValue = Math.min((self.baseValue || 1) + (self.increase || 0), self.maxValue || 30);
-                        return true;
-                    }
-                    return false;
-                }
-            }]
+            // 새로운 다중 효과/조건 시스템 (클라이언트와 동일)
+            effectTimings: [JokerEffectTiming.OnHandPlay, JokerEffectTiming.OnAfterScoring],
+            effectTypes: [EffectType.MulMultiplier, EffectType.GrowBaseValue],
+            effectOnCards: [false, false],
+            conditionTypes: [ConditionType.HandType, ConditionType.HandType],
+            conditionValues: ['OnePair', 'OnePair'],
+            conditionOperators: [OperatorType.Equals, OperatorType.Equals],
+            conditionNumericValues: [0, 0]
         });
 
         this.registerSpecialCard({
@@ -141,25 +443,14 @@ export class SpecialCardManagerService {
             baseValue: 1,
             increase: 0.3,
             maxValue: 30,
-            effects: [{
-                timing: JokerEffectTiming.OnHandPlay,
-                applyEffect: (context: HandContext, self: SpecialCardData) => {
-                    if (context.pokerHand === PokerHand.TwoPair) {
-                        context.multiplier *= self.baseValue || 1;
-                        return true;
-                    }
-                    return false;
-                }
-            }, {
-                timing: JokerEffectTiming.OnAfterScoring,
-                applyEffect: (context: HandContext, self: SpecialCardData) => {
-                    if (context.pokerHand === PokerHand.TwoPair) {
-                        self.baseValue = Math.min((self.baseValue || 1) + (self.increase || 0), self.maxValue || 30);
-                        return true;
-                    }
-                    return false;
-                }
-            }]
+            // 새로운 다중 효과/조건 시스템 (클라이언트와 동일)
+            effectTimings: [JokerEffectTiming.OnHandPlay, JokerEffectTiming.OnAfterScoring],
+            effectTypes: [EffectType.MulMultiplier, EffectType.GrowBaseValue],
+            effectOnCards: [false, false],
+            conditionTypes: [ConditionType.HandType, ConditionType.HandType],
+            conditionValues: ['TwoPair', 'TwoPair'],
+            conditionOperators: [OperatorType.Equals, OperatorType.Equals],
+            conditionNumericValues: [0, 0]
         });
 
         this.registerSpecialCard({
@@ -172,25 +463,14 @@ export class SpecialCardManagerService {
             baseValue: 1,
             increase: 0.4,
             maxValue: 30,
-            effects: [{
-                timing: JokerEffectTiming.OnHandPlay,
-                applyEffect: (context: HandContext, self: SpecialCardData) => {
-                    if (context.pokerHand === PokerHand.ThreeOfAKind) {
-                        context.multiplier *= self.baseValue || 1;
-                        return true;
-                    }
-                    return false;
-                }
-            }, {
-                timing: JokerEffectTiming.OnAfterScoring,
-                applyEffect: (context: HandContext, self: SpecialCardData) => {
-                    if (context.pokerHand === PokerHand.ThreeOfAKind) {
-                        self.baseValue = Math.min((self.baseValue || 1) + (self.increase || 0), self.maxValue || 30);
-                        return true;
-                    }
-                    return false;
-                }
-            }]
+            // 새로운 다중 효과/조건 시스템 (클라이언트와 동일)
+            effectTimings: [JokerEffectTiming.OnHandPlay, JokerEffectTiming.OnAfterScoring],
+            effectTypes: [EffectType.MulMultiplier, EffectType.GrowBaseValue],
+            effectOnCards: [false, false],
+            conditionTypes: [ConditionType.HandType, ConditionType.HandType],
+            conditionValues: ['ThreeOfAKind', 'ThreeOfAKind'],
+            conditionOperators: [OperatorType.Equals, OperatorType.Equals],
+            conditionNumericValues: [0, 0]
         });
 
         this.registerSpecialCard({
@@ -203,25 +483,14 @@ export class SpecialCardManagerService {
             baseValue: 1,
             increase: 0.7,
             maxValue: 30,
-            effects: [{
-                timing: JokerEffectTiming.OnHandPlay,
-                applyEffect: (context: HandContext, self: SpecialCardData) => {
-                    if (context.pokerHand === PokerHand.FourOfAKind) {
-                        context.multiplier *= self.baseValue || 1;
-                        return true;
-                    }
-                    return false;
-                }
-            }, {
-                timing: JokerEffectTiming.OnAfterScoring,
-                applyEffect: (context: HandContext, self: SpecialCardData) => {
-                    if (context.pokerHand === PokerHand.FourOfAKind) {
-                        self.baseValue = Math.min((self.baseValue || 1) + (self.increase || 0), self.maxValue || 30);
-                        return true;
-                    }
-                    return false;
-                }
-            }]
+            // 새로운 다중 효과/조건 시스템 (클라이언트와 동일)
+            effectTimings: [JokerEffectTiming.OnHandPlay, JokerEffectTiming.OnAfterScoring],
+            effectTypes: [EffectType.MulMultiplier, EffectType.GrowBaseValue],
+            effectOnCards: [false, false],
+            conditionTypes: [ConditionType.HandType, ConditionType.HandType],
+            conditionValues: ['FourOfAKind', 'FourOfAKind'],
+            conditionOperators: [OperatorType.Equals, OperatorType.Equals],
+            conditionNumericValues: [0, 0]
         });
 
         this.registerSpecialCard({
@@ -234,25 +503,14 @@ export class SpecialCardManagerService {
             baseValue: 1,
             increase: 0.5,
             maxValue: 30,
-            effects: [{
-                timing: JokerEffectTiming.OnHandPlay,
-                applyEffect: (context: HandContext, self: SpecialCardData) => {
-                    if (context.pokerHand === PokerHand.FullHouse) {
-                        context.multiplier *= self.baseValue || 1;
-                        return true;
-                    }
-                    return false;
-                }
-            }, {
-                timing: JokerEffectTiming.OnAfterScoring,
-                applyEffect: (context: HandContext, self: SpecialCardData) => {
-                    if (context.pokerHand === PokerHand.FullHouse) {
-                        self.baseValue = Math.min((self.baseValue || 1) + (self.increase || 0), self.maxValue || 30);
-                        return true;
-                    }
-                    return false;
-                }
-            }]
+            // 새로운 다중 효과/조건 시스템 (클라이언트와 동일)
+            effectTimings: [JokerEffectTiming.OnHandPlay, JokerEffectTiming.OnAfterScoring],
+            effectTypes: [EffectType.MulMultiplier, EffectType.GrowBaseValue],
+            effectOnCards: [false, false],
+            conditionTypes: [ConditionType.HandType, ConditionType.HandType],
+            conditionValues: ['FullHouse', 'FullHouse'],
+            conditionOperators: [OperatorType.Equals, OperatorType.Equals],
+            conditionNumericValues: [0, 0]
         });
 
         this.registerSpecialCard({
@@ -265,25 +523,14 @@ export class SpecialCardManagerService {
             baseValue: 1,
             increase: 0.1,
             maxValue: 30,
-            effects: [{
-                timing: JokerEffectTiming.OnHandPlay,
-                applyEffect: (context: HandContext, self: SpecialCardData) => {
-                    if (context.pokerHand === PokerHand.HighCard) {
-                        context.multiplier *= self.baseValue || 1;
-                        return true;
-                    }
-                    return false;
-                }
-            }, {
-                timing: JokerEffectTiming.OnAfterScoring,
-                applyEffect: (context: HandContext, self: SpecialCardData) => {
-                    if (context.pokerHand === PokerHand.HighCard) {
-                        self.baseValue = Math.min((self.baseValue || 1) + (self.increase || 0), self.maxValue || 30);
-                        return true;
-                    }
-                    return false;
-                }
-            }]
+            // 새로운 다중 효과/조건 시스템 (클라이언트와 동일)
+            effectTimings: [JokerEffectTiming.OnHandPlay, JokerEffectTiming.OnAfterScoring],
+            effectTypes: [EffectType.MulMultiplier, EffectType.GrowBaseValue],
+            effectOnCards: [false, false],
+            conditionTypes: [ConditionType.HandType, ConditionType.HandType],
+            conditionValues: ['HighCard', 'HighCard'],
+            conditionOperators: [OperatorType.Equals, OperatorType.Equals],
+            conditionNumericValues: [0, 0]
         });
 
         this.registerSpecialCard({
@@ -296,25 +543,14 @@ export class SpecialCardManagerService {
             baseValue: 1,
             increase: 0.4,
             maxValue: 30,
-            effects: [{
-                timing: JokerEffectTiming.OnHandPlay,
-                applyEffect: (context: HandContext, self: SpecialCardData) => {
-                    if (context.pokerHand === PokerHand.Straight) {
-                        context.multiplier *= self.baseValue || 1;
-                        return true;
-                    }
-                    return false;
-                }
-            }, {
-                timing: JokerEffectTiming.OnAfterScoring,
-                applyEffect: (context: HandContext, self: SpecialCardData) => {
-                    if (context.pokerHand === PokerHand.Straight) {
-                        self.baseValue = Math.min((self.baseValue || 1) + (self.increase || 0), self.maxValue || 30);
-                        return true;
-                    }
-                    return false;
-                }
-            }]
+            // 새로운 다중 효과/조건 시스템 (클라이언트와 동일)
+            effectTimings: [JokerEffectTiming.OnHandPlay, JokerEffectTiming.OnAfterScoring],
+            effectTypes: [EffectType.MulMultiplier, EffectType.GrowBaseValue],
+            effectOnCards: [false, false],
+            conditionTypes: [ConditionType.HandType, ConditionType.HandType],
+            conditionValues: ['Straight', 'Straight'],
+            conditionOperators: [OperatorType.Equals, OperatorType.Equals],
+            conditionNumericValues: [0, 0]
         });
 
         this.registerSpecialCard({
@@ -327,25 +563,14 @@ export class SpecialCardManagerService {
             baseValue: 1,
             increase: 0.4,
             maxValue: 30,
-            effects: [{
-                timing: JokerEffectTiming.OnHandPlay,
-                applyEffect: (context: HandContext, self: SpecialCardData) => {
-                    if (context.pokerHand === PokerHand.Flush) {
-                        context.multiplier *= self.baseValue || 1;
-                        return true;
-                    }
-                    return false;
-                }
-            }, {
-                timing: JokerEffectTiming.OnAfterScoring,
-                applyEffect: (context: HandContext, self: SpecialCardData) => {
-                    if (context.pokerHand === PokerHand.Flush) {
-                        self.baseValue = Math.min((self.baseValue || 1) + (self.increase || 0), self.maxValue || 30);
-                        return true;
-                    }
-                    return false;
-                }
-            }]
+            // 새로운 다중 효과/조건 시스템 (클라이언트와 동일)
+            effectTimings: [JokerEffectTiming.OnHandPlay, JokerEffectTiming.OnAfterScoring],
+            effectTypes: [EffectType.MulMultiplier, EffectType.GrowBaseValue],
+            effectOnCards: [false, false],
+            conditionTypes: [ConditionType.HandType, ConditionType.HandType],
+            conditionValues: ['Flush', 'Flush'],
+            conditionOperators: [OperatorType.Equals, OperatorType.Equals],
+            conditionNumericValues: [0, 0]
         });
 
         this.registerSpecialCard({
@@ -356,16 +581,14 @@ export class SpecialCardManagerService {
             price: 4,
             sprite: 10,
             baseValue: 3,
-            effects: [{
-                timing: JokerEffectTiming.OnHandPlay,
-                applyEffect: (context: HandContext, self: SpecialCardData) => {
-                    if (context.hasPairInUnUsedCards()) {
-                        context.multiplier += self.baseValue || 0;
-                        return true;
-                    }
-                    return false;
-                }
-            }]
+            // 새로운 다중 효과/조건 시스템 (클라이언트와 동일)
+            effectTimings: [JokerEffectTiming.OnHandPlay],
+            effectTypes: [EffectType.AddMultiplier],
+            effectOnCards: [false],
+            conditionTypes: [ConditionType.HasPairInUnUsed],
+            conditionValues: [''],
+            conditionOperators: [OperatorType.None],
+            conditionNumericValues: [0]
         });
 
         this.registerSpecialCard({
@@ -376,16 +599,14 @@ export class SpecialCardManagerService {
             price: 4,
             sprite: 11,
             baseValue: 6,
-            effects: [{
-                timing: JokerEffectTiming.OnHandPlay,
-                applyEffect: (context: HandContext, self: SpecialCardData) => {
-                    if (context.hasTripleInUnUsedCards()) {
-                        context.multiplier += self.baseValue || 0;
-                        return true;
-                    }
-                    return false;
-                }
-            }]
+            // 새로운 다중 효과/조건 시스템 (클라이언트와 동일)
+            effectTimings: [JokerEffectTiming.OnHandPlay],
+            effectTypes: [EffectType.AddMultiplier],
+            effectOnCards: [false],
+            conditionTypes: [ConditionType.HasTripleInUnUsed],
+            conditionValues: [''],
+            conditionOperators: [OperatorType.None],
+            conditionNumericValues: [0]
         });
 
         this.registerSpecialCard({
@@ -396,16 +617,14 @@ export class SpecialCardManagerService {
             price: 4,
             sprite: 12,
             baseValue: 25,
-            effects: [{
-                timing: JokerEffectTiming.OnAfterScoring,
-                applyEffect: (context: HandContext, self: SpecialCardData) => {
-                    if (context.unUsedPokerHand === PokerHand.FourOfAKind) {
-                        context.multiplier *= self.baseValue || 1;
-                        return true;
-                    }
-                    return false;
-                }
-            }]
+            // 새로운 다중 효과/조건 시스템 (클라이언트와 동일)
+            effectTimings: [JokerEffectTiming.OnAfterScoring],
+            effectTypes: [EffectType.MulMultiplier],
+            effectOnCards: [false],
+            conditionTypes: [ConditionType.UnUsedHandType],
+            conditionValues: ['FourOfAKind'],
+            conditionOperators: [OperatorType.Equals],
+            conditionNumericValues: [0]
         });
 
         this.registerSpecialCard({
@@ -416,16 +635,14 @@ export class SpecialCardManagerService {
             price: 4,
             sprite: 13,
             baseValue: 4,
-            effects: [{
-                timing: JokerEffectTiming.OnHandPlay,
-                applyEffect: (context: HandContext, self: SpecialCardData) => {
-                    if (context.pokerHand === PokerHand.Straight) {
-                        context.multiplier += self.baseValue || 0;
-                        return true;
-                    }
-                    return false;
-                }
-            }]
+            // 새로운 다중 효과/조건 시스템 (클라이언트와 동일)
+            effectTimings: [JokerEffectTiming.OnHandPlay],
+            effectTypes: [EffectType.AddMultiplier],
+            effectOnCards: [false],
+            conditionTypes: [ConditionType.HandType],
+            conditionValues: ['Straight'],
+            conditionOperators: [OperatorType.Equals],
+            conditionNumericValues: [0]
         });
 
         this.registerSpecialCard({
@@ -436,13 +653,14 @@ export class SpecialCardManagerService {
             price: 4,
             sprite: 14,
             baseValue: 1,
-            effects: [{
-                timing: JokerEffectTiming.OnHandPlay,
-                applyEffect: (context: HandContext, self: SpecialCardData) => {
-                    context.multiplier += self.baseValue || 0;
-                    return true;
-                }
-            }]
+            // 새로운 다중 효과/조건 시스템 (클라이언트와 동일)
+            effectTimings: [JokerEffectTiming.OnHandPlay],
+            effectTypes: [EffectType.AddMultiplier],
+            effectOnCards: [false],
+            conditionTypes: [ConditionType.Always],
+            conditionValues: [''],
+            conditionOperators: [OperatorType.None],
+            conditionNumericValues: [0]
         });
 
         this.registerSpecialCard({
@@ -453,16 +671,14 @@ export class SpecialCardManagerService {
             price: 4,
             sprite: 15,
             baseValue: 3,
-            effects: [{
-                timing: JokerEffectTiming.OnHandPlay,
-                applyEffect: (context: HandContext, self: SpecialCardData) => {
-                    if (context.hasTripleInPlayedCards()) {
-                        context.multiplier += self.baseValue || 0;
-                        return true;
-                    }
-                    return false;
-                }
-            }]
+            // 새로운 다중 효과/조건 시스템 (클라이언트와 동일)
+            effectTimings: [JokerEffectTiming.OnHandPlay],
+            effectTypes: [EffectType.AddMultiplier],
+            effectOnCards: [false],
+            conditionTypes: [ConditionType.HasTriple],
+            conditionValues: [''],
+            conditionOperators: [OperatorType.None],
+            conditionNumericValues: [0]
         });
 
         this.registerSpecialCard({
@@ -473,16 +689,14 @@ export class SpecialCardManagerService {
             price: 4,
             sprite: 16,
             baseValue: 5,
-            effects: [{
-                timing: JokerEffectTiming.OnHandPlay,
-                applyEffect: (context: HandContext, self: SpecialCardData) => {
-                    if (context.pokerHand === PokerHand.FourOfAKind) {
-                        context.multiplier += self.baseValue || 0;
-                        return true;
-                    }
-                    return false;
-                }
-            }]
+            // 새로운 다중 효과/조건 시스템 (클라이언트와 동일)
+            effectTimings: [JokerEffectTiming.OnHandPlay],
+            effectTypes: [EffectType.AddMultiplier],
+            effectOnCards: [false],
+            conditionTypes: [ConditionType.HandType],
+            conditionValues: ['FourOfAKind'],
+            conditionOperators: [OperatorType.Equals],
+            conditionNumericValues: [0]
         });
 
         this.registerSpecialCard({
@@ -493,16 +707,14 @@ export class SpecialCardManagerService {
             price: 4,
             sprite: 17,
             baseValue: 4,
-            effects: [{
-                timing: JokerEffectTiming.OnHandPlay,
-                applyEffect: (context: HandContext, self: SpecialCardData) => {
-                    if (context.pokerHand === PokerHand.FullHouse) {
-                        context.multiplier += self.baseValue || 0;
-                        return true;
-                    }
-                    return false;
-                }
-            }]
+            // 새로운 다중 효과/조건 시스템 (클라이언트와 동일)
+            effectTimings: [JokerEffectTiming.OnHandPlay],
+            effectTypes: [EffectType.AddMultiplier],
+            effectOnCards: [false],
+            conditionTypes: [ConditionType.HandType],
+            conditionValues: ['FullHouse'],
+            conditionOperators: [OperatorType.Equals],
+            conditionNumericValues: [0]
         });
 
         this.registerSpecialCard({
@@ -513,16 +725,14 @@ export class SpecialCardManagerService {
             price: 4,
             sprite: 18,
             baseValue: 4,
-            effects: [{
-                timing: JokerEffectTiming.OnHandPlay,
-                applyEffect: (context: HandContext, self: SpecialCardData) => {
-                    if (context.pokerHand === PokerHand.Flush) {
-                        context.multiplier += self.baseValue || 0;
-                        return true;
-                    }
-                    return false;
-                }
-            }]
+            // 새로운 다중 효과/조건 시스템 (클라이언트와 동일)
+            effectTimings: [JokerEffectTiming.OnHandPlay],
+            effectTypes: [EffectType.AddMultiplier],
+            effectOnCards: [false],
+            conditionTypes: [ConditionType.HandType],
+            conditionValues: ['Flush'],
+            conditionOperators: [OperatorType.Equals],
+            conditionNumericValues: [0]
         });
 
         this.registerSpecialCard({
@@ -533,16 +743,14 @@ export class SpecialCardManagerService {
             price: 2,
             sprite: 19,
             baseValue: 10,
-            effects: [{
-                timing: JokerEffectTiming.OnScoring,
-                applyEffect: (context: HandContext, self: SpecialCardData) => {
-                    if (context.currentCardData?.suit === CardType.Hearts) {
-                        context.chips += self.baseValue || 0;
-                        return true;
-                    }
-                    return false;
-                }
-            }]
+            // 새로운 다중 효과/조건 시스템 (클라이언트와 동일)
+            effectTimings: [JokerEffectTiming.OnScoring],
+            effectTypes: [EffectType.AddChips],
+            effectOnCards: [false],
+            conditionTypes: [ConditionType.CardSuit],
+            conditionValues: ['Hearts'],
+            conditionOperators: [OperatorType.Equals],
+            conditionNumericValues: [0]
         });
 
         this.registerSpecialCard({
@@ -553,16 +761,14 @@ export class SpecialCardManagerService {
             price: 2,
             sprite: 20,
             baseValue: 10,
-            effects: [{
-                timing: JokerEffectTiming.OnScoring,
-                applyEffect: (context: HandContext, self: SpecialCardData) => {
-                    if (context.currentCardData?.suit === CardType.Spades) {
-                        context.chips += self.baseValue || 0;
-                        return true;
-                    }
-                    return false;
-                }
-            }]
+            // 새로운 다중 효과/조건 시스템 (클라이언트와 동일)
+            effectTimings: [JokerEffectTiming.OnScoring],
+            effectTypes: [EffectType.AddChips],
+            effectOnCards: [false],
+            conditionTypes: [ConditionType.CardSuit],
+            conditionValues: ['Spades'],
+            conditionOperators: [OperatorType.Equals],
+            conditionNumericValues: [0]
         });
 
         this.registerSpecialCard({
@@ -573,16 +779,14 @@ export class SpecialCardManagerService {
             price: 2,
             sprite: 21,
             baseValue: 10,
-            effects: [{
-                timing: JokerEffectTiming.OnScoring,
-                applyEffect: (context: HandContext, self: SpecialCardData) => {
-                    if (context.currentCardData?.suit === CardType.Clubs) {
-                        context.chips += self.baseValue || 0;
-                        return true;
-                    }
-                    return false;
-                }
-            }]
+            // 새로운 다중 효과/조건 시스템 (클라이언트와 동일)
+            effectTimings: [JokerEffectTiming.OnScoring],
+            effectTypes: [EffectType.AddChips],
+            effectOnCards: [false],
+            conditionTypes: [ConditionType.CardSuit],
+            conditionValues: ['Clubs'],
+            conditionOperators: [OperatorType.Equals],
+            conditionNumericValues: [0]
         });
 
         this.registerSpecialCard({
@@ -593,17 +797,14 @@ export class SpecialCardManagerService {
             price: 2,
             sprite: 22,
             baseValue: 2,
-            effects: [{
-                timing: JokerEffectTiming.OnAfterScoring,
-                applyEffect: (context: HandContext, self: SpecialCardData) => {
-                    const heartCount = context.countUnUsedCardsOfSuit(CardType.Hearts);
-                    if (heartCount > 0) {
-                        context.multiplier += heartCount * (self.baseValue || 0);
-                        return true;
-                    }
-                    return false;
-                }
-            }]
+            // 새로운 다중 효과/조건 시스템 (클라이언트와 동일)
+            effectTimings: [JokerEffectTiming.OnAfterScoring],
+            effectTypes: [EffectType.AddMultiplier],
+            effectOnCards: [false],
+            conditionTypes: [ConditionType.UnUsedSuitCount],
+            conditionValues: ['Hearts'],
+            conditionOperators: [OperatorType.GreaterOrEqual],
+            conditionNumericValues: [0]
         });
 
         this.registerSpecialCard({
@@ -614,17 +815,14 @@ export class SpecialCardManagerService {
             price: 2,
             sprite: 23,
             baseValue: 2,
-            effects: [{
-                timing: JokerEffectTiming.OnAfterScoring,
-                applyEffect: (context: HandContext, self: SpecialCardData) => {
-                    const spadeCount = context.countUnUsedCardsOfSuit(CardType.Spades);
-                    if (spadeCount > 0) {
-                        context.multiplier += spadeCount * (self.baseValue || 0);
-                        return true;
-                    }
-                    return false;
-                }
-            }]
+            // 새로운 다중 효과/조건 시스템 (클라이언트와 동일)
+            effectTimings: [JokerEffectTiming.OnAfterScoring],
+            effectTypes: [EffectType.AddMultiplier],
+            effectOnCards: [false],
+            conditionTypes: [ConditionType.UnUsedSuitCount],
+            conditionValues: ['Spades'],
+            conditionOperators: [OperatorType.GreaterOrEqual],
+            conditionNumericValues: [0]
         });
 
         this.registerSpecialCard({
@@ -635,17 +833,14 @@ export class SpecialCardManagerService {
             price: 2,
             sprite: 24,
             baseValue: 2,
-            effects: [{
-                timing: JokerEffectTiming.OnAfterScoring,
-                applyEffect: (context: HandContext, self: SpecialCardData) => {
-                    const clubCount = context.countUnUsedCardsOfSuit(CardType.Clubs);
-                    if (clubCount > 0) {
-                        context.multiplier += clubCount * (self.baseValue || 0);
-                        return true;
-                    }
-                    return false;
-                }
-            }]
+            // 새로운 다중 효과/조건 시스템 (클라이언트와 동일)
+            effectTimings: [JokerEffectTiming.OnAfterScoring],
+            effectTypes: [EffectType.AddMultiplier],
+            effectOnCards: [false],
+            conditionTypes: [ConditionType.UnUsedSuitCount],
+            conditionValues: ['Clubs'],
+            conditionOperators: [OperatorType.GreaterOrEqual],
+            conditionNumericValues: [0]
         });
 
         this.registerSpecialCard({
@@ -656,17 +851,14 @@ export class SpecialCardManagerService {
             price: 2,
             sprite: 25,
             baseValue: 2,
-            effects: [{
-                timing: JokerEffectTiming.OnAfterScoring,
-                applyEffect: (context: HandContext, self: SpecialCardData) => {
-                    const diamondCount = context.countUnUsedCardsOfSuit(CardType.Diamonds);
-                    if (diamondCount > 0) {
-                        context.multiplier += diamondCount * (self.baseValue || 0);
-                        return true;
-                    }
-                    return false;
-                }
-            }]
+            // 새로운 다중 효과/조건 시스템 (클라이언트와 동일)
+            effectTimings: [JokerEffectTiming.OnAfterScoring],
+            effectTypes: [EffectType.AddMultiplier],
+            effectOnCards: [false],
+            conditionTypes: [ConditionType.UnUsedSuitCount],
+            conditionValues: ['Diamonds'],
+            conditionOperators: [OperatorType.GreaterOrEqual],
+            conditionNumericValues: [0]
         });
 
         this.registerSpecialCard({
@@ -677,18 +869,14 @@ export class SpecialCardManagerService {
             price: 4,
             sprite: 26,
             baseValue: 0,
-            effects: [{
-                timing: JokerEffectTiming.OnScoring,
-                applyEffect: (context: HandContext, self: SpecialCardData) => {
-                    const aceCount = context.countAcesInUsedCards();
-                    if (aceCount > 0) {
-                        context.chips += 20 * aceCount;
-                        context.multiplier += 4 * aceCount;
-                        return true;
-                    }
-                    return false;
-                }
-            }]
+            // 새로운 다중 효과/조건 시스템 (클라이언트와 동일)
+            effectTimings: [JokerEffectTiming.OnScoring, JokerEffectTiming.OnScoring],
+            effectTypes: [EffectType.AddChips, EffectType.AddMultiplier],
+            effectOnCards: [false, false],
+            conditionTypes: [ConditionType.UsedAceCount, ConditionType.UsedAceCount],
+            conditionValues: ['', ''],
+            conditionOperators: [OperatorType.GreaterOrEqual, OperatorType.GreaterOrEqual],
+            conditionNumericValues: [0, 0]
         });
 
         this.registerSpecialCard({
@@ -700,19 +888,14 @@ export class SpecialCardManagerService {
             sprite: 27,
             baseValue: 20,
             decrease: 4,
-            effects: [{
-                timing: JokerEffectTiming.OnHandPlay,
-                applyEffect: (context: HandContext, self: SpecialCardData) => {
-                    context.multiplier += self.baseValue || 0;
-                    return true;
-                }
-            }, {
-                timing: JokerEffectTiming.OnAfterScoring,
-                applyEffect: (context: HandContext, self: SpecialCardData) => {
-                    self.baseValue = Math.max(-10000, (self.baseValue || 0) - (self.decrease || 0));
-                    return true;
-                }
-            }]
+            // 새로운 다중 효과/조건 시스템 (클라이언트와 동일)
+            effectTimings: [JokerEffectTiming.OnHandPlay, JokerEffectTiming.OnAfterScoring],
+            effectTypes: [EffectType.AddMultiplier, EffectType.GrowBaseValue],
+            effectOnCards: [false, false],
+            conditionTypes: [ConditionType.Always, ConditionType.Always],
+            conditionValues: ['', ''],
+            conditionOperators: [OperatorType.None, OperatorType.None],
+            conditionNumericValues: [0, 0]
         });
 
         this.registerSpecialCard({
@@ -724,14 +907,14 @@ export class SpecialCardManagerService {
             sprite: 28,
             baseValue: 0,
             increase: 3,
-            effects: [{
-                timing: JokerEffectTiming.OnScoring,
-                applyEffect: (context: HandContext, self: SpecialCardData) => {
-                    self.baseValue = (self.baseValue || 0) + (self.increase || 0);
-                    context.chips += self.baseValue || 0;
-                    return true;
-                }
-            }]
+            // 새로운 다중 효과/조건 시스템 (클라이언트와 동일)
+            effectTimings: [JokerEffectTiming.OnScoring],
+            effectTypes: [EffectType.AddChips],
+            effectOnCards: [false],
+            conditionTypes: [ConditionType.Always],
+            conditionValues: [''],
+            conditionOperators: [OperatorType.None],
+            conditionNumericValues: [0]
         });
 
         this.registerSpecialCard({
@@ -742,16 +925,14 @@ export class SpecialCardManagerService {
             price: 4,
             sprite: 29,
             baseValue: 2,
-            effects: [{
-                timing: JokerEffectTiming.OnHandPlay,
-                applyEffect: (context: HandContext, self: SpecialCardData) => {
-                    if (context.remainingSevens && context.remainingSevens > 0) {
-                        context.multiplier += context.remainingSevens * (self.baseValue || 0);
-                        return true;
-                    }
-                    return false;
-                }
-            }]
+            // 새로운 다중 효과/조건 시스템 (클라이언트와 동일)
+            effectTimings: [JokerEffectTiming.OnHandPlay],
+            effectTypes: [EffectType.AddMultiplier],
+            effectOnCards: [false],
+            conditionTypes: [ConditionType.RemainingSevens],
+            conditionValues: [''],
+            conditionOperators: [OperatorType.GreaterOrEqual],
+            conditionNumericValues: [1]
         });
 
         this.registerSpecialCard({
@@ -762,16 +943,14 @@ export class SpecialCardManagerService {
             price: 4,
             sprite: 30,
             baseValue: 4,
-            effects: [{
-                timing: JokerEffectTiming.OnHandPlay,
-                applyEffect: (context: HandContext, self: SpecialCardData) => {
-                    if (context.remainingDeck && context.remainingDeck > 0) {
-                        context.multiplier += context.remainingDeck * (self.baseValue || 0);
-                        return true;
-                    }
-                    return false;
-                }
-            }]
+            // 새로운 다중 효과/조건 시스템 (클라이언트와 동일)
+            effectTimings: [JokerEffectTiming.OnHandPlay],
+            effectTypes: [EffectType.AddMultiplier],
+            effectOnCards: [false],
+            conditionTypes: [ConditionType.RemainingDeck],
+            conditionValues: [''],
+            conditionOperators: [OperatorType.LessOrEqual],
+            conditionNumericValues: [52]
         });
 
         this.registerSpecialCard({
@@ -784,27 +963,14 @@ export class SpecialCardManagerService {
             baseValue: 1,
             increase: 1,
             decrease: 2,
-            effects: [{
-                timing: JokerEffectTiming.OnScoring,
-                applyEffect: (context: HandContext, self: SpecialCardData) => {
-                    if (context.currentCardData?.suit === CardType.Spades) {
-                        self.baseValue = (self.baseValue || 1) + (self.increase || 0);
-                    } else {
-                        self.baseValue = Math.max(-10000, (self.baseValue || 1) - (self.decrease || 0));
-                    }
-                    return true;
-                }
-            }, {
-                timing: JokerEffectTiming.OnAfterScoring,
-                applyEffect: (context: HandContext, self: SpecialCardData) => {
-                    const spadeCount = context.countSuitInUsedCards(CardType.Spades);
-                    if (spadeCount > 0) {
-                        context.multiplier *= self.baseValue || 1;
-                        return true;
-                    }
-                    return false;
-                }
-            }]
+            // 새로운 다중 효과/조건 시스템 (클라이언트와 동일)
+            effectTimings: [JokerEffectTiming.OnScoring, JokerEffectTiming.OnScoring],
+            effectTypes: [EffectType.GrowBaseValue, EffectType.GrowBaseValue],
+            effectOnCards: [false, false],
+            conditionTypes: [ConditionType.CardSuit, ConditionType.Always],
+            conditionValues: ['Spades', ''],
+            conditionOperators: [OperatorType.Equals, OperatorType.None],
+            conditionNumericValues: [0, 0]
         });
 
         this.registerSpecialCard({
@@ -817,27 +983,14 @@ export class SpecialCardManagerService {
             baseValue: 1,
             increase: 1,
             decrease: 2,
-            effects: [{
-                timing: JokerEffectTiming.OnScoring,
-                applyEffect: (context: HandContext, self: SpecialCardData) => {
-                    if (context.currentCardData?.suit === CardType.Diamonds) {
-                        self.baseValue = (self.baseValue || 1) + (self.increase || 0);
-                    } else {
-                        self.baseValue = Math.max(-10000, (self.baseValue || 1) - (self.decrease || 0));
-                    }
-                    return true;
-                }
-            }, {
-                timing: JokerEffectTiming.OnAfterScoring,
-                applyEffect: (context: HandContext, self: SpecialCardData) => {
-                    const diamondCount = context.countSuitInUsedCards(CardType.Diamonds);
-                    if (diamondCount > 0) {
-                        context.multiplier *= self.baseValue || 1;
-                        return true;
-                    }
-                    return false;
-                }
-            }]
+            // 새로운 다중 효과/조건 시스템 (클라이언트와 동일)
+            effectTimings: [JokerEffectTiming.OnScoring, JokerEffectTiming.OnScoring],
+            effectTypes: [EffectType.GrowBaseValue, EffectType.GrowBaseValue],
+            effectOnCards: [false, false],
+            conditionTypes: [ConditionType.CardSuit, ConditionType.Always],
+            conditionValues: ['Diamonds', ''],
+            conditionOperators: [OperatorType.Equals, OperatorType.None],
+            conditionNumericValues: [0, 0]
         });
 
         this.registerSpecialCard({
@@ -850,27 +1003,14 @@ export class SpecialCardManagerService {
             baseValue: 1,
             increase: 1,
             decrease: 2,
-            effects: [{
-                timing: JokerEffectTiming.OnScoring,
-                applyEffect: (context: HandContext, self: SpecialCardData) => {
-                    if (context.currentCardData?.suit === CardType.Hearts) {
-                        self.baseValue = (self.baseValue || 1) + (self.increase || 0);
-                    } else {
-                        self.baseValue = Math.max(-10000, (self.baseValue || 1) - (self.decrease || 0));
-                    }
-                    return true;
-                }
-            }, {
-                timing: JokerEffectTiming.OnAfterScoring,
-                applyEffect: (context: HandContext, self: SpecialCardData) => {
-                    const heartCount = context.countSuitInUsedCards(CardType.Hearts);
-                    if (heartCount > 0) {
-                        context.multiplier *= self.baseValue || 1;
-                        return true;
-                    }
-                    return false;
-                }
-            }]
+            // 새로운 다중 효과/조건 시스템 (클라이언트와 동일)
+            effectTimings: [JokerEffectTiming.OnScoring, JokerEffectTiming.OnScoring],
+            effectTypes: [EffectType.GrowBaseValue, EffectType.GrowBaseValue],
+            effectOnCards: [false, false],
+            conditionTypes: [ConditionType.CardSuit, ConditionType.Always],
+            conditionValues: ['Hearts', ''],
+            conditionOperators: [OperatorType.Equals, OperatorType.None],
+            conditionNumericValues: [0, 0]
         });
 
         this.registerSpecialCard({
@@ -883,27 +1023,14 @@ export class SpecialCardManagerService {
             baseValue: 1,
             increase: 1,
             decrease: 2,
-            effects: [{
-                timing: JokerEffectTiming.OnScoring,
-                applyEffect: (context: HandContext, self: SpecialCardData) => {
-                    if (context.currentCardData?.suit === CardType.Clubs) {
-                        self.baseValue = (self.baseValue || 1) + (self.increase || 0);
-                    } else {
-                        self.baseValue = Math.max(-10000, (self.baseValue || 1) - (self.decrease || 0));
-                    }
-                    return true;
-                }
-            }, {
-                timing: JokerEffectTiming.OnAfterScoring,
-                applyEffect: (context: HandContext, self: SpecialCardData) => {
-                    const clubCount = context.countSuitInUsedCards(CardType.Clubs);
-                    if (clubCount > 0) {
-                        context.multiplier *= self.baseValue || 1;
-                        return true;
-                    }
-                    return false;
-                }
-            }]
+            // 새로운 다중 효과/조건 시스템 (클라이언트와 동일)
+            effectTimings: [JokerEffectTiming.OnScoring, JokerEffectTiming.OnScoring],
+            effectTypes: [EffectType.GrowBaseValue, EffectType.GrowBaseValue],
+            effectOnCards: [false, false],
+            conditionTypes: [ConditionType.CardSuit, ConditionType.Always],
+            conditionValues: ['Clubs', ''],
+            conditionOperators: [OperatorType.Equals, OperatorType.None],
+            conditionNumericValues: [0, 0]
         });
 
         this.registerSpecialCard({
@@ -914,16 +1041,14 @@ export class SpecialCardManagerService {
             price: 4,
             sprite: 35,
             baseValue: 20,
-            effects: [{
-                timing: JokerEffectTiming.OnAfterScoring,
-                applyEffect: (context: HandContext, self: SpecialCardData) => {
-                    if (context.isUsedCardsOfSuitCount(CardType.Spades, 1)) {
-                        context.chips *= self.baseValue || 1;
-                        return true;
-                    }
-                    return false;
-                }
-            }]
+            // 새로운 다중 효과/조건 시스템 (클라이언트와 동일)
+            effectTimings: [JokerEffectTiming.OnAfterScoring],
+            effectTypes: [EffectType.MulChips],
+            effectOnCards: [false],
+            conditionTypes: [ConditionType.UsedSuitCount],
+            conditionValues: ['Spades'],
+            conditionOperators: [OperatorType.Equals],
+            conditionNumericValues: [1]
         });
 
         this.registerSpecialCard({
@@ -934,16 +1059,14 @@ export class SpecialCardManagerService {
             price: 4,
             sprite: 36,
             baseValue: 12,
-            effects: [{
-                timing: JokerEffectTiming.OnAfterScoring,
-                applyEffect: (context: HandContext, self: SpecialCardData) => {
-                    if (context.isUsedCardsOfSuitCount(CardType.Diamonds, 4)) {
-                        context.multiplier *= self.baseValue || 1;
-                        return true;
-                    }
-                    return false;
-                }
-            }]
+            // 새로운 다중 효과/조건 시스템 (클라이언트와 동일)
+            effectTimings: [JokerEffectTiming.OnAfterScoring],
+            effectTypes: [EffectType.MulMultiplier],
+            effectOnCards: [false],
+            conditionTypes: [ConditionType.UsedSuitCount],
+            conditionValues: ['Diamonds'],
+            conditionOperators: [OperatorType.Equals],
+            conditionNumericValues: [4]
         });
 
         this.registerSpecialCard({
@@ -954,16 +1077,14 @@ export class SpecialCardManagerService {
             price: 4,
             sprite: 37,
             baseValue: 18,
-            effects: [{
-                timing: JokerEffectTiming.OnAfterScoring,
-                applyEffect: (context: HandContext, self: SpecialCardData) => {
-                    if (context.isUsedCardsOfSuitCount(CardType.Hearts, 2)) {
-                        context.multiplier *= self.baseValue || 1;
-                        return true;
-                    }
-                    return false;
-                }
-            }]
+            // 새로운 다중 효과/조건 시스템 (클라이언트와 동일)
+            effectTimings: [JokerEffectTiming.OnAfterScoring],
+            effectTypes: [EffectType.MulMultiplier],
+            effectOnCards: [false],
+            conditionTypes: [ConditionType.UsedSuitCount],
+            conditionValues: ['Hearts'],
+            conditionOperators: [OperatorType.Equals],
+            conditionNumericValues: [2]
         });
 
         this.registerSpecialCard({
@@ -974,16 +1095,14 @@ export class SpecialCardManagerService {
             price: 4,
             sprite: 38,
             baseValue: 15,
-            effects: [{
-                timing: JokerEffectTiming.OnAfterScoring,
-                applyEffect: (context: HandContext, self: SpecialCardData) => {
-                    if (context.isUsedCardsOfSuitCount(CardType.Clubs, 3)) {
-                        context.chips *= self.baseValue || 1;
-                        return true;
-                    }
-                    return false;
-                }
-            }]
+            // 새로운 다중 효과/조건 시스템 (클라이언트와 동일)
+            effectTimings: [JokerEffectTiming.OnAfterScoring],
+            effectTypes: [EffectType.MulChips],
+            effectOnCards: [false],
+            conditionTypes: [ConditionType.UsedSuitCount],
+            conditionValues: ['Clubs'],
+            conditionOperators: [OperatorType.Equals],
+            conditionNumericValues: [3]
         });
 
         this.registerSpecialCard({
@@ -994,13 +1113,14 @@ export class SpecialCardManagerService {
             price: 4,
             sprite: 39,
             baseValue: 0,
-            effects: [{
-                timing: JokerEffectTiming.OnAfterScoring,
-                applyEffect: (context: HandContext, self: SpecialCardData) => {
-                    // TODO: 왼쪽 조커 효과 구현
-                    return false;
-                }
-            }]
+            // 새로운 다중 효과/조건 시스템 (클라이언트와 동일)
+            effectTimings: [JokerEffectTiming.OnAfterScoring],
+            effectTypes: [EffectType.AddMultiplier],
+            effectOnCards: [false],
+            conditionTypes: [ConditionType.Always],
+            conditionValues: [''],
+            conditionOperators: [OperatorType.None],
+            conditionNumericValues: [0]
         });
 
         this.registerSpecialCard({
@@ -1011,16 +1131,14 @@ export class SpecialCardManagerService {
             price: 5,
             sprite: 40,
             baseValue: 20,
-            effects: [{
-                timing: JokerEffectTiming.OnAfterScoring,
-                applyEffect: (context: HandContext, self: SpecialCardData) => {
-                    if (context.remainingDiscards && context.remainingDiscards > 0) {
-                        context.chips += context.remainingDiscards * (self.baseValue || 0);
-                        return true;
-                    }
-                    return false;
-                }
-            }]
+            // 새로운 다중 효과/조건 시스템 (클라이언트와 동일)
+            effectTimings: [JokerEffectTiming.OnAfterScoring],
+            effectTypes: [EffectType.AddChips],
+            effectOnCards: [false],
+            conditionTypes: [ConditionType.RemainingDiscards],
+            conditionValues: [''],
+            conditionOperators: [OperatorType.GreaterOrEqual],
+            conditionNumericValues: [1]
         });
 
         this.registerSpecialCard({
@@ -1031,7 +1149,14 @@ export class SpecialCardManagerService {
             price: 5,
             sprite: 41,
             baseValue: 0,
-            effects: [] // 효과 없음
+            // 새로운 다중 효과/조건 시스템 (클라이언트와 동일)
+            effectTimings: [],
+            effectTypes: [],
+            effectOnCards: [],
+            conditionTypes: [],
+            conditionValues: [],
+            conditionOperators: [],
+            conditionNumericValues: []
         });
 
         this.registerSpecialCard({
@@ -1042,16 +1167,14 @@ export class SpecialCardManagerService {
             price: 5,
             sprite: 42,
             baseValue: 15,
-            effects: [{
-                timing: JokerEffectTiming.OnAfterScoring,
-                applyEffect: (context: HandContext, self: SpecialCardData) => {
-                    if (context.remainingDiscards && context.remainingDiscards <= 0) {
-                        context.multiplier += self.baseValue || 0;
-                        return true;
-                    }
-                    return false;
-                }
-            }]
+            // 새로운 다중 효과/조건 시스템 (클라이언트와 동일)
+            effectTimings: [JokerEffectTiming.OnAfterScoring],
+            effectTypes: [EffectType.AddMultiplier],
+            effectOnCards: [false],
+            conditionTypes: [ConditionType.RemainingDiscards],
+            conditionValues: [''],
+            conditionOperators: [OperatorType.LessOrEqual],
+            conditionNumericValues: [0]
         });
 
         this.registerSpecialCard({
@@ -1063,15 +1186,14 @@ export class SpecialCardManagerService {
             sprite: 43,
             baseValue: 2,
             increase: 20,
-            effects: [{
-                timing: JokerEffectTiming.OnHandPlay,
-                applyEffect: (context: HandContext, self: SpecialCardData) => {
-                    const randomMultiplier = Math.floor(Math.random() * ((self.increase || 20) - (self.baseValue || 2) + 1)) + (self.baseValue || 2);
-                    context.multiplier += randomMultiplier;
-                    context.randomValue = randomMultiplier;
-                    return true;
-                }
-            }]
+            // 새로운 다중 효과/조건 시스템 (클라이언트와 동일)
+            effectTimings: [JokerEffectTiming.OnHandPlay],
+            effectTypes: [EffectType.AddMultiplierByRandomValue],
+            effectOnCards: [false],
+            conditionTypes: [ConditionType.Always],
+            conditionValues: [''],
+            conditionOperators: [OperatorType.None],
+            conditionNumericValues: [0]
         });
 
         this.registerSpecialCard({
@@ -1082,16 +1204,14 @@ export class SpecialCardManagerService {
             price: 5,
             sprite: 44,
             baseValue: 2,
-            effects: [{
-                timing: JokerEffectTiming.OnScoring,
-                applyEffect: (context: HandContext, self: SpecialCardData) => {
-                    if (context.isCurrentCardDataEvenRank()) {
-                        context.multiplier += self.baseValue || 0;
-                        return true;
-                    }
-                    return false;
-                }
-            }]
+            // 새로운 다중 효과/조건 시스템 (클라이언트와 동일)
+            effectTimings: [JokerEffectTiming.OnScoring],
+            effectTypes: [EffectType.AddMultiplier],
+            effectOnCards: [false],
+            conditionTypes: [ConditionType.IsEvenCard],
+            conditionValues: [''],
+            conditionOperators: [OperatorType.None],
+            conditionNumericValues: [0]
         });
 
         this.registerSpecialCard({
@@ -1102,16 +1222,14 @@ export class SpecialCardManagerService {
             price: 5,
             sprite: 45,
             baseValue: 2,
-            effects: [{
-                timing: JokerEffectTiming.OnScoring,
-                applyEffect: (context: HandContext, self: SpecialCardData) => {
-                    if (!context.isCurrentCardDataEvenRank()) {
-                        context.multiplier += self.baseValue || 0;
-                        return true;
-                    }
-                    return false;
-                }
-            }]
+            // 새로운 다중 효과/조건 시스템 (클라이언트와 동일)
+            effectTimings: [JokerEffectTiming.OnScoring],
+            effectTypes: [EffectType.AddMultiplier],
+            effectOnCards: [false],
+            conditionTypes: [ConditionType.IsOddCard],
+            conditionValues: [''],
+            conditionOperators: [OperatorType.None],
+            conditionNumericValues: [0]
         });
 
         this.registerSpecialCard({
@@ -1122,16 +1240,14 @@ export class SpecialCardManagerService {
             price: 5,
             sprite: 46,
             baseValue: 2,
-            effects: [{
-                timing: JokerEffectTiming.OnHandPlay,
-                applyEffect: (context: HandContext, self: SpecialCardData) => {
-                    if (context.remainingDeck && context.remainingDeck > 0) {
-                        context.chips += context.remainingDeck * (self.baseValue || 0);
-                        return true;
-                    }
-                    return false;
-                }
-            }]
+            // 새로운 다중 효과/조건 시스템 (클라이언트와 동일)
+            effectTimings: [JokerEffectTiming.OnHandPlay],
+            effectTypes: [EffectType.AddChips],
+            effectOnCards: [false],
+            conditionTypes: [ConditionType.RemainingDeck],
+            conditionValues: [''],
+            conditionOperators: [OperatorType.GreaterOrEqual],
+            conditionNumericValues: [1]
         });
 
         // 행성 카드 등록
@@ -1357,7 +1473,14 @@ export class SpecialCardManagerService {
         // 새로운 인스턴스 반환 (참조 문제 방지)
         return {
             ...card,
-            effects: card.effects ? [...card.effects] : undefined
+            // 새로운 다중 효과/조건 필드들도 복사 (클라이언트와 동일)
+            effectTimings: card.effectTimings ? [...card.effectTimings] : undefined,
+            effectTypes: card.effectTypes ? [...card.effectTypes] : undefined,
+            effectOnCards: card.effectOnCards ? [...card.effectOnCards] : undefined,
+            conditionTypes: card.conditionTypes ? [...card.conditionTypes] : undefined,
+            conditionValues: card.conditionValues ? [...card.conditionValues] : undefined,
+            conditionOperators: card.conditionOperators ? [...card.conditionOperators] : undefined,
+            conditionNumericValues: card.conditionNumericValues ? [...card.conditionNumericValues] : undefined
         };
     }
 
@@ -1367,16 +1490,37 @@ export class SpecialCardManagerService {
 
         for (const jokerId of ownedJokers) {
             const jokerData = this.getCardById(jokerId);
-            if (!jokerData || !jokerData.effects) continue;
+            if (!jokerData) continue;
 
-            for (const effect of jokerData.effects) {
-                if (effect.timing === timing) {
-                    const wasApplied = effect.applyEffect(context, jokerData);
-                    if (wasApplied) {
-                        isApplied = true;
+            // 새로운 다중 효과/조건 시스템 사용
+            if (jokerData.effectTimings && jokerData.effectTypes && jokerData.conditionTypes) {
+                for (let i = 0; i < jokerData.effectTimings.length; i++) {
+                    if (jokerData.effectTimings[i] === timing) {
+                        // 조건 평가
+                        const condition: EffectCondition = {
+                            type: jokerData.conditionTypes[i],
+                            value: jokerData.conditionValues?.[i] || '',
+                            operatorType: jokerData.conditionOperators?.[i] || OperatorType.None,
+                            numericValue: jokerData.conditionNumericValues?.[i] || 0
+                        };
+
+                        if (ConditionEvaluator.evaluateCondition(condition, context, jokerData)) {
+                            // 효과 적용
+                            const effect: EffectData = {
+                                effectType: jokerData.effectTypes[i],
+                                effectOnCard: jokerData.effectOnCards?.[i] || false,
+                                conditionValue: jokerData.conditionValues?.[i] || ''
+                            };
+
+                            const wasApplied = EffectApplier.applyEffect(condition, effect, context, jokerData);
+                            if (wasApplied) {
+                                isApplied = true;
+                            }
+                        }
                     }
                 }
             }
+
         }
 
         return isApplied;
@@ -1437,7 +1581,7 @@ export class SpecialCardManagerService {
     }
 
     // 특수 카드 목록 가져오기
-    getAllSpecialCards(): { jokerCards: SpecialCard[], planetCards: SpecialCard[], tarotCards: SpecialCard[] } {
+    getAllSpecialCards(): { jokerCards: SpecialCardData[], planetCards: SpecialCardData[], tarotCards: SpecialCardData[] } {
         const all = Array.from(this.allSpecialCards.values());
         return {
             jokerCards: all.filter(card => card.type === SpecialCardType.Joker),
@@ -1453,19 +1597,19 @@ export class SpecialCardManagerService {
     }
 
     // 기존 joker-cards.util.ts 함수들을 대체하는 메서드들
-    getRandomShopCards(count: number, usedJokerCardIds: Set<string> = new Set()): SpecialCard[] {
-        /*
+    getRandomShopCards(count: number, usedJokerCardIds: Set<string> = new Set()): SpecialCardData[] {
+
         // 🧪 테스트용: joker_24만 뽑히도록 임시 수정
         // TODO: 테스트 완료 후 아래 주석 처리된 원본 코드로 복구
-        const joker24 = this.getCardById('joker_39');
-        if (joker24) {
-            return [joker24, joker24, joker24, joker24, joker24]; // 5개 모두 joker_24로 채움
-        }
-        return [];
-        */
+        // const jokerTest = this.getCardById('joker_14');
+        // if (jokerTest) {
+        //     return [jokerTest, jokerTest, jokerTest, jokerTest, jokerTest]; // 5개 모두 joker_24로 채움
+        // }
+        // return [];
+
 
         // 원본 코드 (테스트 후 복구용)
-        const result: SpecialCard[] = [];
+        const result: SpecialCardData[] = [];
 
         // 조커 카드 3개 랜덤 선택 (이미 사용된 조커 카드 제외)
         const activeJokers = this.getActiveSpecialCards()
@@ -1489,8 +1633,8 @@ export class SpecialCardManagerService {
     }
 
     // 카드 풀에서 랜덤하게 선택하는 헬퍼 함수
-    private getRandomCardsFromPool(cardPool: SpecialCardData[], count: number): SpecialCard[] {
-        const result: SpecialCard[] = [];
+    private getRandomCardsFromPool(cardPool: SpecialCardData[], count: number): SpecialCardData[] {
+        const result: SpecialCardData[] = [];
         const tempPool = [...cardPool];
 
         for (let i = 0; i < Math.min(count, tempPool.length); i++) {
@@ -1502,10 +1646,10 @@ export class SpecialCardManagerService {
         return result;
     }
 
-    getRandomPlanetCards(count: number): SpecialCard[] {
+    getRandomPlanetCards(count: number): SpecialCardData[] {
         const activeCards = this.getActiveSpecialCards()
             .filter(card => card.type === SpecialCardType.Planet);
-        const result: SpecialCard[] = [];
+        const result: SpecialCardData[] = [];
         const tempPool = [...activeCards];
 
         for (let i = 0; i < Math.min(count, tempPool.length); i++) {
@@ -1562,11 +1706,105 @@ export class SpecialCardManagerService {
                     existingCard.needCardCount = dbCard.need_card_count;
                     existingCard.isActive = dbCard.isActive !== false; // 기본값 true
 
+                    // 2개 고정 조건-효과 시스템 필드들을 기존 리스트 구조로 변환
+
+                    // 새로운 2개 고정 조건-효과 시스템 필드들을 기존 리스트 구조로 변환
+                    const newEffectTimings: JokerEffectTiming[] = [];
+                    const newEffectTypes: EffectType[] = [];
+                    const newEffectOnCards: boolean[] = [];
+                    const newConditionTypes: ConditionType[] = [];
+                    const newConditionValues: string[] = [];
+                    const newConditionOperators: OperatorType[] = [];
+                    const newConditionNumericValues: number[] = [];
+
+                    // 첫 번째 쌍 처리 (문자열 -> enum 안전 변환)
+                    if (dbCard.conditionType1 && dbCard.effectType1) {
+                        const ct = parseConditionType(dbCard.conditionType1);
+                        const et = parseEffectType(dbCard.effectType1);
+                        const ot = parseOperatorType(dbCard.conditionOperator1);
+                        const tt = parseJokerEffectTiming(dbCard.effectTiming1);
+                        if (ct !== undefined && et !== undefined && tt !== undefined) {
+                            newConditionTypes.push(ct);
+                            newConditionValues.push(dbCard.conditionValue1 || '');
+                            newConditionOperators.push(ot);
+                            newConditionNumericValues.push(dbCard.conditionNumeric1 || 0);
+                            newEffectTimings.push(tt);
+                            newEffectTypes.push(et);
+                            newEffectOnCards.push(dbCard.effectTarget1 === 'Card');
+                        }
+                    }
+
+                    // 두 번째 쌍 처리 (문자열 -> enum 안전 변환)
+                    if (dbCard.conditionType2 && dbCard.effectType2) {
+                        const ct2 = parseConditionType(dbCard.conditionType2);
+                        const et2 = parseEffectType(dbCard.effectType2);
+                        const ot2 = parseOperatorType(dbCard.conditionOperator2);
+                        const tt2 = parseJokerEffectTiming(dbCard.effectTiming2);
+                        if (ct2 !== undefined && et2 !== undefined && tt2 !== undefined) {
+                            newConditionTypes.push(ct2);
+                            newConditionValues.push(dbCard.conditionValue2 || '');
+                            newConditionOperators.push(ot2);
+                            newConditionNumericValues.push(dbCard.conditionNumeric2 || 0);
+                            newEffectTimings.push(tt2);
+                            newEffectTypes.push(et2);
+                            newEffectOnCards.push(dbCard.effectTarget2 === 'Card');
+                        }
+                    }
+
+                    // 기존 데이터가 있으면 병합, 없으면 새로 설정
+                    if (newConditionTypes.length > 0) {
+                        existingCard.conditionTypes = newConditionTypes;
+                        existingCard.conditionValues = newConditionValues;
+                        existingCard.conditionOperators = newConditionOperators;
+                        existingCard.conditionNumericValues = newConditionNumericValues;
+                        existingCard.effectTimings = newEffectTimings;
+                        existingCard.effectTypes = newEffectTypes;
+                        existingCard.effectOnCards = newEffectOnCards;
+                    }
+
                     updatedCount++;
 
-                    // 앞 5개 카드만 로그로 출력
-                    if (updatedCount <= 5) {
-                        console.log(`[SpecialCardManagerService] 로드된 카드 ${updatedCount}: ${dbCard.id} - ${dbCard.name} (가격: ${dbCard.price}, 활성: ${dbCard.isActive})`);
+                    // 앞 5개 카드만 로그로 출력 (모든 데이터 포함)
+                    if (updatedCount <= 25) {
+                        console.log(`[SpecialCardManagerService] 로드된 카드 ${updatedCount}:`, {
+                            id: dbCard.id,
+                            name: dbCard.name,
+                            description: dbCard.description,
+                            price: dbCard.price,
+                            sprite: dbCard.sprite,
+                            type: dbCard.type,
+                            basevalue: dbCard.basevalue,
+                            increase: dbCard.increase,
+                            decrease: dbCard.decrease,
+                            maxvalue: dbCard.maxvalue,
+                            need_card_count: dbCard.need_card_count,
+                            enhanceChips: dbCard.enhanceChips,
+                            enhanceMul: dbCard.enhanceMul,
+                            isActive: dbCard.isActive,
+                            // 2개 고정 조건-효과 시스템 필드들
+                            conditionType1: dbCard.conditionType1,
+                            conditionValue1: dbCard.conditionValue1,
+                            conditionOperator1: dbCard.conditionOperator1,
+                            conditionNumeric1: dbCard.conditionNumeric1,
+                            effectTiming1: dbCard.effectTiming1,
+                            effectType1: dbCard.effectType1,
+                            effectTarget1: dbCard.effectTarget1,
+                            conditionType2: dbCard.conditionType2,
+                            conditionValue2: dbCard.conditionValue2,
+                            conditionOperator2: dbCard.conditionOperator2,
+                            conditionNumeric2: dbCard.conditionNumeric2,
+                            effectTiming2: dbCard.effectTiming2,
+                            effectType2: dbCard.effectType2,
+                            effectTarget2: dbCard.effectTarget2,
+                            // 변환된 리스트 데이터
+                            convertedConditionTypes: newConditionTypes,
+                            convertedConditionValues: newConditionValues,
+                            convertedConditionOperators: newConditionOperators,
+                            convertedConditionNumericValues: newConditionNumericValues,
+                            convertedEffectTimings: newEffectTimings,
+                            convertedEffectTypes: newEffectTypes,
+                            convertedEffectOnCards: newEffectOnCards
+                        });
                     }
                 }
             }
@@ -1607,6 +1845,14 @@ export class SpecialCardManagerService {
                         enhanceChips: card.enhanceChips,
                         enhanceMul: card.enhanceMul,
                         isActive: card.isActive !== false,
+                        // 새로운 다중 효과/조건 시스템 필드들 (JSON 문자열로 저장)
+                        effectTimings: card.effectTimings ? JSON.stringify(card.effectTimings) : null,
+                        effectTypes: card.effectTypes ? JSON.stringify(card.effectTypes) : null,
+                        effectOnCards: card.effectOnCards ? JSON.stringify(card.effectOnCards) : null,
+                        conditionTypes: card.conditionTypes ? JSON.stringify(card.conditionTypes) : null,
+                        conditionValues: card.conditionValues ? JSON.stringify(card.conditionValues) : null,
+                        conditionOperators: card.conditionOperators ? JSON.stringify(card.conditionOperators) : null,
+                        conditionNumericValues: card.conditionNumericValues ? JSON.stringify(card.conditionNumericValues) : null,
                     }
                 });
             }

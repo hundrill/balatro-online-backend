@@ -1,17 +1,17 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, Res, UseInterceptors, UploadedFile } from '@nestjs/common';
 import { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
+import * as fs from 'fs';
+import * as path from 'path';
 import { DevToolsService } from './dev-tools.service';
-import { ApkService } from './apk.service';
 import { FeedbackService, CreateFeedbackDto, UpdateFeedbackDto } from './feedback.service';
 import { CardUpdateDto, ChipRechargeDto } from './dto/card-update.dto';
-import { ApkUploadDto } from './dto/apk.dto';
+// import { ApkUploadDto } from './dto/apk.dto';
 
 @Controller('dev-tools')
 export class DevToolsController {
     constructor(
         private readonly devToolsService: DevToolsService,
-        private readonly apkService: ApkService,
         private readonly feedbackService: FeedbackService
     ) { }
 
@@ -339,31 +339,23 @@ export class DevToolsController {
         <div id="recharge-result" style="margin-top: 10px;"></div>
     </div>
 
-    <!-- APK Management Section -->
+    <!-- APK Upload Section -->
     <div class="card-section">
-        <h2>📱 APK 관리</h2>
-        <div style="margin-bottom: 20px;">
-            <h3 style="color: #333; margin-bottom: 15px;">APK 업로드</h3>
-            <form id="apk-upload-form" enctype="multipart/form-data" style="margin-bottom: 15px;">
-                <div style="display: flex; gap: 20px; align-items: center; flex-wrap: wrap; margin-bottom: 15px;">
-                    <div style="display: flex; gap: 10px; align-items: center;">
-                        <label style="font-weight: 600; color: #333;">APK 파일:</label>
-                        <input type="file" id="apk-file" name="file" accept=".apk" required style="padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
-                    </div>
-                    <div style="display: flex; gap: 10px; align-items: center;">
-                        <label style="font-weight: 600; color: #333;">코멘트:</label>
-                        <input type="text" id="apk-comment" name="comment" placeholder="업로드 코멘트를 입력하세요" required style="width: 300px; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
-                    </div>
-                    <button type="submit" style="background: linear-gradient(45deg, #2196F3, #1976D2); color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-weight: 500;">APK 업로드</button>
+        <h2>📱 APK 업로드</h2>
+        <form id="apk-upload-form" enctype="multipart/form-data" style="margin-bottom: 15px;">
+            <div style="display: flex; flex-direction: column; gap: 15px;">
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <label style="font-weight: 600; color: #333; min-width: 80px;">APK 파일:</label>
+                    <input type="file" id="apk-file" name="file" accept=".apk" required style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; flex: 1;">
                 </div>
-            </form>
-            <div id="apk-upload-result"></div>
-        </div>
-
-        <div>
-            <h3 style="color: #333; margin-bottom: 15px;">APK 목록</h3>
-            <div id="apk-list" style="margin-top: 10px;"></div>
-        </div>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <label style="font-weight: 600; color: #333; min-width: 80px;">코멘트:</label>
+                    <input type="text" id="apk-comment" name="comment" placeholder="업로드 코멘트를 입력하세요" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; flex: 1;">
+                </div>
+                <button type="submit" style="background: linear-gradient(45deg, #2196F3, #1976D2); color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-weight: 500; width: fit-content;">APK 업로드</button>
+            </div>
+        </form>
+        <div id="apk-upload-result"></div>
     </div>
 
     <!-- Game Settings Management Section -->
@@ -739,8 +731,7 @@ loadCards();
 // 유저 목록 로드
 loadUsers();
 
-// APK 목록 로드
-loadApkList();
+// APK 업로드 섹션만 사용 (목록/다운로드/삭제는 제거)
 
 // 게임 설정 목록 로드
 loadGameSettings();
@@ -1269,6 +1260,23 @@ function renderFeedbacks(feedbacks) {
         return;
     }
 
+    @Post('apk/upload')
+    @UseInterceptors(FileInterceptor('file'))
+    async uploadApk(@UploadedFile() file: Express.Multer.File, @Body('comment') comment: string) {
+        if (!file) {
+            return { success: false, message: '파일이 없습니다.' };
+        }
+        const uploadDir = path.join(process.cwd(), 'uploads', 'apk');
+        try {
+            fs.mkdirSync(uploadDir, { recursive: true });
+            const savedPath = path.join(uploadDir, file.originalname);
+            fs.writeFileSync(savedPath, file.buffer);
+            return { success: true, originalName: file.originalname, size: file.size, comment: comment || '' };
+        } catch (e) {
+            return { success: false, message: '파일 저장 실패' };
+        }
+    }
+
     let html = '<div style="display: flex; flex-direction: column; gap: 15px;">';
     feedbacks.forEach(feedback => {
         const createdAt = new Date(feedback.createdAt).toLocaleString('ko-KR');
@@ -1279,19 +1287,13 @@ function renderFeedbacks(feedbacks) {
                         <div style="color: #666; font-size: 12px;">\${createdAt}</div>
                     </div>
                     <div style="display: flex; gap: 10px;">
-                        <button onclick="showEditForm('\${feedback.id}', '\${feedback.content.replace(/'/g, "\\'")}')" style="background: #FF9800; color: white; padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">편집</button>
+
                         <button onclick="showReplyForm('\${feedback.id}')" style="background: #2196F3; color: white; padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">답글</button>
                         <button onclick="deleteFeedback('\${feedback.id}')" style="background: #f44336; color: white; padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">삭제</button>
                     </div>
                 </div>
                 <div id="feedback-content-\${feedback.id}" style="background: white; padding: 10px; border-radius: 4px; border: 1px solid #ddd; margin-bottom: 10px; white-space: pre-wrap;">\${feedback.content}</div>
-                <div id="edit-form-\${feedback.id}" style="display: none; margin-bottom: 10px;">
-                    <textarea id="edit-content-\${feedback.id}" placeholder="수정할 내용을 입력하세요..." style="width: 100%; height: 80px; padding: 8px; border: 1px solid #ddd; border-radius: 4px; resize: vertical; font-size: 12px;"></textarea>
-                    <div style="display: flex; gap: 10px; margin-top: 10px;">
-                        <button onclick="updateFeedback('\${feedback.id}')" style="background: #4CAF50; color: white; padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">수정</button>
-                        <button onclick="hideEditForm('\${feedback.id}')" style="background: #666; color: white; padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">취소</button>
-                    </div>
-                </div>
+
                 <div id="reply-form-\${feedback.id}" style="display: none; margin-top: 10px;">
                     <textarea id="reply-content-\${feedback.id}" placeholder="답글을 입력하세요..." style="width: 100%; height: 60px; padding: 6px; border: 1px solid #ddd; border-radius: 4px; resize: vertical; font-size: 12px;"></textarea>
                     <div style="display: flex; gap: 10px; margin-top: 10px;">
@@ -1311,17 +1313,11 @@ function renderFeedbacks(feedbacks) {
                             <div style="flex: 1;">
                                 <div style="color: #666; font-size: 11px;">\${replyCreatedAt}</div>
                             </div>
-                            <button onclick="showEditForm('\${reply.id}', '\${reply.content.replace(/'/g, "\\'")}')" style="background: #FF9800; color: white; padding: 4px 8px; border: none; border-radius: 4px; cursor: pointer; font-size: 11px;">편집</button>
+
                             <button onclick="deleteFeedback('\${reply.id}')" style="background: #f44336; color: white; padding: 4px 8px; border: none; border-radius: 4px; cursor: pointer; font-size: 11px;">삭제</button>
                         </div>
                         <div id="feedback-content-\${reply.id}" style="background: white; padding: 8px; border-radius: 4px; border: 1px solid #ddd; font-size: 13px; white-space: pre-wrap;">\${reply.content}</div>
-                        <div id="edit-form-\${reply.id}" style="display: none; margin-top: 8px;">
-                            <textarea id="edit-content-\${reply.id}" placeholder="수정할 내용을 입력하세요..." style="width: 100%; height: 60px; padding: 6px; border: 1px solid #ddd; border-radius: 4px; resize: vertical; font-size: 11px;"></textarea>
-                            <div style="display: flex; gap: 8px; margin-top: 8px;">
-                                <button onclick="updateFeedback('\${reply.id}')" style="background: #4CAF50; color: white; padding: 4px 8px; border: none; border-radius: 4px; cursor: pointer; font-size: 11px;">수정</button>
-                                <button onclick="hideEditForm('\${reply.id}')" style="background: #666; color: white; padding: 4px 8px; border: none; border-radius: 4px; cursor: pointer; font-size: 11px;">취소</button>
-                            </div>
-                        </div>
+
                     </div>
                 \`;
             });
@@ -1369,14 +1365,7 @@ async function addFeedback() {
     }
 }
 
-function showEditForm(feedbackId, currentContent) {
-    document.getElementById(\`edit-form-\${feedbackId}\`).style.display = 'block';
-    document.getElementById(\`edit-content-\${feedbackId}\`).value = currentContent;
-}
 
-function hideEditForm(feedbackId) {
-    document.getElementById(\`edit-form-\${feedbackId}\`).style.display = 'none';
-}
 
 function showReplyForm(feedbackId) {
     document.getElementById(\`reply-form-\${feedbackId}\`).style.display = 'block';
@@ -1419,40 +1408,10 @@ async function addReply(parentId) {
         console.error('Add reply failed:', error);
         alert('답글 등록 중 오류가 발생했습니다.');
     }
+
 }
 
-async function updateFeedback(feedbackId) {
-    const content = document.getElementById(\`edit-content-\${feedbackId}\`).value.trim();
-    
-    if (!content) {
-        alert('내용을 입력해주세요.');
-        return;
-    }
-    
-    try {
-        const response = await fetch(\`/dev-tools/feedback/\${feedbackId}\`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                content: content
-            })
-        });
-        
-        if (response.ok) {
-            hideEditForm(feedbackId);
-            loadFeedbacks();
-            alert('피드백이 수정되었습니다.');
-        } else {
-            const error = await response.json();
-            alert('피드백 수정에 실패했습니다: ' + error.message);
-        }
-    } catch (error) {
-        console.error('Update feedback failed:', error);
-        alert('피드백 수정 중 오류가 발생했습니다.');
-    }
-}
+
 
 async function deleteFeedback(feedbackId) {
     if (!confirm('정말 삭제하시겠습니까?')) {
@@ -1487,7 +1446,7 @@ document.addEventListener('DOMContentLoaded', function() {
         `);
     }
 
-    @Get('cards')
+    @Get('cards/api')
     getAllCards() {
         return this.devToolsService.getAllCards();
     }
@@ -1503,60 +1462,13 @@ document.addEventListener('DOMContentLoaded', function() {
         return result;
     }
 
-    @Put('cards/:cardId')
+    @Put('cards/api/:cardId')
     async updateCard(@Param('cardId') cardId: string, @Body() updateData: CardUpdateDto) {
         const success = await this.devToolsService.updateCard(cardId, updateData);
         return { success, message: success ? 'Card updated successfully' : 'Failed to update card' };
     }
 
-    // APK 관리 엔드포인트들
-    @Post('apk/upload')
-    @UseInterceptors(FileInterceptor('file'))
-    async uploadApk(@UploadedFile() file: Express.Multer.File, @Body() uploadDto: ApkUploadDto) {
-        const result = await this.apkService.uploadApk(file, uploadDto.comment);
-        return result;
-    }
-
-    @Get('apk/list')
-    getApkList() {
-        return this.apkService.getAllApks();
-    }
-
-    @Get('apk/download/:apkId')
-    async downloadApk(@Param('apkId') apkId: string, @Res() res: Response) {
-        try {
-            const result = await this.apkService.downloadApk(apkId);
-
-            // 응답 헤더 설정
-            res.setHeader('Content-Type', 'application/vnd.android.package-archive');
-            res.setHeader('Content-Disposition', `attachment; filename="${result.originalName}"`);
-            res.setHeader('Content-Length', result.size.toString());
-            res.setHeader('Cache-Control', 'no-cache');
-            res.setHeader('Accept-Ranges', 'bytes');
-
-            // 스트림으로 파일 전송
-            result.stream.pipe(res);
-
-            // 스트림 에러 처리
-            result.stream.on('error', (error) => {
-                console.error('Stream error:', error);
-                if (!res.headersSent) {
-                    res.status(500).json({ message: '파일 전송 중 오류가 발생했습니다.' });
-                }
-            });
-
-        } catch (error) {
-            if (!res.headersSent) {
-                res.status(404).json({ message: 'APK 파일을 찾을 수 없습니다.' });
-            }
-        }
-    }
-
-    @Delete('apk/delete/:apkId')
-    async deleteApk(@Param('apkId') apkId: string) {
-        await this.apkService.deleteApk(apkId);
-        return { success: true, message: 'APK가 삭제되었습니다.' };
-    }
+    // APK 관리 제거됨
 
     // GameSetting 관련 엔드포인트들
     @Get('game-settings')
@@ -1604,6 +1516,47 @@ document.addEventListener('DOMContentLoaded', function() {
         return this.devToolsService.getGameSettingsForClient();
     }
 
+    // 칩 설정 관련 API
+    @Get('chip-settings')
+    async getAllChipSettings() {
+        return this.devToolsService.getAllChipSettings();
+    }
+
+    @Get('chip-settings/:id')
+    async getChipSettingById(@Param('id') id: string) {
+        const setting = await this.devToolsService.getChipSettingById(id);
+        if (!setting) {
+            return { success: false, message: '칩 설정을 찾을 수 없습니다.' };
+        }
+        return { success: true, data: setting };
+    }
+
+    @Post('chip-settings')
+    async createChipSetting(@Body() createDto: { id: string; name: string; value: any; description?: string }) {
+        const setting = await this.devToolsService.createChipSetting(
+            createDto.id,
+            createDto.name,
+            createDto.value,
+            createDto.description
+        );
+        return { success: true, data: setting, message: '칩 설정이 생성되었습니다.' };
+    }
+
+    @Put('chip-settings/:id')
+    async updateChipSetting(
+        @Param('id') id: string,
+        @Body() updateDto: { name?: string; value?: any; description?: string }
+    ) {
+        const setting = await this.devToolsService.updateChipSetting(id, updateDto);
+        return { success: true, data: setting, message: '칩 설정이 업데이트되었습니다.' };
+    }
+
+    @Delete('chip-settings/:id')
+    async deleteChipSetting(@Param('id') id: string) {
+        await this.devToolsService.deleteChipSetting(id);
+        return { success: true, message: '칩 설정이 삭제되었습니다.' };
+    }
+
     // 피드백 관련 API
     @Get('feedback')
     async getAllFeedbacks() {
@@ -1624,4 +1577,4 @@ document.addEventListener('DOMContentLoaded', function() {
     async deleteFeedback(@Param('id') id: string) {
         return this.feedbackService.deleteFeedback(id);
     }
-} 
+}
