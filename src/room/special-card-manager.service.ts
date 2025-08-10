@@ -1490,10 +1490,11 @@ export class SpecialCardManagerService {
     }
 
     // 조커 효과 적용
-    applyJokerEffects(timing: JokerEffectTiming, context: HandContext, ownedJokers: SpecialCardData[]): boolean {
+    applyJokerEffects(timing: JokerEffectTiming, context: HandContext, ownedJokers: string[]): boolean {
         let isApplied = false;
 
-        for (const jokerData of ownedJokers) {
+        for (const jokerId of ownedJokers) {
+            const jokerData = this.getCardById(jokerId);
             if (!jokerData) continue;
 
             // 새로운 다중 효과/조건 시스템 사용
@@ -1534,7 +1535,7 @@ export class SpecialCardManagerService {
     calculateFinalScore(
         userId: string,
         handResult: any,
-        ownedJokerData: SpecialCardData[],
+        ownedJokers: string[],
         remainingDiscards: number = 0,
         remainingDeck: number = 0,
         remainingSevens: number = 0
@@ -1548,8 +1549,7 @@ export class SpecialCardManagerService {
         );
 
         // OnHandPlay 효과 적용
-        // const ownedJokerData = ownedJokers.map(id => this.getCardById(id)).filter(Boolean) as SpecialCardData[];
-        this.applyJokerEffects(JokerEffectTiming.OnHandPlay, context, ownedJokerData);
+        this.applyJokerEffects(JokerEffectTiming.OnHandPlay, context, ownedJokers);
 
         // 카드별 점수 계산 및 OnScoring 효과 적용 (handResult.usedCards에 포함된 카드만)
         console.log(`\x1b[36m[SCORING_DEBUG] context.playedCards 개수: ${context.playedCards.length}\x1b[0m`);
@@ -1572,11 +1572,11 @@ export class SpecialCardManagerService {
             context.chips += cardValue;
             context.currentCardData = card;
 
-            this.applyJokerEffects(JokerEffectTiming.OnScoring, context, ownedJokerData);
+            this.applyJokerEffects(JokerEffectTiming.OnScoring, context, ownedJokers);
         }
 
         // OnAfterScoring 효과 적용
-        this.applyJokerEffects(JokerEffectTiming.OnAfterScoring, context, ownedJokerData);
+        this.applyJokerEffects(JokerEffectTiming.OnAfterScoring, context, ownedJokers);
 
         return {
             finalChips: context.chips,
