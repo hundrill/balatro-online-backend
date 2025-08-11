@@ -5,7 +5,7 @@ export class ReRollShopResponseDto extends BaseSocketDto {
     override responseEventName = 'ReRollShopResponse';
 
     @IsArray()
-    cards: any[];
+    cardIds: string[];
 
     @IsString()
     userId?: string;

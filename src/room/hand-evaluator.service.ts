@@ -1,13 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { CardType, CardValue, PokerHand, PokerHandResult, HandContext } from './poker-types';
-import { Card } from './deck.util';
+import { CardData } from './deck.util';
 import { PaytableService } from './paytable.service';
 
 @Injectable()
 export class HandEvaluatorService {
     constructor(private readonly paytableService: PaytableService) { }
 
-    evaluate(userId: string, playCards: Card[], fullCards: Card[]): PokerHandResult {
+    evaluate(userId: string, playCards: CardData[], fullCards: CardData[]): PokerHandResult {
         if (!playCards || playCards.length < 1) {
             return new PokerHandResult(
                 PokerHand.None,
@@ -35,7 +35,7 @@ export class HandEvaluatorService {
         const isStraight = this.isStraight(values);
 
         // 카드 인덱스 매핑용
-        const usedCards: Card[] = [];
+        const usedCards: CardData[] = [];
 
         // Straight Flush
         if (isFlush && isStraight) {
@@ -117,7 +117,7 @@ export class HandEvaluatorService {
         return false;
     }
 
-    private addCardsByValue(cards: Card[], targetValue: CardValue, usedCards: Card[]): void {
+    private addCardsByValue(cards: CardData[], targetValue: CardValue, usedCards: CardData[]): void {
         for (let i = 0; i < cards.length; i++) {
             if (cards[i].rank === targetValue) {
                 usedCards.push(cards[i]);
@@ -125,7 +125,7 @@ export class HandEvaluatorService {
         }
     }
 
-    private addCardsByValues(cards: Card[], value1: CardValue, value2: CardValue, usedCards: Card[]): void {
+    private addCardsByValues(cards: CardData[], value1: CardValue, value2: CardValue, usedCards: CardData[]): void {
         for (let i = 0; i < cards.length; i++) {
             if (cards[i].rank === value1 || cards[i].rank === value2) {
                 usedCards.push(cards[i]);
@@ -133,15 +133,15 @@ export class HandEvaluatorService {
         }
     }
 
-    private addAllCards(cards: Card[], usedCards: Card[]): void {
+    private addAllCards(cards: CardData[], usedCards: CardData[]): void {
         for (let i = 0; i < cards.length; i++) {
             usedCards.push(cards[i]);
         }
     }
 
-    private makeResult(userId: string, hand: PokerHand, usedCards: Card[], allCards: Card[]): PokerHandResult {
+    private makeResult(userId: string, hand: PokerHand, usedCards: CardData[], allCards: CardData[]): PokerHandResult {
         // 사용되지 않은 카드들 계산
-        const unusedCards: Card[] = [];
+        const unusedCards: CardData[] = [];
 
         for (let i = 0; i < allCards.length; i++) {
             // usedCards에 없는 카드만 unusedCards에 추가
@@ -167,7 +167,7 @@ export class HandEvaluatorService {
     }
 
     // 사용되지 않은 카드들로 만들 수 있는 최고 족보를 계산하는 메서드
-    private evaluateUnusedCards(cards: Card[]): PokerHand {
+    private evaluateUnusedCards(cards: CardData[]): PokerHand {
         if (cards.length < 1) return PokerHand.None;
 
         const values = cards.map(c => c.rank as CardValue).sort((a, b) => a - b);

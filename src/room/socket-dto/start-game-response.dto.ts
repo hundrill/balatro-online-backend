@@ -1,8 +1,8 @@
-import { Card } from '../deck.util';
+import { CardData } from '../deck.util';
 import { BaseSocketDto } from './base-socket.dto';
 
 export interface UserInfo {
-    cards?: Card[]; // 내 정보에만 있음
+    cards?: CardData[]; // 내 정보에만 있음
     chipGain: number;  // 현재 칩 타입에 따른 칩 획득량
     chipNow: number;   // 현재 칩 타입에 따른 칩 수량
     funds: number;     // 자금

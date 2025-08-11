@@ -1,3 +1,4 @@
+import { CardData } from '../deck.util';
 import { BaseSocketDto } from './base-socket.dto';
 import { IsString, IsInt, IsBoolean, IsOptional, IsArray } from 'class-validator';
 
@@ -15,7 +16,7 @@ export class BuyCardResponseDto extends BaseSocketDto {
 
     @IsOptional()
     @IsArray()
-    firstDeckCards?: any[]; // 수정된 덱의 앞 8장
+    firstDeckCards?: CardData[]; // 수정된 덱의 앞 8장
 
     @IsOptional()
     @IsArray()

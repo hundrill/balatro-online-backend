@@ -1,4 +1,4 @@
-import { Card } from "./deck.util";
+import { CardData } from "./deck.util";
 
 // 포커 족보 enum
 export enum PokerHand {
@@ -45,17 +45,17 @@ export class PokerHandResult {
         public pokerHand: PokerHand = PokerHand.None,
         public score: number = 0,
         public multiplier: number = 0,
-        public usedCards: Card[] = [],
-        public unUsedCards: Card[] = [],
+        public usedCards: CardData[] = [],
+        public unUsedCards: CardData[] = [],
         public unUsedPokerHand: PokerHand = PokerHand.None
     ) { }
 }
 
 // 핸드 컨텍스트 클래스 (조커 효과 적용용)
 export class HandContext {
-    public playedCards: Card[] = [];
-    public unUsedCards: Card[] = [];
-    public currentCardData: Card | null = null;
+    public playedCards: CardData[] = [];
+    public unUsedCards: CardData[] = [];
+    public currentCardData: CardData | null = null;
     public multiplier: number = 1;
     public chips: number = 0;
     public pokerHand: PokerHand = PokerHand.None;

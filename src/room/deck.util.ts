@@ -1,10 +1,10 @@
 import { CardType } from './poker-types';
 
-export type Card = { suit: CardType; rank: number; id: number };
+export type CardData = { suit: CardType; rank: number; id: number };
 
-export function createDeck(): Card[] {
+export function createDeck(): CardData[] {
   const suits = [CardType.Clubs, CardType.Diamonds, CardType.Hearts, CardType.Spades];
-  const deck: Card[] = [];
+  const deck: CardData[] = [];
   let id = 0;
   for (const suit of suits) {
     for (let rank = 1; rank <= 13; rank++) {

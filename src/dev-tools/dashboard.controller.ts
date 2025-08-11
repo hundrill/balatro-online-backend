@@ -287,15 +287,15 @@ export class DashboardController {
     </div>
 
     <!-- APK 업로드와 칩 충전 섹션 -->
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 30px;" class="dashboard-grid">
-        <!-- APK 업로드 섹션 -->
-        <div class="section" style="margin: 0;">
-            <h2 style="margin-top: 0; color: #1976D2; font-size: 1.5em; margin-bottom: 20px;">📱 APK 업로드</h2>
-            <div style="background: #f8f9fa; border-radius: 8px; padding: 15px; margin-bottom: 20px;">
-                <h3 style="color:#333; margin: 0 0 10px 0; font-size: 1.1em;">업로드된 APK</h3>
-                <div id="apk-files" style="font-size: 14px; color:#444; min-height: 20px;"></div>
+    <div class="dashboard-grid">
+        <div class="dashboard-card">
+            <h3>📱 APK 업로드</h3>
+            <p>게임 APK 파일을 업로드하고 관리합니다.</p>
+            <div style="background: #f8f9fa; border-radius: 8px; padding: 15px; margin-bottom: 20px; text-align: left;">
+                <h4 style="color:#333; margin: 0 0 10px 0; font-size: 1.1em;">업로드된 APK</h4>
+                <div id="apk-files" style="font-size: 16px; color:#444; min-height: 20px;"></div>
             </div>
-            <form id="apk-upload-form" enctype="multipart/form-data" style="margin-bottom: 15px;">
+            <form id="apk-upload-form" enctype="multipart/form-data" style="margin-bottom: 15px; text-align: left;">
                 <div style="display: flex; flex-direction: column; gap: 15px;">
                     <div style="display: flex; flex-direction: column; gap: 5px;">
                         <label style="font-weight: 600; color: #333; font-size: 0.9em;">APK 파일</label>
@@ -305,32 +305,34 @@ export class DashboardController {
                         <label style="font-weight: 600; color: #333; font-size: 0.9em;">코멘트</label>
                         <input type="text" id="apk-comment" name="comment" placeholder="업로드 코멘트를 입력하세요" style="padding: 10px; border: 2px solid #e0e0e0; border-radius: 6px; background: white; transition: border-color 0.3s;">
                     </div>
-                    <button type="submit" style="background: linear-gradient(45deg, #2196F3, #1976D2); color: white; padding: 12px 24px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.95em; transition: transform 0.2s; box-shadow: 0 2px 4px rgba(33, 150, 243, 0.3); width: fit-content;">APK 업로드</button>
+                    <button type="submit" style="background: linear-gradient(45deg, #2196F3, #1976D2); color: white; padding: 12px 24px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.95em; transition: transform 0.2s; box-shadow: 0 2px 4px rgba(33, 150, 243, 0.3); width: fit-content; align-self: flex-start;">APK 업로드</button>
                 </div>
             </form>
             <div id="apk-upload-result"></div>
         </div>
-
-        <!-- 칩 충전 섹션 -->
-        <div class="section" style="margin: 0;">
-            <h2 style="margin-top: 0; color: #4CAF50; font-size: 1.5em; margin-bottom: 20px;">💰 테스트 칩 충전/차감</h2>
-            <div style="background: #f8f9fa; border-radius: 8px; padding: 15px; margin-bottom: 20px;">
-                <h3 style="color:#333; margin: 0 0 10px 0; font-size: 1.1em;">충전 설정</h3>
-                                    <div style="display: flex; flex-direction: column; gap: 15px;">
-                        <div style="display: flex; flex-direction: column; gap: 5px;">
-                            <label style="font-weight: 600; color: #333; font-size: 0.9em;">유저 선택</label>
-                            <select id="user-select" style="padding: 10px; border: 2px solid #e0e0e0; border-radius: 6px; background: white; transition: border-color 0.3s;">
-                                <option value="all">모든 유저 일괄 초기화</option>
-                            </select>
-                        </div>
-                        <div style="display: flex; flex-direction: column; gap: 5px;">
-                            <label style="font-weight: 600; color: #333; font-size: 0.9em;">실버칩</label>
-                            <input type="number" id="silver-chip-amount" value="10000" min="-999999" style="padding: 10px; border: 2px solid #e0e0e0; border-radius: 6px; background: white; transition: border-color 0.3s;">
-                            <small style="color: #666; font-size: 0.8em;">음수 입력 시 칩을 차감합니다. "모든 유저 일괄 초기화" 선택 시 입력값으로 설정됩니다.</small>
-                        </div>
+        
+        <div class="dashboard-card">
+            <h3>💰 테스트 칩 충전/차감</h3>
+            <p>유저의 테스트 칩을 충전하거나 차감합니다.</p>
+            <div style="background: #f8f9fa; border-radius: 8px; padding: 15px; margin-bottom: 20px; text-align: left;">
+                <h4 style="color:#333; margin: 0 0 10px 0; font-size: 1.1em;">충전 설정</h4>
+                <div style="display: flex; flex-direction: column; gap: 15px;">
+                    <div style="display: flex; flex-direction: column; gap: 5px;">
+                        <label style="font-weight: 600; color: #333; font-size: 0.9em;">유저 선택</label>
+                        <select id="user-select" style="padding: 10px; border: 2px solid #e0e0e0; border-radius: 6px; background: white; transition: border-color 0.3s;">
+                            <option value="all">모든 유저 일괄 초기화</option>
+                        </select>
                     </div>
+                    <div style="display: flex; flex-direction: column; gap: 5px;">
+                        <label style="font-weight: 600; color: #333; font-size: 0.9em;">실버칩</label>
+                        <input type="number" id="silver-chip-amount" value="10000" min="-999999" style="padding: 10px; border: 2px solid #e0e0e0; border-radius: 6px; background: white; transition: border-color 0.3s;">
+                        <small style="color: #666; font-size: 0.8em;">음수 입력 시 칩을 차감합니다. "모든 유저 일괄 초기화" 선택 시 입력값으로 설정됩니다.</small>
+                    </div>
+                </div>
             </div>
-            <button onclick="rechargeChips()" style="background: linear-gradient(45deg, #4CAF50, #45a049); color: white; padding: 12px 24px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.95em; transition: transform 0.2s; box-shadow: 0 2px 4px rgba(76, 175, 80, 0.3);">칩 충전/차감</button>
+            <div style="text-align: left;">
+                <button onclick="rechargeChips()" style="background: linear-gradient(45deg, #4CAF50, #45a049); color: white; padding: 12px 24px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.95em; transition: transform 0.2s; box-shadow: 0 2px 4px rgba(76, 175, 80, 0.3);">칩 충전/차감</button>
+            </div>
             <div id="recharge-result" style="margin-top: 15px;"></div>
         </div>
     </div>

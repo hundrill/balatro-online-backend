@@ -9,7 +9,7 @@ import {
   UserNotInRoomException,
   RedisConnectionException,
 } from '../common/exceptions/room.exception';
-import { Card, createDeck, shuffle } from './deck.util';
+import { CardData, createDeck, shuffle } from './deck.util';
 import { SpecialCardData } from './special-card-manager.service';
 import { UserService } from '../user/user.service';
 import { PaytableService } from './paytable.service';
@@ -23,8 +23,8 @@ import { TranslationKeys } from '../common/translation-keys.enum';
 // RoomState 인터페이스 정의
 interface RoomState {
   // 기존 gameState 필드들
-  decks: Map<string, Card[]>; // userId별 덱
-  hands: Map<string, Card[]>; // userId별 핸드
+  decks: Map<string, CardData[]>; // userId별 덱
+  hands: Map<string, CardData[]>; // userId별 핸드
   round: number;
   phase: 'waiting' | 'playing' | 'shop';
 
@@ -33,15 +33,15 @@ interface RoomState {
   currentBettingAmount: number; // 현재 라운드의 베팅 금액
 
   // 통합된 필드들
-  handPlayMap: Map<string, Card[]>; // userId -> hand
+  handPlayMap: Map<string, CardData[]>; // userId -> hand
   nextRoundReadySet: Set<string>; // userId Set
   gameReadySet: Set<string>; // userId Set
   shopCards: SpecialCardData[]; // 샵 카드 5장
   reRollCardsMap: Map<string, SpecialCardData[]>; // userId -> reRollCards
   userOwnedCardsMap: Map<string, SpecialCardData[]>; // userId -> ownedCards
-  userDeckModifications: Map<string, Card[]>; // userId -> modifiedDeck
+  userDeckModifications: Map<string, CardData[]>; // userId -> modifiedDeck
   userTarotCardsMap: Map<string, SpecialCardData[]>; // userId -> tarotCards
-  userFirstDeckCardsMap: Map<string, Card[]>; // userId -> firstDeckCards
+  userFirstDeckCardsMap: Map<string, CardData[]>; // userId -> firstDeckCards
   userChipsMap: Map<string, UserChips>; // userId -> chips
   bettingSet: Set<string>; // userId Set (라운드당 1번 베팅한 유저들)
   usedJokerCardIds: Set<string>; // 조커카드 id Set
@@ -605,10 +605,10 @@ export class RoomService {
     }
 
     // userId별로 덱 셔플 (참여하는 유저만)
-    const decks = new Map<string, Card[]>();
-    const hands = new Map<string, Card[]>();
+    const decks = new Map<string, CardData[]>();
+    const hands = new Map<string, CardData[]>();
     for (const userId of participatingUserIds) {
-      let userDeck: Card[];
+      let userDeck: CardData[];
 
       // 수정된 덱이 있는지 확인
       const userDeckModifications = roomState.userDeckModifications.get(userId);
@@ -731,7 +731,7 @@ export class RoomService {
     }
   }
 
-  getUserHand(roomId: string, userId: string): Card[] {
+  getUserHand(roomId: string, userId: string): CardData[] {
     const roomState = this.getRoomState(roomId);
     const hand = roomState.hands.get(userId);
     return hand ? [...hand] : [];
@@ -792,8 +792,8 @@ export class RoomService {
   discardAndDraw(
     roomId: string,
     userId: string,
-    cards: Card[],
-  ): { newHand: Card[]; discarded: Card[]; remainingDiscards: number } {
+    cards: CardData[],
+  ): { newHand: CardData[]; discarded: CardData[]; remainingDiscards: number } {
     // 버리기 횟수 증가
     const newCount = this.incrementUserDiscardCount(roomId, userId);
     const remainingDiscards = this.getRemainingDiscards(roomId, userId);
@@ -803,7 +803,7 @@ export class RoomService {
     if (!hand) throw new Error('User hand not found');
     const deck = roomState.decks.get(userId);
     if (!deck) throw new Error('User deck not found');
-    const discarded: Card[] = [];
+    const discarded: CardData[] = [];
     for (const cardInfo of cards) {
       const idx = hand.findIndex(
         (c) => c.id === cardInfo.id,
@@ -812,7 +812,7 @@ export class RoomService {
         discarded.push(hand.splice(idx, 1)[0]);
       }
     }
-    const newCards: Card[] = deck.splice(0, discarded.length);
+    const newCards: CardData[] = deck.splice(0, discarded.length);
     hand.push(...newCards);
     roomState.hands.set(userId, [...hand]); // 복사본 저장
     roomState.decks.set(userId, [...deck]); // 복사본 저장
@@ -822,7 +822,7 @@ export class RoomService {
     return { newHand: [...hand], discarded: [...discarded], remainingDiscards };
   }
 
-  handPlayReady(roomId: string, userId: string, playCards: Card[]): void {
+  handPlayReady(roomId: string, userId: string, playCards: CardData[]): void {
     this.getRoomState(roomId).handPlayMap.set(userId, playCards);
     this.logger.log(
       `[handPlayReady] userId=${userId}, roomId=${roomId}, playCards=${JSON.stringify(playCards)}`,
@@ -853,9 +853,9 @@ export class RoomService {
     return allReady;
   }
 
-  getAllHandPlayCards(roomId: string): { userId: string; playCards: Card[] }[] {
+  getAllHandPlayCards(roomId: string): { userId: string; playCards: CardData[] }[] {
     const roomState = this.getRoomState(roomId);
-    const result: { userId: string; playCards: Card[] }[] = [];
+    const result: { userId: string; playCards: CardData[] }[] = [];
     for (const [userId, playCards] of roomState.handPlayMap.entries()) {
       result.push({ userId, playCards: [...playCards] });
     }
@@ -948,7 +948,7 @@ export class RoomService {
     cardDescription?: string;
     cardSprite?: number;
     funds?: number;
-    firstDeckCards?: Card[];
+    firstDeckCards?: CardData[];
     planetCardIds?: string[];
   }> {
     try {
@@ -1036,7 +1036,7 @@ export class RoomService {
         `[buyCard] userId=${userId}의 funds를 ${shopCard.price}만큼 차감했습니다. (${userChips.funds} -> ${userChips.funds - shopCard.price})`,
       );
 
-      let firstDeckCards: Card[] | undefined;
+      let firstDeckCards: CardData[] | undefined;
       let planetCardIds: string[] | undefined;
 
       // 7. 카드 구매 처리
@@ -1080,7 +1080,7 @@ export class RoomService {
           this.logger.log(`[buyCard] userId=${userId}의 타로 카드 ${cardId}를 userTarotCardsMap에 추가했습니다.`);
 
           // 유저의 수정된 덱이 있는지 확인
-          let modifiedDeck: Card[];
+          let modifiedDeck: CardData[];
           const userDeckModifications = roomState.userDeckModifications.get(userId);
 
           if (userDeckModifications) {
@@ -1603,7 +1603,7 @@ export class RoomService {
   /**
    * 유저의 firstDeckCards를 반환합니다.
    */
-  getUserFirstDeckCards(roomId: string, userId: string): Card[] {
+  getUserFirstDeckCards(roomId: string, userId: string): CardData[] {
     const roomState = this.getRoomState(roomId);
     return roomState.userFirstDeckCardsMap.get(userId) ?? [];
   }
@@ -1718,20 +1718,15 @@ export class RoomService {
   /**
    * 현재 테이블의 총 칩을 계산합니다.
    */
-  getCurrentTableChips(roomId: string): { chips: number; funds: number } {
+  getCurrentTableChips(roomId: string): number {
     const roomState = this.getRoomState(roomId);
     let totalChips = 0;
-    let totalFunds = 0;
 
     for (const payment of roomState.userSeedMoneyPayments.values()) {
       totalChips += payment.payment;
-      totalFunds += payment.funds;
     }
 
-    return {
-      chips: totalChips,
-      funds: totalFunds
-    };
+    return totalChips;
   }
 
   /**
@@ -1933,12 +1928,12 @@ export class RoomService {
     roomId: string,
     userId: string,
     cardId: string,
-    cards: Card[]
+    cards: CardData[]
   ): Promise<{
     success: boolean;
     message: string;
-    selectedCards?: Card[];
-    resultCards?: Card[];
+    selectedCards?: CardData[];
+    resultCards?: CardData[];
   }> {
     try {
       const roomState = this.getRoomState(roomId);
@@ -1992,7 +1987,7 @@ export class RoomService {
 
       // 5. 카드 ID에 따른 결과 카드 생성 및 modifiedDeck 수정
       const selectedCards = [...cards];
-      let resultCards: Card[] = [];
+      let resultCards: CardData[] = [];
 
       this.logger.log(`\x1b[35m[🔮 TAROT CARD USE] 시작 - userId=${userId}, cardId=${cardId}, cardName=${cardInfo.name}\x1b[0m`);
       this.logger.log(`\x1b[36m  📋 선택된 카드: ${cards.map(c => `${c.suit}_${c.rank}`).join(', ')}\x1b[0m`);
@@ -2093,7 +2088,7 @@ export class RoomService {
             this.logger.log(`\x1b[33m  📊 삭제 전 덱 크기: ${modifiedDeck.length}\x1b[0m`);
 
             cards.forEach(card => {
-              const deckIndex = modifiedDeck.findIndex((deckCard: Card) =>
+              const deckIndex = modifiedDeck.findIndex((deckCard: CardData) =>
                 deckCard.suit === card.suit && deckCard.rank === card.rank
               );
               if (deckIndex !== -1) {
@@ -2129,7 +2124,7 @@ export class RoomService {
           const resultCard = resultCards[i];
 
           // modifiedDeck에서 해당 카드 찾기
-          const deckIndex = modifiedDeck.findIndex((card: Card) =>
+          const deckIndex = modifiedDeck.findIndex((card: CardData) =>
             card.id === selectedCard.id
           );
 
@@ -2174,7 +2169,7 @@ export class RoomService {
     userIds: string[]
   ): Promise<{
     roundResult: Record<string, any>;
-    shopCards: string[];
+    shopCardIds: string[];
     round: number;
   }> {
     try {
@@ -2185,7 +2180,7 @@ export class RoomService {
         this.logger.error(`[processHandPlayResult] allHandPlayCards not found: roomId=${roomId}`);
         return {
           roundResult: {},
-          shopCards: [],
+          shopCardIds: [],
           round: 0
         };
       }
@@ -2452,7 +2447,7 @@ export class RoomService {
         this.logger.log(`[processHandPlayResult] 시드머니 납부 기록 일괄 차감: userId=${uid}, chips=${reduce.chips}, funds=${reduce.funds}`);
       }
 
-      const shopCards = this.getShopCards(roomId);
+      const shopCardIds = this.getShopCards(roomId);
       const round = this.getRound(roomId);
 
       // phase를 shop으로 변경
@@ -2462,7 +2457,7 @@ export class RoomService {
 
       return {
         roundResult,
-        shopCards,
+        shopCardIds,
         round
       };
     } catch (error) {
@@ -2552,7 +2547,7 @@ export class RoomService {
   private async calculateUserScores(
     roomId: string,
     userIds: string[],
-    allHandPlayCards: Map<string, Card[]>,
+    allHandPlayCards: Map<string, CardData[]>,
     ownedCards: Record<string, SpecialCardData[]>
   ): Promise<{
     userScores: Record<string, number>;
@@ -2681,7 +2676,7 @@ export class RoomService {
     const round = this.getRound(roomId);
     const chipType = this.getRoomState(roomId).chipSettings.chipType;
     const seedAmount = this.getBaseSeedAmount(roomId);
-    const bettingAmount = this.getBaseBettingAmount(roomId);
+    const bettingAmount = this.getCurrentBettingAmount(roomId);
 
     // 내 덱의 총 카드 수 계산 (초기 총 개수 표시용으로 핸드 카드 8장 포함)
     const gameState = this.gameStates.get(roomId);
@@ -2690,14 +2685,11 @@ export class RoomService {
       totalDeckCards = (gameState.decks.get(userId)?.length || 0) + 8; // 덱 카드 + 핸드 카드 8장
     }
 
-
-
     // playing 상태인 유저들만 필터링
     const playingUserIds = this.getPlayingUserIds(roomId, userIds);
 
     // 실제 테이블 칩 계산 (시드머니 납부 기록에서)
-    const tableChips = this.getCurrentTableChips(roomId);
-    const chipsTable = tableChips.chips;
+    const chipsTable = this.getCurrentTableChips(roomId);
 
     const userInfo: Record<string, any> = {};
 

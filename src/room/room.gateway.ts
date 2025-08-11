@@ -33,7 +33,7 @@ import { ReRollShopResponseDto } from './socket-dto/re-roll-shop-response.dto';
 import { HandPlayResultResponseDto } from './socket-dto/hand-play-result-response.dto';
 import { JoinRoomResponseDto } from './socket-dto/join-room-response.dto';
 import { LeaveRoomResponseDto } from './socket-dto/leave-room-response.dto';
-import { RoomUsersResponseDto } from './socket-dto/room-users-response.dto';
+import { RoomUsersResponseDto, RoomUser } from './socket-dto/room-users-response.dto';
 import { StartGameResponseDto } from './socket-dto/start-game-response.dto';
 import { HandPlayReadyResponseDto } from './socket-dto/hand-play-ready-response.dto';
 import { NextRoundReadyResponseDto } from './socket-dto/next-round-ready-response.dto';
@@ -56,18 +56,6 @@ interface SocketSession {
   userId: string;
   roomId: string | null;
   language: string;
-}
-
-interface RoomUserInfo {
-  userId: string;
-  nickname: string | null;
-  chips: number;  // 현재 칩 타입에 따른 칩 수량
-  funds: number;  // 자금
-  isPlaying: boolean;
-  ownedCards: string[];
-  paytableLevels: Record<string, number>;
-  paytableBaseChips: Record<string, number>;
-  paytableMultipliers: Record<string, number>;
 }
 
 @WebSocketGateway({ cors: true })
@@ -237,7 +225,7 @@ export class RoomGateway
   /**
    * 현재 방에 접속 중인 유저들의 정보를 반환
    */
-  private async getRoomUserInfos(roomId: string): Promise<RoomUserInfo[]> {
+  private async getRoomUserInfos(roomId: string): Promise<RoomUser[]> {
     const userIds = this.getRoomUserIds(roomId);
 
     // RoomService에서 유저 정보 가져오기
@@ -361,10 +349,22 @@ export class RoomGateway
 
       if (roomId) {
         const users = await this.getRoomUserInfos(roomId);
+        const currentPhase = this.roomService.getRoomPhase(roomId);
+        const round = this.roomService.getRound(roomId);
+        const seedAmount = this.roomService.getBaseSeedAmount(roomId);
+        const bettingAmount = this.roomService.getBettingAmount(roomId);
+        const chipsTable = this.roomService.getCurrentTableChips(roomId);
         this.logger.log(
           `[handleDisconnect] roomUsers emit: roomId=${roomId}, users=${JSON.stringify(users)}`,
         );
-        this.emitRoomResponse(roomId, new RoomUsersResponseDto({ users }));
+        this.emitRoomResponse(roomId, new RoomUsersResponseDto({
+          users,
+          currentPhase,
+          round,
+          seedAmount,
+          bettingAmount,
+          chipsTable
+        }));
       }
     } catch (error) {
       this.logger.error(
@@ -398,10 +398,22 @@ export class RoomGateway
       this.emitUserResponse(client, new JoinRoomResponseDto({}));
 
       const users = await this.getRoomUserInfos(data.roomId);
+      const currentPhase = this.roomService.getRoomPhase(data.roomId);
+      const round = this.roomService.getRound(data.roomId);
+      const seedAmount = this.roomService.getBaseSeedAmount(data.roomId);
+      const bettingAmount = this.roomService.getBettingAmount(data.roomId);
+      const chipsTable = this.roomService.getCurrentTableChips(data.roomId);
       this.logger.log(
         `[handleJoinRoom] roomUsers emit: users=${JSON.stringify(users)}`,
       );
-      this.emitRoomResponse(data.roomId, new RoomUsersResponseDto({ users }));
+      this.emitRoomResponse(data.roomId, new RoomUsersResponseDto({
+        users,
+        currentPhase,
+        round,
+        seedAmount,
+        bettingAmount,
+        chipsTable
+      }));
 
       this.logger.log(
         `[handleJoinRoom] joinRoom SUCCESS: socketId=${client.id}, userId=${data.userId}, roomId=${data.roomId}`,
@@ -483,9 +495,21 @@ export class RoomGateway
         this.logger.log(
           `[handleLeaveRoom] roomUsers emit: roomId=${roomId}, users=${JSON.stringify(users)}`,
         );
+        const currentPhase = this.roomService.getRoomPhase(roomId);
+        const round = this.roomService.getRound(roomId);
+        const seedAmount = this.roomService.getBaseSeedAmount(roomId);
+        const bettingAmount = this.roomService.getBettingAmount(roomId);
+        const chipsTable = this.roomService.getCurrentTableChips(roomId);
         this.emitRoomResponse(
           roomId,
-          new RoomUsersResponseDto({ users }),
+          new RoomUsersResponseDto({
+            users,
+            currentPhase,
+            round,
+            seedAmount,
+            bettingAmount,
+            chipsTable
+          }),
         );
       } else {
         this.logger.warn(
@@ -677,7 +701,7 @@ export class RoomGateway
 
               const res = new HandPlayResultResponseDto({
                 roundResult: result.roundResult,
-                shopCards: result.shopCards,
+                shopCardIds: result.shopCardIds,
                 round: result.round,
               });
               this.emitUserResponseBySocketId(socketId, res);
@@ -941,7 +965,7 @@ export class RoomGateway
         const res = new ReRollShopResponseDto({
           success: false,
           message: TranslationKeys.InsufficientFunds,
-          cards: [],
+          cardIds: [],
         });
         this.emitUserResponse(client, res);
         return;
@@ -958,7 +982,7 @@ export class RoomGateway
         const res = new ReRollShopResponseDto({
           success: false,
           message: TranslationKeys.RerollFailed,
-          cards: [],
+          cardIds: [],
         });
         this.emitUserResponse(client, res);
         return;
@@ -974,7 +998,7 @@ export class RoomGateway
       // 요청한 유저에게는 카드 정보를 포함한 응답 전송
       const userRes = new ReRollShopResponseDto({
         success: true,
-        cards: reRollCards,
+        cardIds: reRollCards.map(card => card.id),
         userId: userId,
         funds: updatedUserChips.funds,
       });
@@ -983,7 +1007,7 @@ export class RoomGateway
       // 다른 유저들에게는 funds 업데이트만 전송
       const otherUsersRes = new ReRollShopResponseDto({
         success: true,
-        cards: [], // 빈 배열
+        cardIds: [], // 빈 배열
         userId: userId,
         funds: updatedUserChips.funds,
       });
@@ -996,7 +1020,7 @@ export class RoomGateway
       const res = new ReRollShopResponseDto({
         success: false,
         message: TranslationKeys.RerollFailed,
-        cards: [],
+        cardIds: [],
       });
       this.emitUserResponse(client, res);
     }
@@ -1338,45 +1362,6 @@ export class RoomGateway
       // 로그인할 때마다 DB에서 스페셜카드 데이터 다시 읽어들이기
       await this.specialCardManagerService.initializeCards(this.roomService['prisma']);
 
-      // 활성화된 스페셜카드 데이터 가져오기
-      const activeSpecialCards = this.specialCardManagerService.getActiveSpecialCards();
-
-      // 로그 추가: 처음 5개 카드의 모든 데이터 출력
-      this.logger.log(`[handleLogin] 활성화된 스페셜카드 총 개수: ${activeSpecialCards.length}`);
-
-      for (let i = 0; i < Math.min(5, activeSpecialCards.length); i++) {
-        const card = activeSpecialCards[i];
-        this.logger.log(`[handleLogin] 카드 ${i + 1}:`, {
-          id: card.id,
-          name: card.name,
-          description: card.description,
-          price: card.price,
-          sprite: card.sprite,
-          type: card.type,
-          baseValue: card.baseValue,
-          increase: card.increase,
-          decrease: card.decrease,
-          maxValue: card.maxValue,
-          needCardCount: card.needCardCount,
-          enhanceChips: card.enhanceChips,
-          enhanceMul: card.enhanceMul,
-          isActive: card.isActive,
-          // 조건-효과 시스템 데이터
-          effectTimings: card.effectTimings,
-          effectTypes: card.effectTypes,
-          effectOnCards: card.effectOnCards,
-          conditionTypes: card.conditionTypes,
-          conditionValues: card.conditionValues,
-          conditionOperators: card.conditionOperators,
-          conditionNumericValues: card.conditionNumericValues
-        });
-      }
-
-      // 게임 설정 가져오기
-      // 로그인 시에는 캐시를 무효화하여 DB에서 최신 설정을 다시 로드
-      await this.gameSettingsService.invalidateCache();
-      const gameSettings = await this.gameSettingsService.getGameSettings();
-
       const res = new LoginResponseDto({
         success: true,
         code: 0,
@@ -1386,8 +1371,6 @@ export class RoomGateway
         silverChip: user.silverChip,
         goldChip: user.goldChip,
         createdAt: user.createdAt.toISOString(),
-        specialCards: activeSpecialCards,
-        gameSettings: gameSettings
       });
       this.emitUserResponse(client, res);
 
