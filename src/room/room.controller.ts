@@ -11,8 +11,8 @@ import {
 import { RoomService, ChipType } from './room.service';
 import { SpecialCardManagerService } from './special-card-manager.service';
 import { CreateRoomDto } from './api-dto/create-room.dto';
-import { JoinRoomDto } from './api-dto/join-room.dto';
 import { GetSpecialCardsResponseDto, SpecialCardApiDto } from './api-dto/get-special-cards-response.dto';
+import { RoomListResponseDto } from './api-dto/room-list-response.dto';
 import { PrismaService } from '../prisma.service';
 import { Query } from '@nestjs/common';
 import { Request } from 'express';
@@ -114,54 +114,11 @@ export class RoomController {
     }
   }
 
-  // Redis 기반 방 입장
-  @Post('join')
-  async joinRoom(@Body() dto: JoinRoomDto, @Req() req: Request) {
-    try {
-      let userId: string | undefined = dto.userId;
-      if (
-        req &&
-        typeof req === 'object' &&
-        'user' in req &&
-        req.user &&
-        typeof req.user === 'object' &&
-        req.user !== null &&
-        'id' in req.user &&
-        typeof req.user.id === 'string'
-      ) {
-        userId = req.user.id;
-      }
-      if (!userId) {
-        throw new Error('User ID is required');
-      }
-      this.logger.log(
-        `POST /rooms/join - User ${userId} joining room: ${dto.roomId}`,
-      );
 
-      // 입력 데이터 검증
-      RoomValidator.validateJoinRoomData({ roomId: dto.roomId, userId });
-
-      const room = await this.roomService.joinRoom(dto.roomId, userId);
-      return { success: true, room };
-    } catch (error: unknown) {
-      if (error instanceof Error) {
-        this.logger.error(
-          `Error in POST /rooms/join - User joining room: ${dto.roomId}`,
-          error.stack,
-        );
-      } else {
-        this.logger.error(
-          `Error in POST /rooms/join - User joining room: ${dto.roomId}`,
-          String(error),
-        );
-      }
-      throw error;
-    }
-  }
 
   // Redis 기반 방 목록 조회
   @Get('redis')
-  async findAllRoomsInRedis() {
+  async findAllRoomsInRedis(): Promise<RoomListResponseDto> {
     try {
       this.logger.log('GET /rooms/redis - Fetching all rooms from Redis');
       const rooms = await this.roomService.findAllRoomsInRedis();

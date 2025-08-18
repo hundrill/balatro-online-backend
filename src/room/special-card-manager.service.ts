@@ -33,6 +33,8 @@ export enum EffectType {
 export enum OperatorType {
     None,
     Equals,
+    Greater,
+    Less,
     GreaterOrEqual,
     LessOrEqual
 }
@@ -51,6 +53,7 @@ export enum ConditionType {
     UsedAceCount,       // 사용된 에이스 개수
     RemainingSevens,    // 남은 7 카드 개수
     RemainingDeck,      // 남은 덱 카드 개수
+    TotalDeck,          // 전체 덱 카드 개수
     UsedSuitCount,      // 사용된 특정 무늬 카드 개수
     RemainingDiscards,  // 남은 버리기 횟수
     IsEvenCard,         // 짝수 카드 여부
@@ -73,6 +76,7 @@ function parseConditionType(value: string | null | undefined): ConditionType | u
         case 'UsedAceCount': return ConditionType.UsedAceCount;
         case 'RemainingSevens': return ConditionType.RemainingSevens;
         case 'RemainingDeck': return ConditionType.RemainingDeck;
+        case 'TotalDeck': return ConditionType.TotalDeck;
         case 'UsedSuitCount': return ConditionType.UsedSuitCount;
         case 'RemainingDiscards': return ConditionType.RemainingDiscards;
         case 'IsEvenCard': return ConditionType.IsEvenCard;
@@ -85,7 +89,9 @@ function parseConditionType(value: string | null | undefined): ConditionType | u
 function parseOperatorType(value: string | null | undefined): OperatorType {
     switch (value) {
         case 'Equals': return OperatorType.Equals;
+        case 'Greater': return OperatorType.Greater;
         case 'GreaterOrEqual': return OperatorType.GreaterOrEqual;
+        case 'Less': return OperatorType.Less;
         case 'LessOrEqual': return OperatorType.LessOrEqual;
         default: return OperatorType.None;
     }
@@ -256,6 +262,9 @@ export class ConditionEvaluator {
             case ConditionType.RemainingDeck:
                 return this.compareNumeric(context.remainingDeck, condition.operatorType, condition.numericValue);
 
+            case ConditionType.TotalDeck:
+                return this.compareNumeric(context.totalDeck, condition.operatorType, condition.numericValue);
+
             case ConditionType.UsedSuitCount:
                 return this.compareNumeric(context.countSuitInUsedCards(this.getCardTypeFromString(condition.value)), condition.operatorType, condition.numericValue);
 
@@ -279,7 +288,9 @@ export class ConditionEvaluator {
     private static compareNumeric(actual: number, operatorType: OperatorType, expected: number): boolean {
         switch (operatorType) {
             case OperatorType.Equals: return actual === expected;
+            case OperatorType.Greater: return actual > expected;
             case OperatorType.GreaterOrEqual: return actual >= expected;
+            case OperatorType.Less: return actual < expected;
             case OperatorType.LessOrEqual: return actual <= expected;
             default: return false;
         }
@@ -310,6 +321,8 @@ export class EffectApplier {
                     addMul = context.remainingSevens * (cardData.baseValue || 0);
                 } else if (condition.type === ConditionType.RemainingDeck) {
                     addMul = context.remainingDeck * (cardData.baseValue || 0);
+                } else if (condition.type === ConditionType.TotalDeck) {
+                    addMul = (condition.numericValue - context.totalDeck) * (cardData.baseValue || 0);
                 } else if (condition.type === ConditionType.UsedAceCount) {
                     addMul = context.countAcesInUsedCards() * (cardData.baseValue || 0);
                 }
@@ -330,6 +343,8 @@ export class EffectApplier {
                     addChips = context.remainingDiscards * (cardData.baseValue || 0);
                 } else if (condition.type === ConditionType.RemainingDeck) {
                     addChips = context.remainingDeck * (cardData.baseValue || 0);
+                } else if (condition.type === ConditionType.TotalDeck) {
+                    addChips = (condition.numericValue - context.totalDeck) * (cardData.baseValue || 0);
                 }
 
                 context.chips += Math.floor(addChips);
@@ -345,16 +360,16 @@ export class EffectApplier {
 
             case EffectType.GrowBaseValue:
                 cardData.baseValue = (cardData.baseValue || 0) + (cardData.increase || 0);
-                if (cardData.baseValue > (cardData.maxValue || 999)) {
-                    cardData.baseValue = cardData.maxValue || 999;
-                }
+                // if (cardData.baseValue > (cardData.maxValue || 999)) {
+                //     cardData.baseValue = cardData.maxValue || 999;
+                // }
                 return true;
 
             case EffectType.DecrementBaseValue:
-                cardData.baseValue = (cardData.baseValue || 0) - (cardData.decrease || 0);
-                if (cardData.baseValue < (cardData.maxValue || 0)) {
-                    cardData.baseValue = cardData.maxValue || 0;
-                }
+                cardData.baseValue = (cardData.baseValue || 0) + (cardData.decrease || 0);
+                // if (cardData.baseValue < (cardData.maxValue || 0)) {
+                //     cardData.baseValue = cardData.maxValue || 0;
+                // }
                 return true;
 
             default:
@@ -947,7 +962,7 @@ export class SpecialCardManagerService {
             effectTimings: [JokerEffectTiming.OnHandPlay],
             effectTypes: [EffectType.AddMultiplier],
             effectOnCards: [false],
-            conditionTypes: [ConditionType.RemainingDeck],
+            conditionTypes: [ConditionType.TotalDeck],
             conditionValues: [''],
             conditionOperators: [OperatorType.LessOrEqual],
             conditionNumericValues: [52]
@@ -1537,6 +1552,7 @@ export class SpecialCardManagerService {
         ownedJokers: SpecialCardData[],
         remainingDiscards: number = 0,
         remainingDeck: number = 0,
+        totalDeck: number = 0,
         remainingSevens: number = 0
     ): { finalChips: number; finalMultiplier: number; context: HandContext } {
         // HandContext 생성
@@ -1544,6 +1560,7 @@ export class SpecialCardManagerService {
             handResult,
             remainingDiscards,
             remainingDeck,
+            totalDeck,
             remainingSevens
         );
 
@@ -1605,7 +1622,7 @@ export class SpecialCardManagerService {
 
         // 🧪 테스트용: joker_24만 뽑히도록 임시 수정
         // TODO: 테스트 완료 후 아래 주석 처리된 원본 코드로 복구
-        // const jokerTest = this.getCardById('joker_10');
+        // const jokerTest = this.getCardById('joker_44');
         // if (jokerTest) {
         //     return [jokerTest, jokerTest, jokerTest, jokerTest, jokerTest]; // 5개 모두 joker_24로 채움
         // }
@@ -1768,8 +1785,8 @@ export class SpecialCardManagerService {
 
                     updatedCount++;
 
-                    // 앞 5개 카드만 로그로 출력 (모든 데이터 포함)
-                    if (updatedCount <= 25) {
+                    // 앞 1개 카드만 로그로 출력 (모든 데이터 포함)
+                    if (updatedCount <= 1) {
                         console.log(`[SpecialCardManagerService] 로드된 카드 ${updatedCount}:`, {
                             id: dbCard.id,
                             name: dbCard.name,

@@ -95,23 +95,41 @@ export class HandEvaluatorService {
     private isStraight(values: CardValue[]): boolean {
         if (values.length < 5) return false;
 
-        // 일반적인 스트레이트 체크
-        for (let i = 0; i <= values.length - 5; i++) {
-            let isConsecutive = true;
-            for (let j = 0; j < 4; j++) {
-                if (values[i + j + 1] - values[i + j] !== 1) {
-                    isConsecutive = false;
-                    break;
-                }
-            }
-            if (isConsecutive) return true;
+        // 정렬된 값들
+        const sorted = [...values].sort((a, b) => a - b);
+
+        // A,2,3,4,5 스트레이트 처리 (Ace를 1로 사용)
+        if (sorted[0] === CardValue.Ace && sorted[1] === CardValue.Two &&
+            sorted[2] === CardValue.Three && sorted[3] === CardValue.Four && sorted[4] === CardValue.Five) {
+            return true;
         }
 
-        // A-2-3-4-5 스트레이트 체크 (A를 1로 처리)
-        if (values.includes(CardValue.Ace) && values.includes(CardValue.Two)) {
-            const lowStraight = [CardValue.Ace, CardValue.Two, CardValue.Three, CardValue.Four, CardValue.Five];
-            const hasLowStraight = lowStraight.every(value => values.includes(value));
-            if (hasLowStraight) return true;
+        // A,K,Q,J,10 스트레이트 처리 (Ace를 14로 사용)
+        if (sorted[0] === CardValue.Ten && sorted[1] === CardValue.Jack &&
+            sorted[2] === CardValue.Queen && sorted[3] === CardValue.King && sorted[4] === CardValue.Ace) {
+            return true;
+        }
+
+        // 일반적인 스트레이트 처리 (Ace가 포함되지 않은 경우)
+        let isRegularStraight = true;
+        for (let i = 1; i < 5; i++) {
+            if (sorted[i] !== sorted[i - 1] + 1) {
+                isRegularStraight = false;
+                break;
+            }
+        }
+
+        if (isRegularStraight) return true;
+
+        // Ace가 포함된 일반적인 스트레이트 처리 (Ace를 14로 사용)
+        // Ace를 제외한 나머지 카드들이 연속인지 확인
+        const nonAceValues = values.filter(v => v !== CardValue.Ace).sort((a, b) => a - b);
+        if (nonAceValues.length === 4) {
+            // 10,J,Q,K인지 확인 (Ace와 함께 A-K-Q-J-10 스트레이트)
+            if (nonAceValues[0] === CardValue.Ten && nonAceValues[1] === CardValue.Jack &&
+                nonAceValues[2] === CardValue.Queen && nonAceValues[3] === CardValue.King) {
+                return true;
+            }
         }
 
         return false;
@@ -203,7 +221,7 @@ export class HandEvaluatorService {
     }
 
     // HandContext 생성 헬퍼 메서드
-    createHandContext(handResult: PokerHandResult, remainingDiscards: number = 0, remainingDeck: number = 0, remainingSevens: number = 0): HandContext {
+    createHandContext(handResult: PokerHandResult, remainingDiscards: number = 0, remainingDeck: number = 0, totalDeck: number = 0, remainingSevens: number = 0): HandContext {
         const context = new HandContext();
 
         if (handResult.usedCards) {
@@ -221,7 +239,7 @@ export class HandEvaluatorService {
         context.remainingDiscards = remainingDiscards;
         context.remainingDeck = remainingDeck;
         context.remainingSevens = remainingSevens;
-
+        context.totalDeck = totalDeck;
         return context;
     }
 } 

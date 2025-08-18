@@ -1,9 +1,18 @@
-import { BaseSocketDto } from "./base-socket.dto";
+import { BaseSocketDto } from './base-socket.dto';
 
 export class BettingResponseDto extends BaseSocketDto {
-    override readonly responseEventName = 'BettingResponse';
-    userId: string;
-    currentBettingAmount: number;  // 현재 베팅 머니
+    override responseEventName = 'BettingResponse';
+
+    currentUserId: string;
+    tableChips: number;
+    callChips: number;
+    canRaise: boolean;
+    canCheck: boolean;
+    canCall: boolean;
+    quarterAmount: number;
+    halfAmount: number;
+    fullAmount: number;
+    callAmount: number;
 
     constructor(init?: Partial<BettingResponseDto>) {
         super();

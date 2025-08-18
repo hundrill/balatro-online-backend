@@ -15,6 +15,7 @@ export class StartGameResponseDto extends BaseSocketDto {
     seedAmount: number;     // 시드 머니
     bettingAmount: number;  // 베팅 머니
     chipsTable: number;     // 테이블의 총 칩
+    chipsRound: number;     // 현재 라운드에서 획득 가능한 판돈
     userInfo: Record<string, UserInfo>; // 유저별 정보
     constructor(init?: Partial<StartGameResponseDto>) {
         super();

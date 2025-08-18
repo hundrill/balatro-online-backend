@@ -1,4 +1,5 @@
 import { BaseSocketDto } from "./base-socket.dto";
+import { RoomPhase } from "../room-phase.enum";
 
 export interface RoomUser {
     userId: string;
@@ -14,11 +15,12 @@ export interface RoomUser {
 
 export class RoomUsersResponseDto extends BaseSocketDto {
     override responseEventName = 'RoomUsersResponse';
-    currentPhase: string;
+    currentPhase: RoomPhase;
     round: number;
     seedAmount: number;
     bettingAmount: number;
     chipsTable: number;
+    chipsRound: number;     // 현재 라운드에서 획득 가능한 판돈
     users: RoomUser[];
     constructor(init?: Partial<RoomUsersResponseDto>) {
         super();

@@ -589,6 +589,7 @@ export class CardsController {
                                         <option value="UsedAceCount">사용된 에이스 개수</option>
                                         <option value="RemainingSevens">남은 7 카드 개수</option>
                                         <option value="RemainingDeck">남은 덱 카드 개수</option>
+                                        <option value="TotalDeck">전체 덱 카드 개수</option>
                                         <option value="UsedSuitCount">사용된 특정 무늬 카드 개수</option>
                                         <option value="RemainingDiscards">남은 버리기 횟수</option>
                                         <option value="IsEvenCard">짝수 카드 여부</option>
@@ -637,7 +638,9 @@ export class CardsController {
                                     <select id="condition-operator-1">
                                         <option value="">선택하세요</option>
                                         <option value="Equals">같음</option>
+                                        <option value="Greater">초과</option>
                                         <option value="GreaterOrEqual">이상</option>
+                                        <option value="Less">미만</option>
                                         <option value="LessOrEqual">이하</option>
                                     </select>
                                 </div>
@@ -1333,6 +1336,7 @@ export class CardsController {
                 case 'UsedAceCount':
                 case 'RemainingSevens':
                 case 'RemainingDeck':
+                case 'TotalDeck':
                 case 'RemainingDiscards':
                     // 숫자 조건들은 연산자와 숫자 값 필요
                     conditionValue.disabled = true;
@@ -1357,6 +1361,7 @@ export class CardsController {
                 'UsedAceCount': '사용된 에이스',
                 'RemainingSevens': '남은 7',
                 'RemainingDeck': '남은 덱',
+                'TotalDeck': '전체 덱',
                 'UsedSuitCount': '사용된 무늬 수',
                 'RemainingDiscards': '남은 버리기',
                 'IsEvenCard': '짝수 카드',

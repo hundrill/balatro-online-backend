@@ -62,6 +62,7 @@ export class HandContext {
     public unUsedPokerHand: PokerHand = PokerHand.None;
     public remainingDiscards: number = 0;
     public remainingDeck: number = 0;
+    public totalDeck: number = 0;
     public remainingSevens: number = 0;
     public randomValue: number = 0;
 
