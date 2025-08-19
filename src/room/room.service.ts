@@ -1937,14 +1937,10 @@ export class RoomService {
   /**
    * 방에서 퇴장할 때 유저의 칩 정보를 DB에 저장합니다.
    */
-  async saveUserChipsOnLeave(roomId: string, userId: string): Promise<boolean> {
+  async saveUserChipsOnLeave(roomId: string, userId: string): Promise<{ success: boolean; silverChip: number; goldChip: number }> {
     try {
       const roomState = this.getRoomState(roomId);
       const userChips = roomState.userChipsMap.get(userId);
-      if (!userChips) {
-        this.logger.warn(`[saveUserChipsOnLeave] userChips not found: roomId=${roomId}, userId=${userId}`);
-        return false;
-      }
 
       // 현재 DB에 저장된 칩 정보 가져오기
       const currentDbChips = await this.userService.getUserChips(userId);
@@ -1954,34 +1950,42 @@ export class RoomService {
       let silverChip = currentDbChips.silverChip;
       let goldChip = currentDbChips.goldChip;
 
-      if (chipType === ChipType.SILVER) {
-        silverChip = userChips.chips;  // 실버 칩 타입인 경우 실버 칩만 업데이트
-      } else if (chipType === ChipType.GOLD) {
-        goldChip = userChips.chips;    // 골드 칩 타입인 경우 골드 칩만 업데이트
-      }
+      if (userChips) {
+        // userChips가 있으면 게임 중 변경된 칩 정보로 업데이트
+        if (chipType === ChipType.SILVER) {
+          silverChip = userChips.chips;  // 실버 칩 타입인 경우 실버 칩만 업데이트
+        } else if (chipType === ChipType.GOLD) {
+          goldChip = userChips.chips;    // 골드 칩 타입인 경우 골드 칩만 업데이트
+        }
 
-      // funds는 DB에 저장하지 않음 (게임 중에만 사용)
+        const success = await this.userService.saveUserChips(
+          userId,
+          silverChip,
+          goldChip
+        );
 
-      const success = await this.userService.saveUserChips(
-        userId,
-        silverChip,
-        goldChip
-      );
+        if (success) {
+          this.logger.log(
+            `[saveUserChipsOnLeave] 칩 정보 저장 성공: roomId=${roomId}, userId=${userId}, ` +
+            `chipType=${chipType}, chips=${userChips.chips}, funds=${userChips.funds}, ` +
+            `DB_silverChip=${silverChip}, DB_goldChip=${goldChip}`
+          );
+        } else {
+          this.logger.error(`[saveUserChipsOnLeave] 칩 정보 저장 실패: roomId=${roomId}, userId=${userId}`);
+        }
 
-      if (success) {
+        return { success: true, silverChip, goldChip };
+      } else {
+        // userChips가 없으면 (게임을 시작하지 않은 경우) 현재 DB 칩 정보 그대로 반환
         this.logger.log(
-          `[saveUserChipsOnLeave] 칩 정보 저장 성공: roomId=${roomId}, userId=${userId}, ` +
-          `chipType=${chipType}, chips=${userChips.chips}, funds=${userChips.funds}, ` +
+          `[saveUserChipsOnLeave] 게임 미시작 상태: roomId=${roomId}, userId=${userId}, ` +
           `DB_silverChip=${silverChip}, DB_goldChip=${goldChip}`
         );
-      } else {
-        this.logger.error(`[saveUserChipsOnLeave] 칩 정보 저장 실패: roomId=${roomId}, userId=${userId}`);
+        return { success: true, silverChip, goldChip };
       }
-
-      return success;
     } catch (error) {
       this.logger.error(`[saveUserChipsOnLeave] 오류 발생: roomId=${roomId}, userId=${userId}`, error);
-      return false;
+      return { success: false, silverChip: 0, goldChip: 0 };
     }
   }
 
@@ -2355,8 +2359,8 @@ export class RoomService {
             for (const [uid, payment] of allPayments) {
               if (!winners.some(w => w.userId === uid)) { // 패자들만
                 // 각 승자가 가져갈 수 있는 금액 = min(자신이낸금액, 패자가낸금액, 라운드별최대상금) / 승자수
-                const chipsPerWinner = Math.min(userPayment.payment, payment.payment, roundMaxPrize) / winners.length;
-
+                let chipsPerWinner = Math.min(userPayment.payment, payment.payment, roundMaxPrize);
+                chipsPerWinner = Math.floor(chipsPerWinner / winners.length);
                 totalChipsFromLosers += chipsPerWinner;
               }
             }
@@ -2404,7 +2408,8 @@ export class RoomService {
             for (const winner of winners) {
               const winnerPayment = this.getUserSeedMoneyPayment(roomId, winner.userId);
               // 각 승자가 가져갈 수 있는 금액 = min(승자가낸금액, 패자가낸금액, 라운드별최대상금) / 승자수
-              const chipsPerWinner = Math.min(winnerPayment.payment, userPayment.payment, roundMaxPrize) / winners.length;
+              let chipsPerWinner = Math.min(winnerPayment.payment, userPayment.payment, roundMaxPrize);
+              chipsPerWinner = Math.floor(chipsPerWinner / winners.length);
 
               totalTakenChips += chipsPerWinner;
             }
@@ -2717,7 +2722,6 @@ export class RoomService {
     round: number;
     totalDeckCards: number; // 내 덱의 총 카드 수
     seedAmount: number;
-    // bettingAmount: number;
     chipsTable: number;     // 테이블의 총 칩
     chipsRound: number;     // 현재 라운드에서 획득 가능한 판돈
     userInfo: Record<string, any>;
@@ -2736,11 +2740,11 @@ export class RoomService {
       this.getRoomState(roomId).userTotalDeckCardsMap.set(userId, totalDeckCards);
     }
 
-    // 실제 테이블 칩 계산 (시드머니 납부 기록에서)
-    const chipsTable = this.getTableChips(roomId);
-
     // 현재 라운드에서 획득 가능한 판돈 계산
     const chipsRound = this.getRoundChips(roomId);
+
+    // 실제 테이블 칩 계산 (시드머니 납부 기록에서) 후 라운드머니로 나간것 빼기
+    const chipsTable = this.getTableChips(roomId) - chipsRound;
 
     const userInfo: Record<string, any> = {};
 

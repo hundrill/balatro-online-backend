@@ -665,10 +665,13 @@ export class RoomGateway
       this.removeUserFromRoom(client.id);
 
       if (userId) {
-        // 방에서 퇴장할 때 칩 정보를 DB에 저장
-        await this.roomService.saveUserChipsOnLeave(roomId, userId);
+        // 방에서 퇴장할 때 칩 정보를 DB에 저장하고 최종 칩 정보 받기
+        const saveResult = await this.roomService.saveUserChipsOnLeave(roomId, userId);
 
-        this.emitUserResponse(client, new LeaveRoomResponseDto({}));
+        this.emitUserResponse(client, new LeaveRoomResponseDto({
+          silverChip: saveResult.silverChip,
+          goldChip: saveResult.goldChip
+        }));
         await this.roomService.removeUserFromRoom(roomId, userId);
         this.removeUserFromRoomSession(roomId, userId);
 
