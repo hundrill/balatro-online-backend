@@ -149,7 +149,8 @@ export class RoomService {
         order: [],
         completed: new Set(),
         bets: new Map(),
-        raiseCounts: new Map()
+        raiseCounts: new Map(),
+        checkUsed: false
       },
 
       // 메서드 구현
@@ -183,7 +184,8 @@ export class RoomService {
           order: [],
           completed: new Set(),
           bets: new Map(),
-          raiseCounts: new Map()
+          raiseCounts: new Map(),
+          checkUsed: false
         };
 
         // 베팅칩 초기화
@@ -3050,7 +3052,8 @@ export class RoomService {
       order: [...playingUsers],
       completed: new Set(),
       bets: new Map(),
-      raiseCounts: new Map() // 각 유저의 레이스 횟수 초기화
+      raiseCounts: new Map(), // 각 유저의 레이스 횟수 초기화
+      checkUsed: false // check 사용 여부 초기화
     };
 
     this.logger.log(`[startBettingRound] 베팅 라운드 시작: roomId=${roomId}, firstUser=${playingUsers[0]}, tableChips=${this.getTableChips(roomId)}`);
@@ -3102,8 +3105,7 @@ export class RoomService {
    * 레이스인지 확인합니다.
    */
   isRaise(bettingType: BettingType): boolean {
-    return bettingType === BettingType.CHECK ||
-      bettingType === BettingType.QUARTER ||
+    return bettingType === BettingType.QUARTER ||
       bettingType === BettingType.HALF ||
       bettingType === BettingType.FULL;
   }
@@ -3157,6 +3159,12 @@ export class RoomService {
     // 테이블 칩 업데이트
     bettingState.tableChips += bettingAmount;
     bettingState.callChips = Math.max(bettingState.callChips, bettingAmount);
+
+    // CHECK인 경우 checkUsed를 true로 설정
+    if (bettingType === BettingType.CHECK) {
+      bettingState.checkUsed = true;
+      this.logger.log(`[processBetting] CHECK 사용: roomId=${roomId}, userId=${userId}, checkUsed=${bettingState.checkUsed}`);
+    }
 
     // 레이스인 경우 모든 유저의 베팅 상태 초기화 및 레이스 횟수 증가
     if (this.isRaise(bettingType)) {
@@ -3263,8 +3271,10 @@ export class RoomService {
     const userChips = currentUserId ? await this.getUserChips(roomId, currentUserId) : { chips: 0 };
     const availableChips = userChips.chips;
 
-    const canCheck = bettingState.callChips === 0;
-    const canCall = bettingState.callChips > 0; // 콜 칩이 있으면 콜 가능
+    // check는 최초 베팅하는 사람만 1번 가능 (callChips가 0이고 아직 check를 사용하지 않았을 때)
+    const canCheck = bettingState.callChips === 0 && !bettingState.checkUsed;
+    // call은 callChips가 0이어도 가능 (상대방이 check했을 경우)
+    const canCall = true; // 항상 call 가능
 
     // 콜 후 남은 칩이 있을 때만 레이스 가능
     const callAmount = Math.min(bettingState.callChips, availableChips);
