@@ -5,6 +5,8 @@ export class ShopResponseDto extends BaseSocketDto {
 
     shopCardIds: string[];
     round: number;
+    chipsTable: number;
+    chipsRound: number;
 
     constructor(init?: Partial<ShopResponseDto>) {
         super();

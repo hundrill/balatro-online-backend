@@ -298,14 +298,18 @@ export class RoomGateway
     try {
       const shopCardIds = this.roomService.getShopCards(roomId);
       const roomState = this.roomService.getRoomState(roomId);
+      const chipsTable = this.roomService.getTableChips(roomId);
+      const chipsRound = this.roomService.getRoundChips(roomId);
 
       const shopRes = new ShopResponseDto({
         shopCardIds: shopCardIds,
         round: roomState.round,
+        chipsTable: chipsTable,
+        chipsRound: chipsRound,
       });
 
       // 게임에 참여 중인 유저에게만 ShopResponse 전송
-      this.emitRoomResponse(roomId, shopRes);
+      this.emitRoomResponseToPlayingUsers(roomId, shopRes);
     } catch (error) {
       this.logger.error(`[sendShopResponse] Error: roomId=${roomId}`, error);
     }
