@@ -13,6 +13,7 @@ export class BettingResponseDto extends BaseSocketDto {
     halfAmount: number;
     fullAmount: number;
     callAmount: number;
+    isFirst: boolean; // 베팅 라운드 맨 처음 시작할 때만 true
 
     constructor(init?: Partial<BettingResponseDto>) {
         super();

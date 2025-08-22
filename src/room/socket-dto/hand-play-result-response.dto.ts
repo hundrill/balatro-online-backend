@@ -1,6 +1,5 @@
 import { BaseSocketDto } from './base-socket.dto';
 import { CardData } from '../deck.util';
-import { BettingResponseDto } from './betting-response.dto';
 
 // RoundResult 타입 정의
 export interface RoundResult {
@@ -11,7 +10,9 @@ export interface RoundResult {
     chipsGain: number;
     finalChips: number;
     finalFunds: number;
-    fundsGain: number;
+    discardRemainingFunds: number;    // 버리기 남은 횟수에 따른 funds
+    rankFunds: number;                // 순위에 따른 funds
+    totalFundsGain: number;           // 총 funds 증가량
     remainingDiscards: number;
     remainingDeck: number;
     totalDeck: number;
@@ -25,7 +26,6 @@ export class HandPlayResultResponseDto extends BaseSocketDto {
 
     roundResult: Record<string, RoundResult>;
     round: number;
-    bettingResponse?: BettingResponseDto;
 
     constructor(init?: Partial<HandPlayResultResponseDto>) {
         super();
