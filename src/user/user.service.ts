@@ -9,12 +9,12 @@ export class UserService {
     return this.prisma.user.findMany();
   }
 
-  async findByEmail(email: string) {
-    return this.prisma.user.findUnique({ where: { email } });
+  async findByUserId(userId: string) {
+    return this.prisma.user.findUnique({ where: { userId } });
   }
 
   async create(data: {
-    email: string;
+    userId: string;
     passwordHash: string;
     nickname: string;
   }) {
@@ -26,7 +26,7 @@ export class UserService {
    */
   async getUserChips(userId: string) {
     const user = await this.prisma.user.findUnique({
-      where: { email: userId },
+      where: { userId: userId },
       select: {
         silverChip: true,
         goldChip: true,
@@ -49,7 +49,7 @@ export class UserService {
   async saveUserChips(userId: string, silverChip: number, goldChip: number) {
     try {
       await this.prisma.user.update({
-        where: { email: userId },
+        where: { userId: userId },
         data: {
           silverChip: silverChip,
           goldChip: goldChip,

@@ -10,13 +10,13 @@ export class AuthService {
     private readonly redisService: RedisService,
   ) { }
 
-  async register(email: string, password: string, nickname: string) {
+  async register(userId: string, password: string, nickname: string) {
     const passwordHash = await bcrypt.hash(password, 10);
-    return this.userService.create({ email, passwordHash, nickname });
+    return this.userService.create({ userId, passwordHash, nickname });
   }
 
-  async validateUser(email: string, password: string) {
-    const user = await this.userService.findByEmail(email);
+  async validateUser(userId: string, password: string) {
+    const user = await this.userService.findByUserId(userId);
     if (user && (await bcrypt.compare(password, user.passwordHash))) {
       return user;
     }

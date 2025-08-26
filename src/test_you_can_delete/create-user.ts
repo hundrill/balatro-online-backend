@@ -4,7 +4,7 @@ import * as bcrypt from 'bcrypt';
 const prisma = new PrismaClient();
 
 async function main() {
-    const email = 'aaaa@naver.com';
+    const userId = 'aaaa@naver.com';
     const password = '1111';
     const nickname = 'aaaa';
 
@@ -12,16 +12,16 @@ async function main() {
     const passwordHash = await bcrypt.hash(password, 10);
 
     // 이미 존재하는지 확인
-    const exists = await prisma.user.findUnique({ where: { email } });
+    const exists = await prisma.user.findUnique({ where: { userId } });
     if (exists) {
-        console.log('이미 해당 이메일의 유저가 존재합니다:', email);
+        console.log('이미 해당 이메일의 유저가 존재합니다:', userId);
         return;
     }
 
     // 유저 생성
     const user = await prisma.user.create({
         data: {
-            email,
+            userId,
             passwordHash,
             nickname,
         },

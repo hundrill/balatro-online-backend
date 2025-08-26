@@ -13,7 +13,7 @@ export class LoginResponseDto extends BaseSocketDto {
     override responseEventName = 'LoginResponse';
 
     @IsString()
-    email: string;
+    userId: string;
 
     @IsString()
     nickname: string;

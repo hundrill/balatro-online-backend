@@ -353,8 +353,8 @@ export class DashboardController {
                 userSelect.innerHTML = '<option value="all">모든 유저 일괄 초기화</option>';
                 users.forEach(user => {
                     const option = document.createElement('option');
-                    option.value = user.email;
-                    option.textContent = \`\${user.email} (\${user.nickname || '닉네임 없음'}) - 칩: \${user.silverChip}\`;
+                    option.value = user.userId;
+                    option.textContent = \`\${user.userId} (\${user.nickname || '닉네임 없음'}) - 칩: \${user.silverChip}\`;
                     userSelect.appendChild(option);
                 });
             } catch (error) {
@@ -390,7 +390,7 @@ export class DashboardController {
                             message += '<div style="background: #f3e5f5; color: #4a148c; padding: 10px; border-radius: 4px; border: 1px solid #ba68c8; margin-top: 10px;">';
                             message += '<strong>칩 변동 내역:</strong><br>';
                             result.chipChanges.forEach(change => {
-                                message += \`• \${change.email}: \${change.before} → \${change.after}\` + '<br>';
+                                message += \`• \${change.userId}: \${change.before} → \${change.after}\` + '<br>';
                             });
                             message += '</div>';
                         }

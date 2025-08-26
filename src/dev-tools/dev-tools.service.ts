@@ -258,7 +258,7 @@ export class DevToolsService implements OnModuleInit {
         }
     }
 
-    async rechargeChips(silverChips: number, userSelect: string): Promise<{ success: boolean; message: string; onlineUsers?: string[]; chipChanges?: Array<{ email: string, before: number, after: number }> }> {
+    async rechargeChips(silverChips: number, userSelect: string): Promise<{ success: boolean; message: string; onlineUsers?: string[]; chipChanges?: Array<{ userId: string, before: number, after: number }> }> {
         try {
             this.logger.log(`[DevTools] 칩 변동 시도: 실버 ${silverChips}, 유저: ${userSelect}`);
 
@@ -270,12 +270,12 @@ export class DevToolsService implements OnModuleInit {
                 // 모든 유저의 칩을 설정값으로 초기화하되, 게임 접속 중인 유저는 제외
                 const usersToUpdate = await this.prisma.user.findMany({
                     where: {
-                        email: {
+                        userId: {
                             notIn: onlineUsers
                         }
                     },
                     select: {
-                        email: true,
+                        userId: true,
                         silverChip: true
                     }
                 });
@@ -295,12 +295,12 @@ export class DevToolsService implements OnModuleInit {
                     const afterChips = Math.max(0, silverChips); // 입력값으로 설정, 최소값 0 보장
 
                     await this.prisma.user.update({
-                        where: { email: user.email },
+                        where: { userId: user.userId },
                         data: { silverChip: afterChips }
                     });
 
                     chipChanges.push({
-                        email: user.email,
+                        userId: user.userId,
                         before: beforeChips,
                         after: afterChips
                     });
@@ -326,7 +326,7 @@ export class DevToolsService implements OnModuleInit {
 
                 // 현재 칩 상태 조회
                 const currentUser = await this.prisma.user.findUnique({
-                    where: { email: userSelect },
+                    where: { userId: userSelect },
                     select: { silverChip: true }
                 });
 
@@ -342,7 +342,7 @@ export class DevToolsService implements OnModuleInit {
                 const afterChips = Math.max(0, beforeChips + silverChips); // 음수가 되지 않도록
 
                 const updatedUser = await this.prisma.user.update({
-                    where: { email: userSelect },
+                    where: { userId: userSelect },
                     data: {
                         silverChip: afterChips,
                     }
@@ -356,7 +356,7 @@ export class DevToolsService implements OnModuleInit {
                     message: `유저 ${userSelect}의 칩이 성공적으로 ${actionText}되었습니다.`,
                     onlineUsers,
                     chipChanges: [{
-                        email: userSelect,
+                        userId: userSelect,
                         before: beforeChips,
                         after: afterChips
                     }]
@@ -375,7 +375,7 @@ export class DevToolsService implements OnModuleInit {
         try {
             const users = await this.prisma.user.findMany({
                 select: {
-                    email: true,
+                    userId: true,
                     nickname: true,
                     silverChip: true,
                     goldChip: true,

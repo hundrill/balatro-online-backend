@@ -45,8 +45,6 @@ import { BettingResponseDto } from './socket-dto/betting-response.dto';
 import { BettingResultDto } from './socket-dto/betting-result.dto';
 import { UseSpecialCardRequestDto } from './socket-dto/use-special-card-request.dto';
 import { UseSpecialCardResponseDto } from './socket-dto/use-special-card-response.dto';
-import { FoldRequestDto } from './socket-dto/fold-request.dto';
-import { FoldResponseDto } from './socket-dto/fold-response.dto';
 import { LastPlayerWinResponseDto } from './socket-dto/last-player-win-response.dto';
 import { SpecialCardManagerService } from './special-card-manager.service';
 import { isClientVersionSupported, MIN_CLIENT_VERSION, getVersionString } from '../common/constants/version.constants';
@@ -64,9 +62,11 @@ interface SocketSession {
 
 @WebSocketGateway({
   cors: true,
-  pingTimeout: 10000,
-  pingInterval: 25000
+  pingInterval: 25000,
+  pingTimeout: 20000,
+  transports: ['websocket']
 })
+
 export class RoomGateway
   implements
   OnGatewayConnection,
@@ -421,36 +421,22 @@ export class RoomGateway
     // RoomService에서 유저 정보 가져오기
     const roomUserInfos = await this.roomService.getRoomUserInfos(roomId, userIds);
 
-    const users = await Promise.all(
-      userIds.map(async (userId) => {
-        const user = await this.userService.findByEmail(userId);
-        const roomUserInfo = roomUserInfos[userId];
+    const users = userIds.map((userId) => {
+      const roomUserInfo = roomUserInfos[userId];
 
-        return user
-          ? {
-            userId: user.email,
-            nickname: user.nickname,
-            chips: roomUserInfo.chips,
-            funds: roomUserInfo.funds,
-            isPlaying: roomUserInfo.isPlaying,
-            ownedCards: roomUserInfo.ownedCards,
-            paytableLevels: roomUserInfo.paytableLevels,
-            paytableBaseChips: roomUserInfo.paytableBaseChips,
-            paytableMultipliers: roomUserInfo.paytableMultipliers,
-          }
-          : {
-            userId,
-            nickname: null,
-            chips: 0,
-            funds: 0,
-            isPlaying: false,
-            ownedCards: [],
-            paytableLevels: {},
-            paytableBaseChips: {},
-            paytableMultipliers: {},
-          };
-      }),
-    );
+      return {
+        userId: userId,
+        nickname: roomUserInfo.nickname,
+        chips: roomUserInfo?.chips || 0,
+        funds: roomUserInfo?.funds || 0,
+        isPlaying: roomUserInfo?.isPlaying || false,
+        ownedCards: roomUserInfo?.ownedCards || [],
+        paytableLevels: roomUserInfo?.paytableLevels || {},
+        paytableBaseChips: roomUserInfo?.paytableBaseChips || {},
+        paytableMultipliers: roomUserInfo?.paytableMultipliers || {},
+      };
+    });
+
     return users;
   }
 
@@ -1356,91 +1342,6 @@ export class RoomGateway
     }
   }
 
-  // === 특별 카드 사용 ===
-
-  @SubscribeMessage(FoldRequestDto.requestEventName)
-  async handleFoldRequest(
-    @MessageBody() data: FoldRequestDto,
-    @ConnectedSocket() client: Socket,
-  ) {
-    try {
-      const userId = this.validateUserRegistration(client);
-      if (!userId) {
-        this.emitUserResponse(client, new ErrorResponseDto({ message: TranslationKeys.UserNotFound }));
-        return;
-      }
-
-      // 유저가 속한 방 찾기
-      const roomId = this.getUserRoomId(client.id);
-      if (!roomId) {
-        this.emitUserResponse(client, new ErrorResponseDto({ message: TranslationKeys.RoomNotFound }));
-        return;
-      }
-
-      // fold 처리
-      const result = await this.roomService.handleFold(roomId, userId);
-
-      if (result.success) {
-        // fold 결과가 있으면 모든 유저에게 fold 응답 전송
-        if (result.userId) {
-          this.emitRoomResponse(
-            roomId,
-            new FoldResponseDto({
-              userId: result.userId
-            })
-          );
-        }
-
-
-        // 마지막 플레이어 승리 처리
-        const lastPlayerWinResult = await this.roomService.handleLastPlayerWin(roomId);
-
-        if (lastPlayerWinResult.success && lastPlayerWinResult.lastWinnerId) {
-          // 마지막 플레이어 승리인 경우 별도 응답 전송
-          this.emitRoomResponse(
-            roomId,
-            new LastPlayerWinResponseDto({
-              lastWinnerId: lastPlayerWinResult.lastWinnerId,
-              chipsReward: lastPlayerWinResult.chipsReward || 0,
-              finalChips: lastPlayerWinResult.finalChips || 0,
-            })
-          );
-        }
-
-        this.logger.log(
-          `[handleFoldRequest] fold 성공: roomId=${roomId}, userId=${userId}`
-        );
-
-        if (this.roomService.canStartNextRound(roomId)) {
-          this.logger.log(
-            `[handleNextRound] 모든 유저 nextRound 완료, 다음 라운드 시작: roomId=${roomId}`,
-          );
-          await this.startGameForRoom(roomId);
-        }
-
-      } else {
-        // fold 실패 시 요청한 유저에게만 에러 응답
-        this.emitUserResponse(
-          client,
-          new ErrorResponseDto({ message: result.message })
-        );
-
-        this.logger.warn(
-          `[handleFoldRequest] fold 실패: roomId=${roomId}, userId=${userId}, message=${result.message}`
-        );
-      }
-    } catch (error) {
-      this.logger.error(
-        `[handleFoldRequest] Error in handleFoldRequest: socketId=${client.id}`,
-        (error as Error).stack,
-      );
-      this.emitUserResponse(
-        client,
-        new ErrorResponseDto({ message: TranslationKeys.InvalidRequest })
-      );
-    }
-  }
-
   @SubscribeMessage(UseSpecialCardRequestDto.requestEventName)
   async handleUseSpecialCardRequest(
     @MessageBody() data: UseSpecialCardRequestDto,
@@ -1500,7 +1401,7 @@ export class RoomGateway
   ) {
     try {
       this.logger.log(
-        `[handleLogin] login attempt: socketId=${client.id}, email=${data.email}, clientVersion=${data.version}`,
+        `[handleLogin] login attempt: socketId=${client.id}, userId=${data.userId}, clientVersion=${data.version}`,
       );
 
       // 버전 체크
@@ -1519,7 +1420,7 @@ export class RoomGateway
       }
 
       const user = await this.authService.validateUser(
-        data.email,
+        data.userId,
         data.password,
       );
       if (!user) {
@@ -1533,7 +1434,7 @@ export class RoomGateway
       }
 
       const connectionResult =
-        await this.authService.checkAndRegisterConnection(user.email);
+        await this.authService.checkAndRegisterConnection(user.userId);
       if (!connectionResult.isNewConnection) {
         const res = new LoginResponseDto({
           success: false,
@@ -1546,7 +1447,7 @@ export class RoomGateway
 
       // 세션 생성
       this.socketSessions.set(client.id, {
-        userId: user.email,
+        userId: user.userId,
         roomId: null,
         language: data.language || 'en'
       });
@@ -1558,7 +1459,7 @@ export class RoomGateway
         success: true,
         code: 0,
         message: TranslationKeys.Login,
-        email: user.email,
+        userId: user.userId,
         nickname: user.nickname,
         silverChip: user.silverChip,
         goldChip: user.goldChip,
@@ -1567,7 +1468,7 @@ export class RoomGateway
       this.emitUserResponse(client, res);
 
       this.logger.log(
-        `[handleLogin] login success: socketId=${client.id}, email=${user.email}`,
+        `[handleLogin] login success: socketId=${client.id}, userId=${user.userId}`,
       );
     } catch (error) {
       const res = new LoginResponseDto({

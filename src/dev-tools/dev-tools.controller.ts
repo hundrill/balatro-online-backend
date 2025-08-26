@@ -747,8 +747,8 @@ async function loadUsers() {
 
         users.forEach(user => {
             const option = document.createElement('option');
-            option.value = user.email;
-            option.textContent = \`\${user.email} (\${user.nickname || '닉네임 없음'})\`;
+            option.value = user.userId;
+            option.textContent = \`\${user.userId} (\${user.nickname || '닉네임 없음'})\`;
             userSelect.appendChild(option);
         });
     } catch (error) {

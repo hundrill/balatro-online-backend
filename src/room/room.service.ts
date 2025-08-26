@@ -17,23 +17,16 @@ import { HandEvaluatorService } from './hand-evaluator.service';
 import { SpecialCardManagerService } from './special-card-manager.service';
 import { CardType, PokerHandResult, PokerHand } from './poker-types';
 import { GameSettingsService } from '../common/services/game-settings.service';
-import { FoldResponseDto } from './socket-dto/fold-response.dto';
 import { TranslationKeys } from '../common/translation-keys.enum';
 import { RoomDataDto } from './api-dto/room-list-response.dto';
 import { RoundResult } from './socket-dto/hand-play-result-response.dto';
 import { RoomPhase } from './room-phase.enum';
 import { BettingState } from './betting-state.interface';
-import { BettingInfo } from './betting-info.interface';
 import { BettingType } from './betting-type.enum';
 import { BettingResponseDto } from './socket-dto/betting-response.dto';
 
 // RoomState 인터페이스 정의
 interface RoomState {
-
-  // currentBettingAmount: number; // 현재 라운드의 베팅 금액
-  // bettingSet: Set<string>; // userId Set (라운드당 1번 베팅한 유저들)
-
-
 
   // 기존 gameState 필드들
   decks: Map<string, CardData[]>; // userId별 덱
@@ -171,7 +164,6 @@ export class RoomService {
         this.userDeckModifications.clear();
         this.userTarotCardsMap.clear();
         this.userFirstDeckCardsMap.clear();
-        // this.bettingSet.clear();
         this.usedJokerCardIds.clear();
         this.discardCountMap.clear();
         this.userStatusMap.clear();
@@ -192,9 +184,6 @@ export class RoomService {
           userCallChips: new Map(),
           initialTableChips: 0
         };
-
-        // 베팅칩 초기화
-        // this.currentBettingAmount = 0;
       }
     };
   }
@@ -369,7 +358,7 @@ export class RoomService {
   private async setUserNickname(roomId: string, userId: string): Promise<void> {
     try {
       const roomState = this.getRoomState(roomId);
-      const user = await this.userService.findByEmail(userId);
+      const user = await this.userService.findByUserId(userId);
       if (user && user.nickname) {
         roomState.userNicknameMap.set(userId, user.nickname);
         this.logger.debug(`[setUserNickname] userId=${userId}, nickname=${user.nickname}`);
@@ -379,7 +368,7 @@ export class RoomService {
     }
   }
 
-  private getUserNickname(roomId: string, userId: string): string {
+  public getUserNickname(roomId: string, userId: string): string {
     const roomState = this.getRoomState(roomId);
     return roomState.userNicknameMap.get(userId) || userId; // 닉네임이 없으면 userId 반환
   }
