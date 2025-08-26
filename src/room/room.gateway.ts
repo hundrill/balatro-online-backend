@@ -62,8 +62,10 @@ interface SocketSession {
 
 @WebSocketGateway({
   cors: true,
-  pingInterval: 25000,
-  pingTimeout: 20000,
+  // pingInterval: 25000,
+  // pingTimeout: 20000,
+  pingInterval: 55000,
+  pingTimeout: 50000,
   transports: ['websocket']
 })
 
