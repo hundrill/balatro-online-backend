@@ -35,7 +35,7 @@ import { ShopResponseDto } from './socket-dto/shop-response.dto';
 import { JoinRoomResponseDto } from './socket-dto/join-room-response.dto';
 import { LeaveRoomResponseDto } from './socket-dto/leave-room-response.dto';
 import { RoomUsersResponseDto, RoomUser } from './socket-dto/room-users-response.dto';
-import { StartGameResponseDto } from './socket-dto/start-game-response.dto';
+import { StartGameResultDto } from './socket-dto/start-game-result.dto';
 import { HandPlayReadyResponseDto } from './socket-dto/hand-play-ready-response.dto';
 import { NextRoundReadyResponseDto } from './socket-dto/next-round-ready-response.dto';
 import { ErrorResponseDto } from './socket-dto/error-response.dto';
@@ -53,6 +53,7 @@ import { GameSettingsService } from '../common/services/game-settings.service';
 import { TranslationKeys } from '../common/translation-keys.enum';
 import { LocalizationService } from '../common/services/localization.service';
 import { RoomPhase } from './room-phase.enum';
+import { StartGameResponseDto } from './socket-dto/start-game-response.dto';
 
 interface SocketSession {
   userId: string;
@@ -462,7 +463,7 @@ export class RoomGateway
 
       this.emitUserResponseBySocketId(
         socketId,
-        new StartGameResponseDto({
+        new StartGameResultDto({
           round: gameInfo.round,
           totalDeckCards: gameInfo.totalDeckCards,
           seedAmount: gameInfo.seedAmount,
@@ -751,6 +752,15 @@ export class RoomGateway
     this.roomService.setReady(roomId, userId);
     this.logger.log(
       `[handleReady] setReady 완료: userId=${userId}, roomId=${roomId}`,
+    );
+
+    // 모든 방 안 유저에게 StartGameResponseDto 전송
+    const startGameResponse = new StartGameResponseDto({
+      userId: userId
+    });
+    this.emitRoomResponse(roomId, startGameResponse);
+    this.logger.log(
+      `[handleReady] StartGameResponseDto 전송 완료: roomId=${roomId}, userId=${userId}`,
     );
 
     if (this.roomService.canStart(roomId)) {
