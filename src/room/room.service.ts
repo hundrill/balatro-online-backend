@@ -430,8 +430,6 @@ export class RoomService {
                 createdAt: parseInt(room.createdAt || '0', 10),
                 seedChip: seedChip,
                 chipType: room.chipType,
-                seedAmount: room.seedAmount ? parseInt(room.seedAmount, 10) : undefined,
-                bettingAmount: room.bettingAmount ? parseInt(room.bettingAmount, 10) : undefined
               };
 
               // 디버깅: 실제 유저 수와 Redis에 저장된 값 비교
@@ -2785,7 +2783,7 @@ export class RoomService {
     }
 
     // 현재 라운드에서 획득 가능한 판돈 계산
-    const chipsRound = this.getRoundChips(roomId);
+    const chipsRound = this.getRoundChips(roomId, false);
 
     // 실제 테이블 칩 계산 (시드머니 납부 기록에서) 후 라운드머니로 나간것 빼기
     const chipsTable = this.getTableChips(roomId) - chipsRound;
@@ -2832,10 +2830,10 @@ export class RoomService {
   }
 
 
-  getRoundChips(roomId: string) {
-    const round = this.getRound(roomId);
+  getRoundChips(roomId: string, isNextRound: boolean) {
+    const round = isNextRound ? this.getRound(roomId) + 1 : this.getRound(roomId);
 
-    if (round === 5) {
+    if (round >= 5) {
       return this.getTableChips(roomId);
     }
 

@@ -322,7 +322,7 @@ export class RoomGateway
     try {
       const shopCardIds = this.roomService.getShopCards(roomId);
       const roomState = this.roomService.getRoomState(roomId);
-      let chipsRound = this.roomService.getRoundChips(roomId);
+      let chipsRound = this.roomService.getRoundChips(roomId, true);
       let chipsTable = this.roomService.getTableChips(roomId) - chipsRound;
 
       if (roomState.round === 4) {
@@ -402,9 +402,8 @@ export class RoomGateway
     const currentPhase = this.roomService.getRoomPhase(roomId);
     const round = this.roomService.getRound(roomId);
     const seedAmount = this.roomService.getBaseSeedAmount(roomId);
-    // const bettingAmount = this.roomService.getBettingAmount(roomId);
     const chipsTable = this.roomService.getTableChips(roomId);
-    const chipsRound = this.roomService.getRoundChips(roomId);
+    const chipsRound = this.roomService.getRoundChips(roomId, false);
 
     return new RoomUsersResponseDto({
       users,
