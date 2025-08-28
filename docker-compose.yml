@@ -8,8 +8,6 @@ services:
       - DATABASE_URL=mysql://root:balatroDev2024!@db:3306/balatro_online
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-    volumes:
-      - uploads_data:/app/uploads
     depends_on:
       - db
       - redis
@@ -27,5 +25,4 @@ services:
     ports:
       - "6379:6379"
 volumes:
-  db_data:
-  uploads_data: 
+  db_data: 
