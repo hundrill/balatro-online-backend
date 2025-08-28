@@ -141,16 +141,8 @@
             "value": "실버 칩이 100 이상이어야 입장할 수 있습니다."
         },
         {
-            "key": "gold_chip_requirement_1",
-            "value": "골드 칩이 1 이상이어야 입장할 수 있습니다."
-        },
-        {
-            "key": "gold_chip_requirement_100",
-            "value": "골드 칩이 100 이상이어야 입장할 수 있습니다."
-        },
-        {
-            "key": "gold_chip_requirement_1000",
-            "value": "골드 칩이 1000 이상이어야 입장할 수 있습니다."
+            "key": "gold_chip_requirement",
+            "value": "골드 칩이 부족하여 입장할 수 없습니다."
         },
         {
             "key": "room_creation_failed",
@@ -354,7 +346,11 @@
         },
         {
             "key": "insufficient_funds_for_card",
-            "value": "카드 구매에 필요한 funds가 부족합니다"
+            "value": "카드 구매에 필요한 자금이 부족합니다"
+        },
+        {
+            "key": "insufficient_chips_for_room_entry",
+            "value": "방 입장에 필요한 칩이 부족합니다"
         },
         {
             "key": "card_sale_completed",

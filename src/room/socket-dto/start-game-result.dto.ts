@@ -9,7 +9,7 @@ export interface UserInfo {
 }
 
 export class StartGameResultDto extends BaseSocketDto {
-    override responseEventName = 'StartGameResponse';
+    override responseEventName = 'StartGameResult';
     round: number;
     totalDeckCards: number; // 내 덱의 총 카드 수
     seedAmount: number;     // 시드 머니

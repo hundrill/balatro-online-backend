@@ -141,16 +141,8 @@
             "value": "You need at least 100 silver chips to enter."
         },
         {
-            "key": "gold_chip_requirement_1",
-            "value": "You need at least 1 gold chip to enter."
-        },
-        {
-            "key": "gold_chip_requirement_100",
-            "value": "You need at least 100 gold chips to enter."
-        },
-        {
-            "key": "gold_chip_requirement_1000",
-            "value": "You need at least 1000 gold chips to enter."
+            "key": "gold_chip_requirement",
+            "value": "Insufficient gold chips to enter."
         },
         {
             "key": "room_creation_failed",
@@ -355,6 +347,10 @@
         {
             "key": "insufficient_funds_for_card",
             "value": "Insufficient funds for card purchase"
+        },
+        {
+            "key": "insufficient_chips_for_room_entry",
+            "value": "Insufficient chips for room entry"
         },
         {
             "key": "card_sale_completed",

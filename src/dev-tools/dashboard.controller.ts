@@ -324,8 +324,8 @@ export class DashboardController {
                         </select>
                     </div>
                     <div style="display: flex; flex-direction: column; gap: 5px;">
-                        <label style="font-weight: 600; color: #333; font-size: 0.9em;">실버칩</label>
-                        <input type="number" id="silver-chip-amount" value="10000" min="-999999" style="padding: 10px; border: 2px solid #e0e0e0; border-radius: 6px; background: white; transition: border-color 0.3s;">
+                        <label style="font-weight: 600; color: #333; font-size: 0.9em;">골드칩</label>
+                        <input type="number" id="gold-chip-amount" value="10000" min="-999999" style="padding: 10px; border: 2px solid #e0e0e0; border-radius: 6px; background: white; transition: border-color 0.3s;">
                         <small style="color: #666; font-size: 0.8em;">음수 입력 시 칩을 차감합니다. "모든 유저 일괄 초기화" 선택 시 입력값으로 설정됩니다.</small>
                     </div>
                 </div>
@@ -354,7 +354,7 @@ export class DashboardController {
                 users.forEach(user => {
                     const option = document.createElement('option');
                     option.value = user.userId;
-                    option.textContent = \`\${user.userId} (\${user.nickname || '닉네임 없음'}) - 칩: \${user.silverChip}\`;
+                    option.textContent = \`\${user.userId} (\${user.nickname || '닉네임 없음'}) - 골드칩: \${user.goldChip}\`;
                     userSelect.appendChild(option);
                 });
             } catch (error) {
@@ -364,10 +364,10 @@ export class DashboardController {
 
         // 칩 충전/차감
         async function rechargeChips() {
-            const silverChips = parseInt(document.getElementById('silver-chip-amount').value) || 0;
+            const goldChips = parseInt(document.getElementById('gold-chip-amount').value) || 0;
             const userSelect = document.getElementById('user-select').value;
             
-            if (silverChips === 0) {
+            if (goldChips === 0) {
                 document.getElementById('recharge-result').innerHTML = '<div style="background: #fff3cd; color: #856404; padding: 10px; border-radius: 4px; border: 1px solid #ffeaa7;">칩 수량을 입력해주세요.</div>';
                 return;
             }
@@ -376,7 +376,7 @@ export class DashboardController {
                 const response = await fetch('/dev-tools/recharge-chips', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ silverChips: silverChips, userSelect: userSelect })
+                    body: JSON.stringify({ goldChips: goldChips, userSelect: userSelect })
                 });
 
                 if (response.ok) {

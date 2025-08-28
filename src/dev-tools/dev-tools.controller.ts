@@ -325,8 +325,8 @@ export class DevToolsController {
         <h2>💰 테스트 칩 충전</h2>
         <div style="display: flex; gap: 20px; align-items: center; flex-wrap: wrap; margin-bottom: 15px;">
             <div style="display: flex; gap: 10px; align-items: center;">
-                <label style="font-weight: 600; color: #333;">실버칩:</label>
-                <input type="number" id="silver-chip-amount" value="1000" min="0" style="width: 120px; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                                        <label style="font-weight: 600; color: #333;">골드칩:</label>
+                <input type="number" id="gold-chip-amount" value="1000" min="0" style="width: 120px; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
             </div>
             <div style="display: flex; gap: 10px; align-items: center;">
                 <label style="font-weight: 600; color: #333;">유저 선택:</label>
@@ -672,7 +672,7 @@ export class DevToolsController {
 
         // 칩 충전 함수
         async function rechargeChips() {
-            const silverChips = parseInt(document.getElementById('silver-chip-amount').value) || 0;
+            const goldChips = parseInt(document.getElementById('gold-chip-amount').value) || 0;
             const userSelect = document.getElementById('user-select').value;
             
             if (silverChips < 0) {
@@ -686,10 +686,10 @@ export class DevToolsController {
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({
-                        silverChips: silverChips,
-                        userSelect: userSelect
-                    })
+                                    body: JSON.stringify({
+                    goldChips: goldChips,
+                    userSelect: userSelect
+                })
                 });
 
                 if (response.ok) {
@@ -748,7 +748,7 @@ async function loadUsers() {
         users.forEach(user => {
             const option = document.createElement('option');
             option.value = user.userId;
-            option.textContent = \`\${user.userId} (\${user.nickname || '닉네임 없음'})\`;
+            option.textContent = \`\${user.userId} (\${user.nickname || '닉네임 없음'}) - 골드칩: \${user.goldChip}\`;
             userSelect.appendChild(option);
         });
     } catch (error) {
@@ -1458,7 +1458,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     @Post('recharge-chips')
     async rechargeChips(@Body() rechargeDto: ChipRechargeDto) {
-        const result = await this.devToolsService.rechargeChips(rechargeDto.silverChips, rechargeDto.userSelect);
+        const result = await this.devToolsService.rechargeChips(rechargeDto.goldChips, rechargeDto.userSelect);
         return result;
     }
 

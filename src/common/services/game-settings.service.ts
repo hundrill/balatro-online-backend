@@ -8,6 +8,13 @@ export interface GameSettings {
             [rank: number]: number;
         };
     };
+    channelSeedMoney: {
+        beginner: { seedMoney1: number, seedMoney2: number, seedMoney3: number, seedMoney4: number },
+        intermediate: { seedMoney1: number, seedMoney2: number, seedMoney3: number, seedMoney4: number },
+        advanced: { seedMoney1: number, seedMoney2: number, seedMoney3: number, seedMoney4: number },
+        expert: { seedMoney1: number, seedMoney2: number, seedMoney3: number, seedMoney4: number },
+        royal: { seedMoney1: number, seedMoney2: number, seedMoney3: number, seedMoney4: number }
+    };
 }
 
 @Injectable()
@@ -97,6 +104,13 @@ export class GameSettingsService {
                     4: { 1: 250, 2: 125, 3: 60, 4: 25 },
                     5: { 1: 300, 2: 150, 3: 75, 4: 30 },
                 },
+                channelSeedMoney: {
+                    beginner: { seedMoney1: 15, seedMoney2: 30, seedMoney3: 60, seedMoney4: 90 },
+                    intermediate: { seedMoney1: 120, seedMoney2: 180, seedMoney3: 240, seedMoney4: 300 },
+                    advanced: { seedMoney1: 420, seedMoney2: 540, seedMoney3: 660, seedMoney4: 780 },
+                    expert: { seedMoney1: 990, seedMoney2: 1200, seedMoney3: 1410, seedMoney4: 1620 },
+                    royal: { seedMoney1: 2100, seedMoney2: 2100, seedMoney3: 2100, seedMoney4: 2100 }
+                }
             };
 
             // DB 설정값으로 덮어쓰기
@@ -116,6 +130,13 @@ export class GameSettingsService {
                             this.logger.log(`[GameSettings] roundRankData:`, roundRankData);
                             settings.roundRankFunds = roundRankData;
                             this.logger.log(`[GameSettings] roundRankFunds 설정 완료`);
+                            break;
+                        case 'channelSeedMoney':
+                            this.logger.log(`[GameSettings] channelSeedMoney 파싱: setting.value="${setting.value}", type=${typeof setting.value}`);
+                            const channelSeedMoneyData = JSON.parse(setting.value);
+                            this.logger.log(`[GameSettings] channelSeedMoneyData:`, channelSeedMoneyData);
+                            settings.channelSeedMoney = channelSeedMoneyData;
+                            this.logger.log(`[GameSettings] channelSeedMoney 설정 완료`);
                             break;
                     }
                 } catch (error) {
@@ -139,6 +160,72 @@ export class GameSettingsService {
                     4: { 1: 250, 2: 125, 3: 60, 4: 25 },
                     5: { 1: 300, 2: 150, 3: 75, 4: 30 },
                 },
+                channelSeedMoney: {
+                    beginner: { seedMoney1: 15, seedMoney2: 30, seedMoney3: 60, seedMoney4: 90 },
+                    intermediate: { seedMoney1: 120, seedMoney2: 180, seedMoney3: 240, seedMoney4: 300 },
+                    advanced: { seedMoney1: 420, seedMoney2: 540, seedMoney3: 660, seedMoney4: 780 },
+                    expert: { seedMoney1: 990, seedMoney2: 1200, seedMoney3: 1410, seedMoney4: 1620 },
+                    royal: { seedMoney1: 2100, seedMoney2: 2100, seedMoney3: 2100, seedMoney4: 2100 }
+                }
+            };
+        }
+    }
+
+    /**
+     * 기본 라운드별 등수 funds 값을 반환합니다.
+     */
+    private getDefaultRoundRankFunds(round: number, rank: number): number {
+        const defaultFunds: { [round: number]: { [rank: number]: number } } = {
+            1: { 1: 4, 2: 3, 3: 2, 4: 1 },
+            2: { 1: 4, 2: 3, 3: 2, 4: 1 },
+            3: { 1: 4, 2: 3, 3: 2, 4: 1 },
+            4: { 1: 4, 2: 3, 3: 2, 4: 1 },
+            5: { 1: 4, 2: 3, 3: 2, 4: 1 }
+        };
+
+        return defaultFunds[round]?.[rank] || 0;
+    }
+
+    /**
+     * 채널별 씨드머니 설정을 가져옵니다.
+     */
+    async getChannelSeedMoney(): Promise<{
+        beginner: { seedMoney1: number, seedMoney2: number, seedMoney3: number, seedMoney4: number },
+        intermediate: { seedMoney1: number, seedMoney2: number, seedMoney3: number, seedMoney4: number },
+        advanced: { seedMoney1: number, seedMoney2: number, seedMoney3: number, seedMoney4: number },
+        expert: { seedMoney1: number, seedMoney2: number, seedMoney3: number, seedMoney4: number },
+        royal: { seedMoney1: number, seedMoney2: number, seedMoney3: number, seedMoney4: number }
+    }> {
+        try {
+            const channelSeedMoneyRaw = await this.getSetting<string>('channelSeedMoney');
+            this.logger.log(`[GameSettings] getChannelSeedMoney 호출`);
+            this.logger.log(`[GameSettings] 원본 channelSeedMoney:`, channelSeedMoneyRaw);
+
+            // 기본값 제공
+            const defaultChannelSeedMoney = {
+                beginner: { seedMoney1: 15, seedMoney2: 30, seedMoney3: 60, seedMoney4: 90 },
+                intermediate: { seedMoney1: 120, seedMoney2: 180, seedMoney3: 240, seedMoney4: 300 },
+                advanced: { seedMoney1: 420, seedMoney2: 540, seedMoney3: 660, seedMoney4: 780 },
+                expert: { seedMoney1: 990, seedMoney2: 1200, seedMoney3: 1410, seedMoney4: 1620 },
+                royal: { seedMoney1: 2100, seedMoney2: 2100, seedMoney3: 2100, seedMoney4: 2100 }
+            };
+
+            if (channelSeedMoneyRaw) {
+                const parsed = JSON.parse(channelSeedMoneyRaw);
+                this.logger.log(`[GameSettings] 파싱된 channelSeedMoney:`, parsed);
+                return parsed;
+            } else {
+                this.logger.log(`[GameSettings] 기본값 사용:`, defaultChannelSeedMoney);
+                return defaultChannelSeedMoney;
+            }
+        } catch (error) {
+            this.logger.error('[GameSettings] 채널별 씨드머니 파싱 에러:', error);
+            return {
+                beginner: { seedMoney1: 15, seedMoney2: 30, seedMoney3: 60, seedMoney4: 90 },
+                intermediate: { seedMoney1: 120, seedMoney2: 180, seedMoney3: 240, seedMoney4: 300 },
+                advanced: { seedMoney1: 420, seedMoney2: 540, seedMoney3: 660, seedMoney4: 780 },
+                expert: { seedMoney1: 990, seedMoney2: 1200, seedMoney3: 1410, seedMoney4: 1620 },
+                royal: { seedMoney1: 2100, seedMoney2: 2100, seedMoney3: 2100, seedMoney4: 2100 }
             };
         }
     }

@@ -162,7 +162,7 @@ export class CardUpdateDto {
 
 export class ChipRechargeDto {
     @IsNumber()
-    silverChips: number;
+    goldChips: number;
 
     @IsString()
     userSelect: string;

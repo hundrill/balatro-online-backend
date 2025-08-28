@@ -3,6 +3,22 @@ export class GetSpecialCardsResponseDto {
     code: number;
     message: string;
     specialCards: SpecialCardApiDto[];
+    channelSeedMoney: ChannelSeedMoneyDto;
+}
+
+export class ChannelSeedMoneyDto {
+    beginner: SeedMoneyDataDto;
+    intermediate: SeedMoneyDataDto;
+    advanced: SeedMoneyDataDto;
+    expert: SeedMoneyDataDto;
+    royal: SeedMoneyDataDto;
+}
+
+export class SeedMoneyDataDto {
+    seedMoney1: number;
+    seedMoney2: number;
+    seedMoney3: number;
+    seedMoney4: number;
 }
 
 export class SpecialCardApiDto {

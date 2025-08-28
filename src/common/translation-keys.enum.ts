@@ -17,6 +17,7 @@ export enum TranslationKeys {
     // Economy / purchases
     InsufficientFunds = 'insufficient_funds',
     InsufficientFundsForCard = 'insufficient_funds_for_card',
+    InsufficientChipsForRoomEntry = 'insufficient_chips_for_room_entry',
     PurchaseFailed = 'purchase_failed',
     CardPurchaseCompleted = 'card_purchase_completed',
     CardSaleCompleted = 'card_sale_completed',

@@ -17,6 +17,7 @@ import { PrismaService } from '../prisma.service';
 import { Query } from '@nestjs/common';
 import { Request } from 'express';
 import { RoomValidator } from '../common/validators/room.validator';
+import { GameSettingsService } from '../common/services/game-settings.service';
 
 @Controller('rooms')
 export class RoomController {
@@ -44,6 +45,7 @@ export class RoomController {
     }
   }
 
+  /* 주석 제거 하지 말 것
   @Post()
   async create(
     @Body('channelId') channelId: number,
@@ -69,6 +71,7 @@ export class RoomController {
       throw error;
     }
   }
+*/
 
   // Redis 기반 방 생성
   @Post('create')
@@ -137,51 +140,33 @@ export class RoomController {
   @Get('special-cards')
   async getSpecialCards(@Query('language') language?: string): Promise<GetSpecialCardsResponseDto> {
     try {
-      this.logger.log('GET /rooms/special-cards - Fetching special cards data');
+      this.logger.log(`GET /rooms/special-cards - Fetching special cards with language: ${language || 'default'}`);
 
-      // 활성화된 스페셜카드 데이터 가져오기
-      const activeSpecialCards = this.specialCardManagerService.getActiveSpecialCards();
-
-      // 요청 언어 처리 (기본 ko)
-      const lang = (language === 'id' || language === 'en' || language === 'ko') ? language : 'ko';
-
-      const ids = activeSpecialCards.map(c => c.id);
-      const dbCards = await this.prisma.specialCard.findMany({
-        where: { id: { in: ids } },
-        select: { id: true, description: true, descriptionKo: true, descriptionId: true, descriptionEn: true }
-      });
-      const idToDesc: Record<string, string> = {};
-      for (const c of dbCards) {
-        const ko = c.descriptionKo || c.description || '';
-        const id = c.descriptionId || ko;
-        const en = c.descriptionEn || ko;
-        idToDesc[c.id] = lang === 'id' ? id : (lang === 'en' ? en : ko);
-      }
-
-      // SpecialCardData를 SpecialCardApiDto로 변환
-      const specialCardsApi: SpecialCardApiDto[] = activeSpecialCards.map(card => ({
+      // 특별 카드 데이터 가져오기
+      const specialCards = this.specialCardManagerService.getActiveSpecialCards();
+      const specialCardsApi: SpecialCardApiDto[] = specialCards.map((card: any) => ({
         id: card.id,
         name: card.name,
-        description: idToDesc[card.id] ?? card.description,
+        description: card.description,
         price: card.price,
         sprite: card.sprite,
-        type: card.type.toString(),
-        baseValue: card.baseValue || null,
-        increase: card.increase || null,
-        decrease: card.decrease || null,
-        maxValue: card.maxValue || null,
-        needCardCount: card.needCardCount || null,
+        type: card.type,
+        baseValue: card.baseValue,
+        increase: card.increase,
+        decrease: card.decrease,
+        maxValue: card.maxValue,
+        needCardCount: card.needCardCount,
         enhanceChips: card.enhanceChips || null,
         enhanceMul: card.enhanceMul || null,
         isActive: card.isActive !== false,
 
         // 조건-효과 시스템 필드들
-        effectTimings: card.effectTimings?.map(timing => timing.toString()) || null,
-        effectTypes: card.effectTypes?.map(effectType => effectType.toString()) || null,
+        effectTimings: card.effectTimings?.map((timing: any) => timing.toString()) || null,
+        effectTypes: card.effectTypes?.map((effectType: any) => effectType.toString()) || null,
         effectOnCards: card.effectOnCards || null,
-        conditionTypes: card.conditionTypes?.map(conditionType => conditionType.toString()) || null,
+        conditionTypes: card.conditionTypes?.map((conditionType: any) => conditionType.toString()) || null,
         conditionValues: card.conditionValues || null,
-        conditionOperators: card.conditionOperators?.map(operatorType => operatorType.toString()) || null,
+        conditionOperators: card.conditionOperators?.map((operatorType: any) => operatorType.toString()) || null,
         conditionNumericValues: card.conditionNumericValues || null,
       }));
 
@@ -216,11 +201,18 @@ export class RoomController {
         });
       }
 
+      // 채널별 씨드머니 데이터 가져오기
+      const gameSettingsService = new GameSettingsService(this.prisma);
+      const channelSeedMoney = await gameSettingsService.getChannelSeedMoney();
+
+      this.logger.log(`GET /rooms/special-cards - Channel seed money:`, channelSeedMoney);
+
       const response: GetSpecialCardsResponseDto = {
         success: true,
         code: 0,
         message: 'Special cards data retrieved successfully',
-        specialCards: specialCardsApi
+        specialCards: specialCardsApi,
+        channelSeedMoney: channelSeedMoney
       };
 
       return response;
@@ -231,7 +223,14 @@ export class RoomController {
         success: false,
         code: 1000,
         message: 'Internal server error while fetching special cards',
-        specialCards: []
+        specialCards: [],
+        channelSeedMoney: {
+          beginner: { seedMoney1: 15, seedMoney2: 30, seedMoney3: 60, seedMoney4: 90 },
+          intermediate: { seedMoney1: 120, seedMoney2: 180, seedMoney3: 240, seedMoney4: 300 },
+          advanced: { seedMoney1: 420, seedMoney2: 540, seedMoney3: 660, seedMoney4: 780 },
+          expert: { seedMoney1: 990, seedMoney2: 1200, seedMoney3: 1410, seedMoney4: 1620 },
+          royal: { seedMoney1: 2100, seedMoney2: 2100, seedMoney3: 2100, seedMoney4: 2100 }
+        }
       };
 
       return errorResponse;

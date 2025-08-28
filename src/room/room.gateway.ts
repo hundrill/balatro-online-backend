@@ -55,6 +55,7 @@ import { LocalizationService } from '../common/services/localization.service';
 import { RoomPhase } from './room-phase.enum';
 import { StartGameResponseDto } from './socket-dto/start-game-response.dto';
 
+
 interface SocketSession {
   userId: string;
   roomId: string | null;
@@ -581,7 +582,20 @@ export class RoomGateway
 
       try {
         // RoomService를 통해 방에 입장 (Redis players 값 업데이트)
-        await this.roomService.joinRoom(data.roomId, userId);
+        const joinResult = await this.roomService.joinRoom(data.roomId, userId);
+
+        // 🆕 입장 결과 확인
+        if (!joinResult.success) {
+          this.logger.warn(`[handleJoinRoom] Room entry failed: ${joinResult.message}`);
+          this.emitUserResponse(
+            client,
+            new JoinRoomResponseDto({
+              success: false,
+              message: this.localizationService.getText(TranslationKeys.InsufficientChipsForRoomEntry, this.getUserLanguage(client))
+            }),
+          );
+          return;
+        }
 
         // 성공했을 때만 Socket.IO 방 참가 및 세션 업데이트
         await client.join(data.roomId);
@@ -592,7 +606,7 @@ export class RoomGateway
           session.roomId = data.roomId;
         }
 
-        this.emitUserResponse(client, new JoinRoomResponseDto({}));
+        this.emitUserResponse(client, new JoinRoomResponseDto({ success: true }));
       } catch (error) {
         // RoomService 입장 실패 시 에러 응답
         this.logger.error(
@@ -601,7 +615,8 @@ export class RoomGateway
         );
         this.emitUserResponse(
           client,
-          new ErrorResponseDto({
+          new JoinRoomResponseDto({
+            success: false,
             message: this.localizationService.getText(TranslationKeys.RoomNotFound, this.getUserLanguage(client))
           }),
         );

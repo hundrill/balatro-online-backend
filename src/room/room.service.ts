@@ -9,6 +9,7 @@ import {
   UserNotInRoomException,
   RedisConnectionException,
 } from '../common/exceptions/room.exception';
+
 import { CardData, createDeck, shuffle } from './deck.util';
 import { SpecialCardData } from './special-card-manager.service';
 import { UserService } from '../user/user.service';
@@ -216,6 +217,7 @@ export class RoomService {
     }
   }
 
+  /* 주석 제거 하지 말 것
   async create(data: { channelId: number; name: string; status: string }) {
     try {
       this.logger.log(`Creating room: ${data.name}`);
@@ -230,6 +232,7 @@ export class RoomService {
       throw error;
     }
   }
+  */
 
   async createRoom(
     name: string,
@@ -242,12 +245,12 @@ export class RoomService {
       this.logger.debug(`Creating Redis room: ${name}`);
       const roomId = uuidv4();
       const roomKey = `room:${roomId}`;
-      // TODO: 임시로 GameSettingsService에서 시드머니 값을 가져옴
-      // 나중에는 클라이언트에서 받은 값으로 설정하도록 수정 예정
+
       let finalChipType = chipType;
       let finalSeedAmount = seedAmount;
       let finalBettingAmount = bettingAmount;
 
+      /* 주석 제거 하지 말 것
       try {
         const chipSettings = await this.prisma.gameSetting.findFirst({
           where: { id: 'chipSettings', isActive: true }
@@ -268,6 +271,7 @@ export class RoomService {
       } catch (error) {
         this.logger.error(`[createRoom] Redis 저장용 시드머니 설정 오류, 기본값 사용`, error);
       }
+      */
 
       const roomData = {
         roomId,
@@ -300,7 +304,7 @@ export class RoomService {
       this.gameStates.set(roomId, roomState);
 
       // 라운드별 최대 상금 초기화
-      await this.initializeRoundMaxPrizes(roomId);
+      await this.initializeRoundMaxPrizes(roomId, finalSeedAmount);
 
       return roomData;
     } catch (error) {
@@ -314,7 +318,7 @@ export class RoomService {
     }
   }
 
-  async joinRoom(roomId: string, userId: string) {
+  async joinRoom(roomId: string, userId: string): Promise<{ success: boolean; message?: string; data?: any }> {
     try {
       this.logger.debug(`User ${userId} attempting to join room ${roomId}`);
       const client = this.redisService.getClient();
@@ -327,6 +331,29 @@ export class RoomService {
       const currentPlayers = parseInt(room.players || '1', 10);
       const maxPlayers = parseInt(room.maxPlayers || '4', 10);
       if (currentPlayers >= maxPlayers) throw new RoomFullException(roomId);
+
+      // 🆕 입장 제한 머니 검증
+      const seedAmount = parseInt(room.seedAmount || '0', 10);
+      if (seedAmount > 0) {
+        const entryRequirement = Math.round((110.0 / 3.0) * seedAmount);
+
+        // 사용자 칩 정보 조회
+        const user = await this.userService.findByUserId(userId);
+        if (user) {
+          const chipType = room.chipType || 'gold';
+          const userChips = chipType === 'gold' ? (user.goldChip || 0) : (user.silverChip || 0);
+
+          this.logger.log(`[joinRoom] Entry requirement check: userId=${userId}, seedAmount=${seedAmount}, entryRequirement=${entryRequirement}, userChips=${userChips}, chipType=${chipType}`);
+
+          if (userChips < entryRequirement) {
+            return {
+              success: false,
+              message: `Insufficient chips. Required: ${entryRequirement}, Available: ${userChips}`
+            };
+          }
+        }
+      }
+
       const newPlayers = currentPlayers + 1;
 
       this.logger.log(`[joinRoom] userId=${userId}, roomId=${roomId}, currentPlayers=${currentPlayers} → newPlayers=${newPlayers}`);
@@ -341,7 +368,7 @@ export class RoomService {
       // 유저 닉네임 저장
       await this.setUserNickname(roomId, userId);
 
-      return { ...room, players: newPlayers };
+      return { success: true, data: { ...room, players: newPlayers } };
     } catch (error: unknown) {
       if (error instanceof HttpException) throw error;
       this.logger.error(
@@ -1898,11 +1925,22 @@ export class RoomService {
     };
   }
 
-  /**
-   * 방 생성 시 기본 라운드별 최대 상금을 설정합니다.
-   */
-  async initializeRoundMaxPrizes(roomId: string): Promise<void> {
+
+  private calculateRoundMaxPrizes(finalSeedAmount: number): number[] {
+    const prizes: number[] = [];
+    const basePrize = finalSeedAmount / 3.0;
+
+    for (let i = 1; i <= 5; i++) {
+      const prize = (i / 5.0) * basePrize;
+      prizes.push(Math.round(prize > 0 ? prize : 1));
+    }
+
+    return prizes;
+  }
+
+  async initializeRoundMaxPrizes(roomId: string, finalSeedAmount: number): Promise<void> {
     try {
+      /* 주석 제거 하지 말 것
       // dev-tools의 칩 설정에서 라운드별 상금 가져오기
       const chipSettings = await this.prisma.gameSetting.findFirst({
         where: { id: 'chipSettings', isActive: true }
@@ -1916,16 +1954,18 @@ export class RoomService {
           return;
         }
       }
+      */
 
-      // 칩 설정이 없거나 유효하지 않으면 기본값 사용
-      this.getRoomState(roomId).roundMaxPrizes = [1, 2, 3, 4, 5];
-      this.logger.log(`[initializeRoundMaxPrizes] roomId=${roomId}, 기본값 설정 완료`);
+      const roundPrizes = this.calculateRoundMaxPrizes(finalSeedAmount);
+      this.getRoomState(roomId).roundMaxPrizes = roundPrizes;
+      this.logger.log(`[initializeRoundMaxPrizes] roomId=${roomId}, finalSeedAmount=${finalSeedAmount}, 라운드별 상금: ${roundPrizes.join(', ')}`);
     } catch (error) {
       // 오류 발생 시 기본값 사용
       this.getRoomState(roomId).roundMaxPrizes = [1, 2, 3, 4, 5];
       this.logger.error(`[initializeRoundMaxPrizes] 오류 발생, 기본값 사용: roomId=${roomId}`, error);
     }
   }
+
 
   /**
    * 방에서 퇴장할 때 유저의 칩 정보를 DB에 저장합니다.
@@ -2886,8 +2926,8 @@ export class RoomService {
   }
 
   /**
- * 유저의 모든 족보 레벨 정보를 가져옵니다.
- */
+  * 유저의 모든 족보 레벨 정보를 가져옵니다.
+  */
   getUserPaytableLevels(roomId: string, userId: string): Record<string, number> {
     const levels: Record<string, number> = {};
 

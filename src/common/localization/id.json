@@ -354,7 +354,11 @@
         },
         {
             "key": "insufficient_funds_for_card",
-            "value": "Dana tidak mencukupi untuk pembelian kartu"
+            "value": "Dana tidak cukup untuk membeli kartu"
+        },
+        {
+            "key": "insufficient_chips_for_room_entry",
+            "value": "Chip tidak cukup untuk masuk ruangan"
         },
         {
             "key": "card_sale_completed",
