@@ -66,9 +66,10 @@ interface SocketSession {
   cors: true,
   // pingInterval: 25000,
   // pingTimeout: 20000,
-  pingInterval: 55000,
-  pingTimeout: 50000,
+  pingInterval: 60000 * 5 + 5000,
+  pingTimeout: 60000 * 5,
   transports: ['websocket']
+  // transports: ['polling']
 })
 
 export class RoomGateway

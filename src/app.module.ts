@@ -12,6 +12,7 @@ import { LobbyModule } from './lobby/lobby.module';
 import { AdminModule } from './admin/admin.module';
 import { DevToolsModule } from './dev-tools/dev-tools.module';
 import { CommonModule } from './common/common.module';
+import { StressTestModule } from './stresstest/stresstest.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { CommonModule } from './common/common.module';
     AdminModule,
     DevToolsModule,
     CommonModule,
+    StressTestModule,
   ],
   controllers: [AppController],
   providers: [AppService],
