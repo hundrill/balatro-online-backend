@@ -54,6 +54,8 @@ import { TranslationKeys } from '../common/translation-keys.enum';
 import { LocalizationService } from '../common/services/localization.service';
 import { RoomPhase } from './room-phase.enum';
 import { StartGameResponseDto } from './socket-dto/start-game-response.dto';
+import { IAPBuyRequestDto } from './socket-dto/iap-buy-request.dto';
+import { IAPBuyResponseDto } from './socket-dto/iap-buy-response.dto';
 
 
 interface SocketSession {
@@ -401,7 +403,7 @@ export class RoomGateway
     const users = await this.getRoomUserInfos(roomId);
     const currentPhase = this.roomService.getRoomPhase(roomId);
     const round = this.roomService.getRound(roomId);
-    const seedAmount = this.roomService.getBaseSeedAmount(roomId);
+    const seedAmount = this.roomService.getSeedChip(roomId);
     const chipsTable = this.roomService.getTableChips(roomId);
     const chipsRound = this.roomService.getRoundChips(roomId, false);
 
@@ -764,21 +766,19 @@ export class RoomGateway
 
     if (!this.validateRoomPhase(roomId, RoomPhase.WAITING, userId)) return;
 
-    this.roomService.setReady(roomId, userId);
+    const setReadyResult = await this.roomService.setReady(roomId, userId);
+
     this.logger.log(
-      `[handleReady] setReady 완료: userId=${userId}, roomId=${roomId}`,
+      `[handleReady] setReady 완료: userId=${userId}, roomId=${roomId}, result=${JSON.stringify(setReadyResult)}`,
     );
 
     // 모든 방 안 유저에게 StartGameResponseDto 전송
-    const startGameResponse = new StartGameResponseDto({
-      userId: userId
-    });
-    this.emitRoomResponse(roomId, startGameResponse);
+    this.emitRoomResponse(roomId, setReadyResult);
     this.logger.log(
       `[handleReady] StartGameResponseDto 전송 완료: roomId=${roomId}, userId=${userId}`,
     );
 
-    if (this.roomService.canStart(roomId)) {
+    if (await this.roomService.canStart(roomId)) {
       this.logger.log(
         `[handleReady] 모든 유저 준비 완료, 게임 시작: roomId=${roomId}`,
       );
@@ -1504,6 +1504,46 @@ export class RoomGateway
         message: TranslationKeys.ServerError,
       });
       this.emitUserResponse(client, res);
+    }
+  }
+
+  @SubscribeMessage(IAPBuyRequestDto.requestEventName)
+  async handleIAPBuyRequest(
+    @MessageBody() data: IAPBuyRequestDto,
+    @ConnectedSocket() client: Socket,
+  ) {
+    this.logger.log(`[handleIAPBuyRequest] IAP 구매 요청 수신: itemId=${data.itemId}`);
+
+    try {
+      // userId 추출 (세션에서)
+      const session = this.socketSessions.get(client.id);
+      if (!session || !session.userId) {
+        this.logger.error('[handleIAPBuyRequest] userId가 없습니다.');
+        this.emitUserResponse(
+          client,
+          new IAPBuyResponseDto({
+            success: false,
+            message: 'User not authenticated'
+          })
+        );
+        return;
+      }
+
+      // IAP 구매 처리
+      const response = await this.roomService.handleIAPBuyRequest(session.userId, data);
+
+      // 응답 전송
+      this.emitUserResponse(client, response);
+
+    } catch (error) {
+      this.logger.error(`[handleIAPBuyRequest] IAP 구매 처리 실패: ${error.message}`);
+      this.emitUserResponse(
+        client,
+        new IAPBuyResponseDto({
+          success: false,
+          message: error.message
+        })
+      );
     }
   }
 

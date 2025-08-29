@@ -25,6 +25,9 @@ import { RoomPhase } from './room-phase.enum';
 import { BettingState } from './betting-state.interface';
 import { BettingType } from './betting-type.enum';
 import { BettingResponseDto } from './socket-dto/betting-response.dto';
+import { IAPBuyRequestDto } from './socket-dto/iap-buy-request.dto';
+import { IAPBuyResponseDto } from './socket-dto/iap-buy-response.dto';
+import { StartGameResponseDto } from './socket-dto/start-game-response.dto';
 
 // RoomState 인터페이스 정의
 interface RoomState {
@@ -335,7 +338,7 @@ export class RoomService {
       // 🆕 입장 제한 머니 검증
       const seedAmount = parseInt(room.seedAmount || '0', 10);
       if (seedAmount > 0) {
-        const entryRequirement = Math.round((110.0 / 3.0) * seedAmount);
+        const entryRequirement = this.calculateEntryRequirement(seedAmount);
 
         // 사용자 칩 정보 조회
         const user = await this.userService.findByUserId(userId);
@@ -418,7 +421,7 @@ export class RoomService {
             const room = await client.hgetall(`room:${roomId}`);
             if (room && room.roomId) {
               // 시드 칩 정보 추가
-              const seedChip = this.getBaseSeedAmount(roomId);
+              const seedChip = this.getSeedChip(roomId);
 
               // 명확한 타입으로 변환하여 players 필드 확인
               const roomData: RoomDataDto = {
@@ -554,12 +557,37 @@ export class RoomService {
   //   }
   // }
 
-  setReady(roomId: string, userId: string) {
+  /**
+   * 유저가 플레이에 필요한 칩을 가지고 있는지 확인합니다.
+   */
+  private async hasEnoughChipsForPlay(roomId: string, userId: string): Promise<boolean> {
+    const seedChip = this.getSeedChip(roomId);
+    const playRequirement = this.calculatePlayRequirement(seedChip);
+    const userChips = await this.getUserChips(roomId, userId);
+
+    return playRequirement <= userChips.chips;
+  }
+
+  async setReady(roomId: string, userId: string): Promise<StartGameResponseDto> {
+
+    if (!(await this.hasEnoughChipsForPlay(roomId, userId))) {
+      return new StartGameResponseDto({
+        success: false,
+        message: 'Not enough gold chips',
+        userId: userId
+      });
+    }
+
     const roomState = this.getRoomState(roomId);
     roomState.gameReadySet.add(userId);
     this.logger.log(
       `[setReady] userId=${userId}가 roomId=${roomId}에서 준비 완료`,
     );
+
+    return new StartGameResponseDto({
+      success: true,
+      userId: userId
+    });
   }
 
   // Gateway 접근 로직 분리
@@ -585,7 +613,7 @@ export class RoomService {
     return userIds;
   }
 
-  canStart(roomId: string): boolean {
+  async canStart(roomId: string): Promise<boolean> {
     try {
       // Gateway 인스턴스 확인
       const gateway = this.getGatewayInstance();
@@ -603,17 +631,28 @@ export class RoomService {
         return false;
       }
 
+      // 칩이 있는 유저들만 필터링
+      const usersWithEnoughChips: string[] = [];
+      for (const userId of userIds) {
+        if (await this.hasEnoughChipsForPlay(roomId, userId)) {
+          usersWithEnoughChips.push(userId);
+        }
+      }
+
+      if (usersWithEnoughChips.length === 0) {
+        this.logger.warn(`[canStart] roomId=${roomId}에 칩이 있는 유저가 없음`);
+        return false;
+      }
+
       // 준비된 유저들 가져오기
       const roomState = this.getRoomState(roomId);
       const readyUsers = Array.from(roomState.gameReadySet);
 
-      // 모든 유저가 준비되었는지 확인
-      const allReady =
-        userIds.length > 0 &&
-        userIds.every((userId) => readyUsers.includes(userId));
+      // 칩이 있는 유저들이 모두 준비되었는지 확인
+      const allReady = usersWithEnoughChips.every((userId) => readyUsers.includes(userId));
 
       this.logger.log(
-        `[canStart] roomId=${roomId}, allReady=${allReady}, users=${userIds.join(',')}, ready=${readyUsers.join(',')}`,
+        `[canStart] roomId=${roomId}, allReady=${allReady}, usersWithChips=${usersWithEnoughChips.join(',')}, ready=${readyUsers.join(',')}`,
       );
 
       return allReady;
@@ -689,9 +728,21 @@ export class RoomService {
     let participatingUserIds: string[];
 
     if (round === 1) {
-      // 1라운드: 모든 유저 참여
-      participatingUserIds = [...userIds];
-      this.logger.log(`[startGame] 1라운드 - 모든 유저 참여: ${participatingUserIds.join(',')}`);
+      // 1라운드: 칩이 충분한 유저만 참여
+      const usersWithEnoughChips: string[] = [];
+      for (const userId of userIds) {
+        if (await this.hasEnoughChipsForPlay(roomId, userId)) {
+          usersWithEnoughChips.push(userId);
+        }
+      }
+      participatingUserIds = usersWithEnoughChips;
+      this.logger.log(`[startGame] 1라운드 - 칩이 충분한 유저만 참여: ${participatingUserIds.join(',')}`);
+
+      // 1라운드에서 칩이 있는 유저가 없으면 게임 시작 중단
+      if (participatingUserIds.length === 0) {
+        this.logger.warn(`[startGame] 1라운드 - 칩이 있는 유저가 없어 게임 시작 중단: roomId=${roomId}`);
+        return;
+      }
     } else {
       // 2라운드 이상: playing 상태인 유저만 참여
       participatingUserIds = this.getPlayingUserIds(roomId, userIds);
@@ -762,7 +813,7 @@ export class RoomService {
     if (round === 1) {
       // this.resetBettingChips(roomId);
 
-      const baseSeedAmount = this.getBaseSeedAmount(roomId);
+      const baseSeedAmount = this.getSeedChip(roomId);
 
       // 유저별 시드머니 납부 처리
       for (const uid of userIds) {
@@ -1242,7 +1293,7 @@ export class RoomService {
   }
 
   // === 기본 seed 칩 (고정값) ===
-  getBaseSeedAmount(roomId: string): number {
+  getSeedChip(roomId: string): number {
     return this.getRoomState(roomId).chipSettings.seedAmount;
   }
 
@@ -2771,7 +2822,7 @@ export class RoomService {
     const myCards = this.getUserHand(roomId, userId);
     const round = this.getRound(roomId);
     const chipType = this.getRoomState(roomId).chipSettings.chipType;
-    const seedAmount = this.getBaseSeedAmount(roomId);
+    const seedAmount = this.getSeedChip(roomId);
     // const bettingAmount = this.getCurrentBettingAmount(roomId);
 
     // 내 덱의 총 카드 수 계산 (초기 총 개수 표시용으로 핸드 카드 8장 포함)
@@ -3392,5 +3443,101 @@ export class RoomService {
       callAmount: callAmountCalculated,
       isFirst
     };
+  }
+
+  /**
+   * IAP 구매 요청을 처리합니다.
+   */
+  async handleIAPBuyRequest(userId: string, data: IAPBuyRequestDto): Promise<IAPBuyResponseDto> {
+    this.logger.log(`[handleIAPBuyRequest] IAP 구매 요청: userId=${userId}, itemId=${data.itemId}`);
+
+    try {
+      // 1. 게임룸 입장 상태 확인
+      const userRoomId = this.getUserRoomId(userId);
+      const isInGameRoom = userRoomId !== null;
+
+      this.logger.log(`[handleIAPBuyRequest] 유저 상태: userId=${userId}, roomId=${userRoomId}, isInGameRoom=${isInGameRoom}`);
+
+      if (isInGameRoom) {
+        // 2-1. 게임룸에 있는 경우: 메모리만 업데이트
+        const roomState = this.getRoomState(userRoomId);
+        const userChips = roomState.userChipsMap.get(userId);
+
+        if (!userChips) {
+          this.logger.error(`[handleIAPBuyRequest] 메모리에서 유저 칩 정보를 찾을 수 없음: userId=${userId}, roomId=${userRoomId}`);
+          throw new Error('User chips not found in memory');
+        }
+
+        const currentChips = userChips.chips || 0;
+        const newChips = currentChips + 10000;
+        // const newChips = 1;
+
+        // 메모리 업데이트
+        roomState.userChipsMap.set(userId, {
+          chips: newChips,
+          funds: userChips.funds || 0
+        });
+
+        this.logger.log(`[handleIAPBuyRequest] 메모리 업데이트 완료: userId=${userId}, roomId=${userRoomId}, chips=${currentChips} -> ${newChips}`);
+
+        return new IAPBuyResponseDto({
+          success: true,
+          finalChips: newChips
+        });
+      } else {
+        // 2-2. 게임룸에 없는 경우: DB 업데이트
+        const user = await this.userService.findByUserId(userId);
+
+        if (!user) {
+          this.logger.error(`[handleIAPBuyRequest] 유저를 찾을 수 없음: userId=${userId}`);
+          throw new Error('User not found');
+        }
+
+        const currentChips = user.goldChip || 0;
+        const newChips = currentChips + 10000;
+
+        // 데이터베이스 업데이트 (silverChip은 그대로 유지)
+        await this.userService.saveUserChips(userId, user.silverChip || 0, newChips);
+
+        this.logger.log(`[handleIAPBuyRequest] DB 업데이트 완료: userId=${userId}, chips=${currentChips} -> ${newChips}`);
+
+        return new IAPBuyResponseDto({
+          success: true,
+          finalChips: newChips
+        });
+      }
+    } catch (error) {
+      this.logger.error(`[handleIAPBuyRequest] IAP 구매 실패: userId=${userId}, error=${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * 유저가 속한 게임룸 ID를 반환합니다.
+   */
+  private getUserRoomId(userId: string): string | null {
+    // 모든 게임룸을 순회하여 유저가 속한 룸 찾기
+    for (const [roomId, roomState] of this.gameStates.entries()) {
+      // userChipsMap에 유저가 있으면 해당 룸에 속한 것
+      if (roomState.userChipsMap.has(userId)) {
+        return roomId;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * 입장 제한 머니를 계산합니다.
+   */
+  private calculateEntryRequirement(seedAmount: number): number {
+    // 정수 연산으로 정확한 계산 (올림)
+    return Math.ceil((110 * seedAmount) / 3);
+  }
+
+  /**
+   * 플레이 제한 머니를 계산합니다.
+   */
+  private calculatePlayRequirement(seedAmount: number): number {
+    return Math.round((110.0 / 3.0) * seedAmount / 10);
   }
 }
