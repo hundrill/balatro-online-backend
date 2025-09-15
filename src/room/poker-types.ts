@@ -51,8 +51,11 @@ export class PokerHandResult {
     ) { }
 }
 
+export type RandomValue = { id: string; value: number };
+
 // 핸드 컨텍스트 클래스 (조커 효과 적용용)
 export class HandContext {
+    public userId: string = '';  // 유저 ID 추가
     public playedCards: CardData[] = [];
     public unUsedCards: CardData[] = [];
     public currentCardData: CardData | null = null;
@@ -61,10 +64,9 @@ export class HandContext {
     public pokerHand: PokerHand = PokerHand.None;
     public unUsedPokerHand: PokerHand = PokerHand.None;
     public remainingDiscards: number = 0;
-    public remainingDeck: number = 0;
+    public remainingDeck: CardData[] = [];
     public totalDeck: number = 0;
-    public remainingSevens: number = 0;
-    public randomValue: number = 0;
+    public randomValue: RandomValue[] = [];
 
     // 추가된 속성들 (클라이언트와 동일)
     public unUsedHandType: string = '';
@@ -72,18 +74,31 @@ export class HandContext {
     public ownedJokers: string[] = [];
 
     // 사용하지 않은 카드 중 특정 무늬의 개수를 반환
-    countUnUsedCardsOfSuit(suit: CardType): number {
+    countSuitInUnUsedCards(suit: CardType): number {
         return this.unUsedCards.filter(card => card.suit === suit).length;
     }
 
-    // 족보에 사용한 카드 중 Ace가 몇 개인지 반환
-    countAcesInUsedCards(): number {
-        return this.playedCards.filter(card => card.rank === 1).length;
+    countNumberInUnUsedCards(number: number): number {
+        return this.unUsedCards.filter(card => card.rank === number).length;
     }
+
+    // 남은 덱에서 특정 숫자(랭크)의 카드가 몇 개 있는지 반환
+    countNumberInRemainingDeck(number: number): number {
+        return this.remainingDeck.filter(card => card.rank === number).length;
+    }
+
+    // 족보에 사용한 카드 중 Ace가 몇 개인지 반환
+    // countAcesInUsedCards(): number {
+    //     return this.playedCards.filter(card => card.rank === 1).length;
+    // }
 
     // 족보에 사용한 카드 중 특정 무늬가 몇 개인지 반환
     countSuitInUsedCards(suit: CardType): number {
         return this.playedCards.filter(card => card.suit === suit).length;
+    }
+
+    countNumberInUsedCards(number: number): number {
+        return this.playedCards.filter(card => card.rank === number).length;
     }
 
     // 족보에 사용한 카드가 count장이고, 모든 카드의 무늬가 인자와 같으면 true 반환

@@ -1,6 +1,7 @@
 export enum TranslationKeys {
     // Auth / version
     Login = 'login',
+    SaveLoginInfo = 'save_login_info',
     ClientVersionIncompatible = 'client_version_incompatible',
     AuthenticationFailed = 'authentication_failed',
 
@@ -55,7 +56,15 @@ export enum TranslationKeys {
     FoldPlayingStatusOnly = 'fold_playing_status_only',
     LastPlayerWins = 'last_player_wins',
     FoldCompleted = 'fold_completed',
-    FoldFailed = 'fold_failed'
+    FoldFailed = 'fold_failed',
+
+    // Kick out
+    UnauthorizedAction = 'unauthorized_action',
+    GameInProgress = 'game_in_progress',
+    CannotKickSelf = 'cannot_kick_self',
+    UserNotInRoom = 'user_not_in_room',
+    KickOutSuccess = 'kick_out_success',
+    KickOutFailed = 'kick_out_failed'
 }
 
 // TranslationKeys enum을 snake_case로 변환하는 헬퍼 함수

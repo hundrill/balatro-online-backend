@@ -4,6 +4,7 @@ import { DashboardController } from './dashboard.controller';
 import { CardsController } from './cards.controller';
 import { SettingsController } from './settings.controller';
 import { DevToolsService } from './dev-tools.service';
+import { CsvImporterService } from './csv-importer.service';
 import { RoomModule } from '../room/room.module';
 import { CommonModule } from '../common/common.module';
 import { FeedbackService } from './feedback.service';
@@ -14,7 +15,7 @@ import { FeedbackService } from './feedback.service';
         CommonModule,
     ],
     controllers: [DevToolsController, DashboardController, CardsController, SettingsController],
-    providers: [DevToolsService, FeedbackService],
+    providers: [DevToolsService, CsvImporterService, FeedbackService],
     exports: [DevToolsService],
 })
 export class DevToolsModule { } 

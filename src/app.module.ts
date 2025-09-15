@@ -13,6 +13,7 @@ import { AdminModule } from './admin/admin.module';
 import { DevToolsModule } from './dev-tools/dev-tools.module';
 import { CommonModule } from './common/common.module';
 import { StressTestModule } from './stresstest/stresstest.module';
+import { IAPModule } from './iap/iap.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { StressTestModule } from './stresstest/stresstest.module';
     DevToolsModule,
     CommonModule,
     StressTestModule,
+    IAPModule,
   ],
   controllers: [AppController],
   providers: [AppService],

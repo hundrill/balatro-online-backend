@@ -6,7 +6,7 @@ export class RoomDataDto {
     status: string;
     createdAt: number;
     seedChip?: number; // 시드 칩 정보 (선택적)
-    chipType?: string; // 칩 타입
+    chipType?: number; // 칩 타입
     seedAmount?: number; // 시드 머니
     bettingAmount?: number; // 베팅 머니
 }

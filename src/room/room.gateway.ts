@@ -10,9 +10,10 @@ import {
 } from '@nestjs/websockets';
 import { Logger, OnModuleInit } from '@nestjs/common';
 import { Socket, Server } from 'socket.io';
-import { RoomService } from './room.service';
+import { RoomService, ChipType } from './room.service';
 import { UserService } from '../user/user.service';
 import { AuthService } from '../auth/auth.service';
+import { JwtService } from '@nestjs/jwt';
 import { LoginRequestDto } from './socket-dto/login-request.dto';
 import { NextRoundReadyRequestDto } from './socket-dto/next-round-ready-request.dto';
 import { HandPlayReadyRequestDto } from './socket-dto/hand-play-ready-request.dto';
@@ -46,6 +47,8 @@ import { BettingResultDto } from './socket-dto/betting-result.dto';
 import { UseSpecialCardRequestDto } from './socket-dto/use-special-card-request.dto';
 import { UseSpecialCardResponseDto } from './socket-dto/use-special-card-response.dto';
 import { LastPlayerWinResponseDto } from './socket-dto/last-player-win-response.dto';
+import { KickOutRequestDto } from './socket-dto/kick-out-request.dto';
+import { KickOutResponseDto } from './socket-dto/kick-out-response.dto';
 import { SpecialCardManagerService } from './special-card-manager.service';
 import { isClientVersionSupported, MIN_CLIENT_VERSION, getVersionString } from '../common/constants/version.constants';
 import { DevToolsService } from '../dev-tools/dev-tools.service';
@@ -54,8 +57,6 @@ import { TranslationKeys } from '../common/translation-keys.enum';
 import { LocalizationService } from '../common/services/localization.service';
 import { RoomPhase } from './room-phase.enum';
 import { StartGameResponseDto } from './socket-dto/start-game-response.dto';
-import { IAPBuyRequestDto } from './socket-dto/iap-buy-request.dto';
-import { IAPBuyResponseDto } from './socket-dto/iap-buy-response.dto';
 
 
 interface SocketSession {
@@ -95,6 +96,7 @@ export class RoomGateway
     private readonly devToolsService: DevToolsService,
     private readonly gameSettingsService: GameSettingsService,
     private readonly localizationService: LocalizationService,
+    private readonly jwtService: JwtService,
   ) { }
 
 
@@ -125,30 +127,38 @@ export class RoomGateway
     return this.socketSessions.get(socketId)?.roomId || null;
   }
 
+  /**
+   * 사용자 ID로 소켓을 찾습니다.
+   */
+  private findSocketByUserId(userId: string): Socket | null {
+    for (const [socketId, session] of this.socketSessions.entries()) {
+      if (session.userId === userId) {
+        return this.server.sockets.sockets.get(socketId) || null;
+      }
+    }
+    return null;
+  }
 
   /**
    * 사용자를 방에서 제거합니다.
    */
-  private removeUserFromRoom(socketId: string): void {
-    const session = this.socketSessions.get(socketId);
+  private async removeUserFromRoom(roomId: string, userId: string, socket: Socket, isKickOut: boolean = false): Promise<void> {
+
+    const saveResult = await this.roomService.saveUserChipsOnLeave(roomId, userId);
+    this.emitUserResponse(socket, new LeaveRoomResponseDto({
+      silverChip: saveResult.silverChip,
+      goldChip: saveResult.goldChip,
+      isKickOuted: isKickOut
+    }));
+
+    await socket.leave(roomId);
+    await this.roomService.leaveRoom(roomId, userId);
+
+    const session = this.socketSessions.get(socket.id);
     if (session) {
       session.roomId = null;
     }
-  }
 
-  /**
-   * 특정 유저를 방에서 제거하고 세션을 관리합니다.
-   */
-  private removeUserFromRoomSession(roomId: string, userId: string): void {
-    // 해당 유저의 세션에서 방 제거
-    for (const [socketId, session] of this.socketSessions.entries()) {
-      if (session.userId === userId && session.roomId === roomId) {
-        session.roomId = null;
-        break; // 유저는 1개 방에만 있으므로 찾으면 종료
-      }
-    }
-
-    // 방에 남은 유저가 있는지 체크 (최적화)
     let remainingUserCount = 0;
     for (const session of this.socketSessions.values()) {
       if (session.roomId === roomId) {
@@ -161,7 +171,53 @@ export class RoomGateway
       // 방에 유저가 없으면 방 삭제
       this.roomService.deleteRoom(roomId);
     }
+    else {
+      const roomUsersResponse = await this.createRoomUsersResponseDto(roomId);
+      this.emitRoomResponse(roomId, roomUsersResponse);
+
+      // 마지막 플레이어 승리 처리
+      const lastPlayerWinResult = await this.roomService.handleLastPlayerWin(roomId);
+      if (lastPlayerWinResult.success && lastPlayerWinResult.lastWinnerId) {
+        // 마지막 플레이어 승리인 경우 별도 응답 전송
+        this.emitRoomResponse(
+          roomId,
+          new LastPlayerWinResponseDto({
+            lastWinnerId: lastPlayerWinResult.lastWinnerId,
+            chipsReward: lastPlayerWinResult.chipsReward || 0,
+            finalChips: lastPlayerWinResult.finalChips || 0,
+          })
+        );
+      }
+
+    }
   }
+
+  /**
+   * 특정 유저를 방에서 제거하고 세션을 관리합니다.
+   */
+  // private removeUserFromRoomSession(roomId: string, userId: string): void {
+  //   // 해당 유저의 세션에서 방 제거
+  //   for (const [socketId, session] of this.socketSessions.entries()) {
+  //     if (session.userId === userId && session.roomId === roomId) {
+  //       session.roomId = null;
+  //       break; // 유저는 1개 방에만 있으므로 찾으면 종료
+  //     }
+  //   }
+
+  //   // 방에 남은 유저가 있는지 체크 (최적화)
+  //   let remainingUserCount = 0;
+  //   for (const session of this.socketSessions.values()) {
+  //     if (session.roomId === roomId) {
+  //       remainingUserCount++;
+  //       if (remainingUserCount > 1) break; // 2명 이상이면 더 이상 체크할 필요 없음
+  //     }
+  //   }
+
+  //   if (remainingUserCount === 0) {
+  //     // 방에 유저가 없으면 방 삭제
+  //     this.roomService.deleteRoom(roomId);
+  //   }
+  // }
 
   /**
    * 소켓 응답 전송
@@ -260,8 +316,11 @@ export class RoomGateway
     try {
       const roomState = this.roomService.getRoomState(roomId);
 
-      // 5라운드 끝인 경우 베팅 라운드 시작
-      if (roomState.round === 5) {
+      const chipType = roomState.chipSettings.chipType;
+
+      // 5라운드 끝인 경우 베팅 라운드 시작 (GOLD 방만)
+      if (roomState.round === 5 && chipType === ChipType.GOLD) {
+
         this.roomService.startBettingRound(roomId);
         const bettingResponse = await this.roomService.createBettingResponse(roomId, true); // isFirst: true
         this.emitRoomResponse(roomId, new BettingResponseDto(bettingResponse));
@@ -272,13 +331,39 @@ export class RoomGateway
       const playingUserIds = this.roomService.getPlayingUserIds(roomId, this.getRoomUserIds(roomId));
       const result = await this.roomService.processHandPlayResult(roomId, playingUserIds);
 
+      // SILVER 방 보상 계산
+      let chipReward = 0;
+      let targetScore = 100;
+      if (chipType === ChipType.SILVER && roomState.round === 5) {
+        const totalScore = roomState.silverTotalScore;
+        chipReward = 100;
+        if (totalScore < targetScore) {
+          chipReward = Math.floor(chipReward * (totalScore / targetScore));
+        }
+
+        // SILVER 방에서 chipReward가 계산되면 유저 칩 업데이트
+        if (chipReward > 0) {
+          const userId = playingUserIds[0]; // 1인용 게임이므로 첫 번째 유저
+          await this.roomService.updateUserChips(roomId, userId, chipReward);
+
+          // roundResult의 finalChip 업데이트
+          if (result.roundResult[userId]) {
+            result.roundResult[userId].finalChips += chipReward;
+            result.roundResult[userId].chipsGain = chipReward;
+          }
+        }
+      }
+
       const handPlayRes = new HandPlayResultResponseDto({
         roundResult: result.roundResult,
-        round: roomState.round
+        round: roomState.round,
+        silverReward: chipType === ChipType.SILVER ? chipReward : undefined,
+        silverTotalScore: chipType === ChipType.SILVER ? roomState.silverTotalScore : undefined,
+        silverTargetScore: chipType === ChipType.SILVER ? targetScore : undefined
       });
 
-      // 4라운드 끝: 베팅 라운드 시작
-      if (roomState.round === 4) {
+      // 4라운드 끝: 베팅 라운드 시작 (GOLD 방만)
+      if (roomState.round === 4 && chipType === ChipType.GOLD) {
         this.roomService.startBettingRound(roomId);
         const bettingResponse = await this.roomService.createBettingResponse(roomId, true); // isFirst: true
 
@@ -287,7 +372,12 @@ export class RoomGateway
       }
       else {
         this.emitRoomResponse(roomId, handPlayRes);
-        await this.sendShopResponse(roomId);
+        if (roomState.round !== 5 || chipType === ChipType.GOLD) {
+          await this.sendShopResponse(roomId);
+        }
+        else {
+          await this.roomService.handleGameEnd(roomId);
+        }
       }
 
     } catch (error) {
@@ -309,9 +399,7 @@ export class RoomGateway
       });
 
       this.emitRoomResponse(roomId, handPlayRes);
-
       await this.roomService.handleGameEnd(roomId);
-
     } catch (error) {
       this.logger.error(`[processHandPlayResultAfterBetting] Error: roomId=${roomId}`, error);
     }
@@ -322,6 +410,8 @@ export class RoomGateway
    */
   private async sendShopResponse(roomId: string): Promise<void> {
     try {
+      this.roomService.setRoomPhase(roomId, RoomPhase.SHOP);
+
       const shopCardIds = this.roomService.getShopCards(roomId);
       const roomState = this.roomService.getRoomState(roomId);
       let chipsRound = this.roomService.getRoundChips(roomId, true);
@@ -427,6 +517,9 @@ export class RoomGateway
     // RoomService에서 유저 정보 가져오기
     const roomUserInfos = await this.roomService.getRoomUserInfos(roomId, userIds);
 
+    // 방장 아이디 가져오기
+    const roomOwnerId = this.roomService.getRoomOwner(roomId);
+
     const users = userIds.map((userId) => {
       const roomUserInfo = roomUserInfos[userId];
 
@@ -436,10 +529,12 @@ export class RoomGateway
         chips: roomUserInfo?.chips || 0,
         funds: roomUserInfo?.funds || 0,
         isPlaying: roomUserInfo?.isPlaying || false,
+        isRoomOwner: roomOwnerId === userId,  // 방장 여부
         ownedCards: roomUserInfo?.ownedCards || [],
         paytableLevels: roomUserInfo?.paytableLevels || {},
         paytableBaseChips: roomUserInfo?.paytableBaseChips || {},
         paytableMultipliers: roomUserInfo?.paytableMultipliers || {},
+        cardEnhancements: roomUserInfo?.cardEnhancements || {},
       };
     });
 
@@ -482,11 +577,53 @@ export class RoomGateway
 
   // === 연결 관리 ===
 
-  handleConnection(client: Socket) {
+  async handleConnection(client: Socket) {
     try {
       this.logger.log(
         `[handleConnection] WebSocket client connected: socketId=${client.id}`,
       );
+
+      // JWT 토큰에서 유저 정보 추출
+      const token = client.handshake.query.token as string;
+      if (!token) {
+        this.logger.warn(`[handleConnection] No token provided: socketId=${client.id}`);
+        return;
+      }
+
+      try {
+        // JWT 토큰 검증 및 디코딩
+        const decoded = this.jwtService.verify(token);
+        const userId = decoded.userId;
+
+        // 중복 접속 체크
+        const connectionResult = await this.authService.checkAndRegisterConnection(userId);
+        if (!connectionResult.isNewConnection) {
+          this.logger.warn(
+            `[handleConnection] User already connected: socketId=${client.id}, userId=${userId}`,
+          );
+          client.disconnect();
+          return;
+        }
+
+        // 세션 생성
+        this.socketSessions.set(client.id, {
+          userId: userId,
+          roomId: null,
+          language: decoded.language || 'en'
+        });
+
+        // 로그인할 때마다 DB에서 스페셜카드 데이터 다시 읽어들이기
+        await this.specialCardManagerService.initializeCards(this.roomService['prisma']);
+
+      } catch (jwtError) {
+        this.logger.error(
+          `[handleConnection] JWT verification failed: socketId=${client.id}`,
+          jwtError,
+        );
+        client.disconnect();
+        return;
+      }
+
     } catch (error) {
       this.logger.error(
         `[handleConnection] Error handling WebSocket connection: socketId=${client.id}`,
@@ -499,56 +636,18 @@ export class RoomGateway
     try {
       const session = this.socketSessions.get(client.id);
       const userId = session?.userId;
-      this.logger.log(
-        `[handleDisconnect] WebSocket client disconnected: socketId=${client.id}, userId=${userId}`,
-      );
+      const roomId = session?.roomId;
 
       if (userId) {
         await this.authService.removeConnection(userId);
-      }
 
-      // 세션에서 방 정보 가져오기
-      const roomId = session?.roomId;
-
-      // 세션 삭제
-      this.socketSessions.delete(client.id);
-
-      if (userId && roomId) {
-        // 연결이 끊어질 때도 칩 정보를 DB에 저장
-        await this.roomService.saveUserChipsOnLeave(roomId, userId);
-
-        // 서비스에서 유저 제거 (게임 로직)
-        await this.roomService.removeUserFromRoom(roomId, userId);
-
-        // Gateway에서 세션 관리
-        this.removeUserFromRoomSession(roomId, userId);
-      }
-
-      this.logger.log(
-        `[handleDisconnect] removeUserFromRoom called for userId=${userId} in roomId=${roomId}`,
-      );
-
-      if (roomId) {
-        const roomUsersResponse = await this.createRoomUsersResponseDto(roomId);
-        this.logger.log(
-          `[handleDisconnect] roomUsers emit: roomId=${roomId}, users=${JSON.stringify(roomUsersResponse.users)}`,
-        );
-        this.emitRoomResponse(roomId, roomUsersResponse);
-
-        // 마지막 플레이어 승리 처리
-        const lastPlayerWinResult = await this.roomService.handleLastPlayerWin(roomId);
-        if (lastPlayerWinResult.success && lastPlayerWinResult.lastWinnerId) {
-          // 마지막 플레이어 승리인 경우 별도 응답 전송
-          this.emitRoomResponse(
-            roomId,
-            new LastPlayerWinResponseDto({
-              lastWinnerId: lastPlayerWinResult.lastWinnerId,
-              chipsReward: lastPlayerWinResult.chipsReward || 0,
-              finalChips: lastPlayerWinResult.finalChips || 0,
-            })
-          );
+        if (roomId) {
+          this.removeUserFromRoom(roomId, userId, client);
         }
       }
+
+      this.socketSessions.delete(client.id);
+
     } catch (error) {
       this.logger.error(
         `[handleDisconnect] Error in handleDisconnect: socketId=${client.id}`,
@@ -564,6 +663,7 @@ export class RoomGateway
     @MessageBody() data: JoinRoomRequestDto,
     @ConnectedSocket() client: Socket,
   ) {
+    console.log(`[handleJoinRoomRequest] data: ${JSON.stringify(data)}`);
     try {
       // 소켓 세션에서 userId 조회
       const userId = this.getUserId(client.id);
@@ -577,10 +677,6 @@ export class RoomGateway
         );
         return;
       }
-
-      this.logger.log(
-        `[handleJoinRoom] joinRoom: socketId=${client.id}, userId=${userId}, roomId=${data.roomId}, payload=${JSON.stringify(data)}`,
-      );
 
       try {
         // RoomService를 통해 방에 입장 (Redis players 값 업데이트)
@@ -608,7 +704,11 @@ export class RoomGateway
           session.roomId = data.roomId;
         }
 
-        this.emitUserResponse(client, new JoinRoomResponseDto({ success: true }));
+        this.emitUserResponse(client, new JoinRoomResponseDto({
+          success: true,
+          chipType: joinResult.chipType || ChipType.SILVER,
+          timeLimit: joinResult.timeLimit || 0
+        }));
       } catch (error) {
         // RoomService 입장 실패 시 에러 응답
         this.logger.error(
@@ -626,14 +726,9 @@ export class RoomGateway
       }
 
       const roomUsersResponse = await this.createRoomUsersResponseDto(data.roomId);
-      this.logger.log(
-        `[handleJoinRoom] roomUsers emit: users=${JSON.stringify(roomUsersResponse.users)}`,
-      );
+
       this.emitRoomResponse(data.roomId, roomUsersResponse);
 
-      this.logger.log(
-        `[handleJoinRoom] joinRoom SUCCESS: socketId=${client.id}, userId=${userId}, roomId=${data.roomId}`,
-      );
     } catch (error) {
       const userId = this.getUserId(client.id);
       this.logger.error(
@@ -670,54 +765,25 @@ export class RoomGateway
         return;
       }
 
-      this.logger.log(
-        `[handleLeaveRoom] leaveRoom: socketId=${client.id}, userId=${userId}, roomId=${roomId}, payload=${JSON.stringify(data)}`,
-      );
-
       // 유저가 playing 상태인지 확인
       if (userId && this.roomService.isUserPlaying(roomId, userId)) {
-        this.logger.warn(
-          `[handleLeaveRoom] 유저가 playing 상태에서 요청 무시: userId=${userId}, roomId=${roomId}`,
-        );
-        this.emitUserResponse(
-          client,
-          new ErrorResponseDto({
-            message: this.localizationService.getText(TranslationKeys.GameNotStarted, this.getUserLanguage(client))
-          }),
-        );
-        return;
+        // silver 방일 때는 playing 상태에서도 퇴장 허용
+        const roomState = this.roomService.getRoomState(roomId);
+        const chipType = roomState.chipSettings.chipType;
+
+        if (chipType === ChipType.GOLD) {
+          this.emitUserResponse(
+            client,
+            new ErrorResponseDto({
+              message: this.localizationService.getText(TranslationKeys.GameInProgress, this.getUserLanguage(client))
+            }),
+          );
+          return;
+        }
       }
 
-      // RoomService를 통해 방에서 퇴장 (Redis players 값 업데이트)
       if (userId) {
-        await this.roomService.leaveRoom(roomId, userId);
-      }
-
-      await client.leave(roomId);
-
-      // 세션에서 방 제거
-      this.removeUserFromRoom(client.id);
-
-      if (userId) {
-        // 방에서 퇴장할 때 칩 정보를 DB에 저장하고 최종 칩 정보 받기
-        const saveResult = await this.roomService.saveUserChipsOnLeave(roomId, userId);
-
-        this.emitUserResponse(client, new LeaveRoomResponseDto({
-          silverChip: saveResult.silverChip,
-          goldChip: saveResult.goldChip
-        }));
-        await this.roomService.removeUserFromRoom(roomId, userId);
-        this.removeUserFromRoomSession(roomId, userId);
-
-        this.logger.log(
-          `[handleLeaveRoom] leaveRoom SUCCESS: socketId=${client.id}, userId=${userId}, roomId=${roomId}`,
-        );
-
-        const roomUsersResponse = await this.createRoomUsersResponseDto(roomId);
-        this.logger.log(
-          `[handleLeaveRoom] roomUsers emit: roomId=${roomId}, users=${JSON.stringify(roomUsersResponse.users)}`,
-        );
-        this.emitRoomResponse(roomId, roomUsersResponse);
+        await this.removeUserFromRoom(roomId, userId, client);
       } else {
         this.logger.warn(
           `[handleLeaveRoom] userId not found for socketId=${client.id}`,
@@ -732,6 +798,104 @@ export class RoomGateway
         client,
         new ErrorResponseDto({
           message: this.localizationService.getText(TranslationKeys.RoomNotFound, this.getUserLanguage(client))
+        }),
+      );
+    }
+  }
+
+  @SubscribeMessage(KickOutRequestDto.requestEventName)
+  async handleKickOutRequest(
+    @MessageBody() data: KickOutRequestDto,
+    @ConnectedSocket() client: Socket,
+  ) {
+    const userId = this.validateUserRegistration(client);
+    if (!userId) return;
+
+    const roomId = this.getUserRoomId(client.id);
+    if (!roomId) {
+      this.logger.warn(`[handleKickOutRequest] socketId=${client.id}가 속한 방을 찾을 수 없습니다.`);
+      this.emitUserResponse(
+        client,
+        new ErrorResponseDto({
+          message: this.localizationService.getText(TranslationKeys.RoomNotFound, this.getUserLanguage(client))
+        }),
+      );
+      return;
+    }
+
+    try {
+
+      // 방장 권한 확인
+      const roomOwnerId = this.roomService.getRoomOwner(roomId);
+      if (roomOwnerId !== userId) {
+        this.logger.warn(
+          `[handleKickOutRequest] 방장이 아닌 유저의 킥아웃 요청: userId=${userId}, roomOwnerId=${roomOwnerId}, roomId=${roomId}`,
+        );
+        this.emitUserResponse(
+          client,
+          new KickOutResponseDto({
+            success: false,
+            message: this.localizationService.getText(TranslationKeys.UnauthorizedAction, this.getUserLanguage(client))
+          }),
+        );
+        return;
+      }
+
+      // 게임 상태 확인
+      const roomPhase = this.roomService.getRoomPhase(roomId);
+
+      // 자기 자신을 킥아웃하려는 경우
+      if (data.userId === userId) {
+        this.logger.warn(
+          `[handleKickOutRequest] 자기 자신을 킥아웃하려는 시도: userId=${userId}, roomId=${roomId}`,
+        );
+        this.emitUserResponse(
+          client,
+          new KickOutResponseDto({
+            success: false,
+            message: this.localizationService.getText(TranslationKeys.CannotKickSelf, this.getUserLanguage(client))
+          }),
+        );
+        return;
+      }
+
+      // 대상 유저가 방에 있는지 확인
+      const roomUserIds = this.getRoomUserIds(roomId);
+      if (!roomUserIds.includes(data.userId)) {
+        this.logger.warn(
+          `[handleKickOutRequest] 대상 유저가 방에 없음: userId=${userId}, targetUserId=${data.userId}, roomId=${roomId}`,
+        );
+        this.emitUserResponse(
+          client,
+          new KickOutResponseDto({
+            success: false,
+            message: this.localizationService.getText(TranslationKeys.UserNotInRoom, this.getUserLanguage(client))
+          }),
+        );
+        return;
+      }
+
+      const targetSocket = this.findSocketByUserId(data.userId);
+
+      if (targetSocket) {
+        if (roomPhase === RoomPhase.WAITING) {
+          await this.removeUserFromRoom(roomId, data.userId, targetSocket, true);
+          this.emitUserResponse(
+            client,
+            new KickOutResponseDto({
+              kickOutUserId: data.userId,
+              isReserved: false
+            }),
+          );
+        }
+      }
+
+    } catch (error) {
+      this.emitUserResponse(
+        client,
+        new KickOutResponseDto({
+          kickOutUserId: data.userId,
+          isReserved: false
         }),
       );
     }
@@ -760,28 +924,22 @@ export class RoomGateway
       return;
     }
 
-    this.logger.log(
-      `[handleReady] ready: socketId=${client.id}, userId=${userId}, roomId=${roomId}, payload=${JSON.stringify(data)}`,
-    );
+    if (!this.validateRoomPhase(roomId, RoomPhase.WAITING, userId))
+      return;
 
-    if (!this.validateRoomPhase(roomId, RoomPhase.WAITING, userId)) return;
+    const roomState = this.roomService.getRoomState(roomId);
+    const chipType = roomState.chipSettings.chipType;
+    if (this.getRoomUserIds(roomId).length < 2 && chipType === ChipType.GOLD) {
+      this.logger.warn(`[canStart] roomId=${roomId}에 유저가 2명 미만임`);
+      return;
+    }
 
     const setReadyResult = await this.roomService.setReady(roomId, userId);
 
-    this.logger.log(
-      `[handleReady] setReady 완료: userId=${userId}, roomId=${roomId}, result=${JSON.stringify(setReadyResult)}`,
-    );
-
-    // 모든 방 안 유저에게 StartGameResponseDto 전송
     this.emitRoomResponse(roomId, setReadyResult);
-    this.logger.log(
-      `[handleReady] StartGameResponseDto 전송 완료: roomId=${roomId}, userId=${userId}`,
-    );
 
     if (await this.roomService.canStart(roomId)) {
-      this.logger.log(
-        `[handleReady] 모든 유저 준비 완료, 게임 시작: roomId=${roomId}`,
-      );
+
       await this.startGameForRoom(roomId);
     }
   }
@@ -879,6 +1037,14 @@ export class RoomGateway
 
       if (!this.validateRoomPhase(roomId, RoomPhase.PLAYING, userId)) return;
 
+      // 선택된 카드가 없으면 리턴
+      if (!data.playCards || data.playCards.length === 0) {
+        this.logger.warn(
+          `[handleHandPlayReady] 선택된 카드가 없음: userId=${userId}, roomId=${roomId}`,
+        );
+        return;
+      }
+
       if (this.roomService.hasUserHandPlay(roomId, userId)) {
         this.logger.warn(
           `[handleHandPlayReady] 이미 제출된 유저의 중복 요청 무시: userId=${userId}, roomId=${roomId}`,
@@ -887,9 +1053,7 @@ export class RoomGateway
       }
 
       this.roomService.handPlayReady(roomId, userId, data.playCards);
-      this.logger.log(
-        `[handleHandPlayReady] userId=${userId}, roomId=${roomId}, hand=${JSON.stringify(data.playCards)}`,
-      );
+
 
       this.emitRoomResponse(
         roomId,
@@ -941,14 +1105,8 @@ export class RoomGateway
         return;
       }
 
-      this.logger.log(
-        `[handleNextRound] nextRound: socketId=${client.id}, userId=${userId}, roomId=${roomId}, payload=${JSON.stringify(data)}`,
-      );
 
       this.roomService.setNextRoundReady(roomId, userId);
-      this.logger.log(
-        `[handleNextRound] nextRoundReady 완료: userId=${userId}, roomId=${roomId}`,
-      );
 
       this.emitRoomResponse(
         roomId,
@@ -956,9 +1114,6 @@ export class RoomGateway
       );
 
       if (this.roomService.canStartNextRound(roomId)) {
-        this.logger.log(
-          `[handleNextRound] 모든 유저 nextRound 완료, 다음 라운드 시작: roomId=${roomId}`,
-        );
         await this.startGameForRoom(roomId);
       }
     } catch (error) {
@@ -980,9 +1135,6 @@ export class RoomGateway
       const userId = this.validateUserRegistration(client);
       if (!userId) return;
 
-      this.logger.log(
-        `[handleBuyCard] buyCard: socketId=${client.id}, userId=${userId}, cardId=${data.cardId}`,
-      );
 
       // socketId로 roomId 찾기
       const roomId = this.getUserRoomId(client.id);
@@ -1004,9 +1156,6 @@ export class RoomGateway
       );
 
       if (result.success) {
-        this.logger.log(
-          `[handleBuyCard] 구매 성공: userId=${userId}, cardId=${data.cardId}`,
-        );
 
         // 구매한 유저에게는 firstDeckCards와 planetCardIds 포함하여 응답
         const buyerResponse = new BuyCardResponseDto({
@@ -1083,10 +1232,6 @@ export class RoomGateway
         return;
       }
 
-      this.logger.log(
-        `[handleSellCard] sellCard: socketId=${client.id}, userId=${userId}, roomId=${roomId}, cardId=${data.cardId}`,
-      );
-
       const result = await this.roomService.sellCard(
         roomId,
         userId,
@@ -1094,9 +1239,6 @@ export class RoomGateway
       );
 
       if (result.success) {
-        this.logger.log(
-          `[handleSellCard] 판매 성공: userId=${userId}, cardId=${data.cardId}`,
-        );
         const res = new SellCardResponseDto({
           success: true,
           message: this.localizationService.getText(result.message as TranslationKeys, this.getUserLanguage(client)),
@@ -1150,10 +1292,6 @@ export class RoomGateway
         return;
       }
 
-      this.logger.log(
-        `[handleReRollShop] reRollShop: socketId=${client.id}, userId=${userId}, roomId=${roomId}, payload=${JSON.stringify(data)}`,
-      );
-
       // 유저의 funds 확인 (다시뽑기 가격: 5)
       const userChips = await this.roomService.getUserChips(roomId, userId);
       if (userChips.funds < 5) {
@@ -1188,10 +1326,6 @@ export class RoomGateway
 
       // 차감 후 남은 funds 가져오기
       const updatedUserChips = await this.roomService.getUserChips(roomId, userId);
-
-      this.logger.log(
-        `[handleReRollShop] 다시뽑기 성공: userId=${userId}, roomId=${roomId}, cards=${JSON.stringify(reRollCards)}, remainingFunds=${updatedUserChips.funds}`,
-      );
 
       // 요청한 유저에게는 카드 정보를 포함한 응답 전송
       const userRes = new ReRollShopResponseDto({
@@ -1251,10 +1385,6 @@ export class RoomGateway
         return;
       }
 
-      this.logger.log(
-        `[handleReorderJokers] reorderJokers: socketId=${client.id}, userId=${userId}, roomId=${roomId}, jokerIds=${JSON.stringify(data.jokerIds)}`,
-      );
-
       const result = await this.roomService.reorderJokers(
         roomId,
         userId,
@@ -1262,9 +1392,6 @@ export class RoomGateway
       );
 
       if (result.success) {
-        this.logger.log(
-          `[handleReorderJokers] 순서 변경 성공: userId=${userId}, jokerIds=${JSON.stringify(result.jokerIds)}`,
-        );
 
         // 성공 시 모든 유저에게 알림
         const res = new ReorderJokersResponseDto({
@@ -1319,10 +1446,6 @@ export class RoomGateway
         this.logger.warn(`[handleBettingRequest] socketId=${client.id}가 속한 방을 찾을 수 없습니다.`);
         return;
       }
-
-      this.logger.log(
-        `[handleBettingRequest] 베팅 응답: socketId=${client.id}, userId=${userId}, roomId=${roomId}, bettingType=${data.bettingType}`,
-      );
 
       // 베팅 처리
       const result = await this.roomService.processBetting(roomId, userId, data.bettingType);
@@ -1392,8 +1515,6 @@ export class RoomGateway
       return;
     }
 
-    this.logger.log(`[handleUseSpecialCardRequest] userId=${userId}, roomId=${roomId}, cardId=${data.cardId}, cards=${JSON.stringify(data.cards)}`);
-
     // Service에서 특별 카드 사용 처리
     const result = await this.roomService.processUseSpecialCard(roomId, userId, data.cardId, data.cards);
 
@@ -1427,12 +1548,7 @@ export class RoomGateway
     @ConnectedSocket() client: Socket,
   ) {
     try {
-      this.logger.log(
-        `[handleLogin] login attempt: socketId=${client.id}, userId=${data.userId}, clientVersion=${data.version}`,
-      );
 
-      // 버전 체크
-      this.logger.log(`[handleLogin] Version check: client=${getVersionString(data.version)}, minRequired=${getVersionString(MIN_CLIENT_VERSION)}`);
       if (!isClientVersionSupported(data.version)) {
         this.logger.warn(
           `[handleLogin] Unsupported client version: ${getVersionString(data.version)}, socketId=${client.id}`,
@@ -1494,9 +1610,6 @@ export class RoomGateway
       });
       this.emitUserResponse(client, res);
 
-      this.logger.log(
-        `[handleLogin] login success: socketId=${client.id}, userId=${user.userId}`,
-      );
     } catch (error) {
       const res = new LoginResponseDto({
         success: false,
@@ -1507,45 +1620,6 @@ export class RoomGateway
     }
   }
 
-  @SubscribeMessage(IAPBuyRequestDto.requestEventName)
-  async handleIAPBuyRequest(
-    @MessageBody() data: IAPBuyRequestDto,
-    @ConnectedSocket() client: Socket,
-  ) {
-    this.logger.log(`[handleIAPBuyRequest] IAP 구매 요청 수신: itemId=${data.itemId}`);
-
-    try {
-      // userId 추출 (세션에서)
-      const session = this.socketSessions.get(client.id);
-      if (!session || !session.userId) {
-        this.logger.error('[handleIAPBuyRequest] userId가 없습니다.');
-        this.emitUserResponse(
-          client,
-          new IAPBuyResponseDto({
-            success: false,
-            message: 'User not authenticated'
-          })
-        );
-        return;
-      }
-
-      // IAP 구매 처리
-      const response = await this.roomService.handleIAPBuyRequest(session.userId, data);
-
-      // 응답 전송
-      this.emitUserResponse(client, response);
-
-    } catch (error) {
-      this.logger.error(`[handleIAPBuyRequest] IAP 구매 처리 실패: ${error.message}`);
-      this.emitUserResponse(
-        client,
-        new IAPBuyResponseDto({
-          success: false,
-          message: error.message
-        })
-      );
-    }
-  }
 
   onModuleInit() {
     (

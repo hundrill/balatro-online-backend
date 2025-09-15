@@ -117,7 +117,39 @@ export class CardsController {
         .card-item:hover {
             transform: translateY(-2px);
             box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-            border-color: #667eea;
+        }
+
+        /* Multiple Select 스타일 */
+        select[multiple] {
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            padding: 8px;
+            background: white;
+            min-height: 400px; /* 20개 옵션에 맞게 높이 증가 */
+        }
+
+        select[multiple] option {
+            padding: 4px 8px;
+            margin: 2px 0;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        select[multiple] option:checked {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        select[multiple] option:hover {
+            background: #f0f0f0;
+        }
+
+        /* Multiple Select 라벨 스타일 */
+        label:has(+ select[multiple]) {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 8px;
+            display: block;
         }
         
         .card-header {
@@ -551,16 +583,20 @@ export class CardsController {
                             <input type="checkbox" id="edit-is-active">
                             <label for="edit-is-active">활성화</label>
                         </div>
-                        <div class="form-group">
+
+                        <!-- 행성카드 전용 필드들 -->
+                        <div class="form-group" id="planet-fields" style="display: none;">
                             <label>칩 강화:</label>
-                            <input type="number" id="edit-enhance-chips">
+                            <input type="number" id="edit-enhance-chips" step="0.1">
                         </div>
-                        <div class="form-group">
+                        <div class="form-group" id="planet-fields-2" style="display: none;">
                             <label>배율 강화:</label>
                             <input type="number" id="edit-enhance-mul" step="0.1">
                         </div>
-                        <div class="form-group">
-                            <label>적용 카드수:</label>
+                        
+                        <!-- 타로카드 전용 필드들 -->
+                        <div class="form-group" id="tarot-fields" style="display: none;">
+                            <label>필요 카드수:</label>
                             <input type="number" id="edit-need-card-count">
                         </div>
                         
@@ -569,8 +605,8 @@ export class CardsController {
                             <textarea id="edit-description-ko"></textarea>
                         </div>
                         
-                        <!-- 2개 고정 조건-효과 시스템 필드들 -->
-                        <div class="form-group full-width">
+                        <!-- 조커카드 전용 조건-효과 시스템 필드들 -->
+                        <div class="form-group full-width" id="joker-fields">
                             <h3 style="margin-bottom: 15px; color: #333; border-bottom: 2px solid #667eea; padding-bottom: 5px;">조건-효과 쌍 1</h3>
                             <div class="condition-effect-pair">
                                 <div class="form-group">
@@ -579,45 +615,40 @@ export class CardsController {
                                         <option value="">선택하세요</option>
                                         <option value="CardSuit">카드 무늬</option>
                                         <option value="CardRank">카드 숫자</option>
-                                        <option value="HandType">핸드 종류</option>
-                                        <option value="HasPair">페어 포함 여부</option>
-                                        <option value="HasTriple">트리플 포함 여부</option>
-                                        <option value="HasPairInUnUsed">미사용 카드에 페어 포함 여부</option>
-                                        <option value="HasTripleInUnUsed">미사용 카드에 트리플 포함 여부</option>
-                                        <option value="UnUsedHandType">미사용 카드 핸드 종류</option>
-                                        <option value="UnUsedSuitCount">미사용 카드 특정 무늬 개수</option>
-                                        <option value="UsedAceCount">사용된 에이스 개수</option>
-                                        <option value="RemainingSevens">남은 7 카드 개수</option>
+                                        <option value="HandType">카드 핸드</option>
+                                        <option value="UsedSuitCount">카드 무늬 개수</option>
+                                        <option value="UsedCardCount">카드 개수</option>
+                                        <option value="UnUsedHandType">미사용 카드 핸드</option>
+                                        <option value="UnUsedSuitCount">미사용 카드 무늬 개수</option>
+                                        <option value="RemainingCardCount">미사용 카드 개수</option>
+                                        <option value="DeckCardCount">덱 안에 카드 개수</option>
                                         <option value="RemainingDeck">남은 덱 카드 개수</option>
                                         <option value="TotalDeck">전체 덱 카드 개수</option>
-                                        <option value="UsedSuitCount">사용된 특정 무늬 카드 개수</option>
                                         <option value="RemainingDiscards">남은 버리기 횟수</option>
-                                        <option value="IsEvenCard">짝수 카드 여부</option>
-                                        <option value="IsOddCard">홀수 카드 여부</option>
                                         <option value="Always">항상 참</option>
                                     </select>
                                 </div>
                                 <div class="form-group">
                                     <label>조건 값:</label>
-                                    <select id="condition-value-1">
+                                    <select id="condition-value-1" multiple size="20">
                                         <option value="">선택하세요</option>
                                         <option value="Hearts">하트</option>
                                         <option value="Diamonds">다이아몬드</option>
                                         <option value="Clubs">클럽</option>
                                         <option value="Spades">스페이드</option>
-                                        <option value="Ace">에이스</option>
-                                        <option value="King">킹</option>
-                                        <option value="Queen">퀸</option>
-                                        <option value="Jack">잭</option>
-                                        <option value="Ten">10</option>
-                                        <option value="Nine">9</option>
-                                        <option value="Eight">8</option>
-                                        <option value="Seven">7</option>
-                                        <option value="Six">6</option>
-                                        <option value="Five">5</option>
-                                        <option value="Four">4</option>
-                                        <option value="Three">3</option>
-                                        <option value="Two">2</option>
+                                        <option value="1">1 (에이스)</option>
+                                        <option value="13">13 (킹)</option>
+                                        <option value="12">12 (퀸)</option>
+                                        <option value="11">11 (잭)</option>
+                                        <option value="10">10</option>
+                                        <option value="9">9</option>
+                                        <option value="8">8</option>
+                                        <option value="7">7</option>
+                                        <option value="6">6</option>
+                                        <option value="5">5</option>
+                                        <option value="4">4</option>
+                                        <option value="3">3</option>
+                                        <option value="2">2</option>
                                         <option value="HighCard">하이카드</option>
                                         <option value="OnePair">원페어</option>
                                         <option value="TwoPair">투페어</option>
@@ -664,6 +695,7 @@ export class CardsController {
                                         <option value="MulChips">칩 곱하기</option>
                                         <option value="GrowBaseValue">기본값 성장</option>
                                         <option value="DecrementBaseValue">기본값 감소</option>
+                                        <option value="GrowCardChips">카드 칩스 성장</option>
                                     </select>
                                 </div>
                                 <div class="form-group">
@@ -678,6 +710,11 @@ export class CardsController {
                                         <option value="Joker">조커</option>
                                     </select>
                                 </div>
+                                <div class="form-group">
+                                    <label>
+                                        <input type="checkbox" id="effect-by-count-1"> 효과값에 카운트 적용
+                                    </label>
+                                </div>
                             </div>
                         </div>
                         
@@ -690,44 +727,40 @@ export class CardsController {
                                         <option value="">선택하세요</option>
                                         <option value="CardSuit">카드 무늬</option>
                                         <option value="CardRank">카드 숫자</option>
-                                        <option value="HandType">핸드 종류</option>
-                                        <option value="HasPair">페어 포함 여부</option>
-                                        <option value="HasTriple">트리플 포함 여부</option>
-                                        <option value="HasPairInUnUsed">미사용 카드에 페어 포함 여부</option>
-                                        <option value="HasTripleInUnUsed">미사용 카드에 트리플 포함 여부</option>
-                                        <option value="UnUsedHandType">미사용 카드 핸드 종류</option>
-                                        <option value="UnUsedSuitCount">미사용 카드 특정 무늬 개수</option>
-                                        <option value="UsedAceCount">사용된 에이스 개수</option>
-                                        <option value="RemainingSevens">남은 7 카드 개수</option>
+                                        <option value="HandType">카드 핸드</option>
+                                        <option value="UsedSuitCount">카드 무늬 개수</option>
+                                        <option value="UsedCardCount">카드 개수</option>
+                                        <option value="UnUsedHandType">미사용 카드 핸드</option>
+                                        <option value="UnUsedSuitCount">미사용 카드 무늬 개수</option>
+                                        <option value="RemainingCardCount">미사용 카드 개수</option>
+                                        <option value="DeckCardCount">덱 안에 카드 개수</option>
                                         <option value="RemainingDeck">남은 덱 카드 개수</option>
-                                        <option value="UsedSuitCount">사용된 특정 무늬 카드 개수</option>
+                                        <option value="TotalDeck">전체 덱 카드 개수</option>
                                         <option value="RemainingDiscards">남은 버리기 횟수</option>
-                                        <option value="IsEvenCard">짝수 카드 여부</option>
-                                        <option value="IsOddCard">홀수 카드 여부</option>
                                         <option value="Always">항상 참</option>
                                     </select>
                                 </div>
                                 <div class="form-group">
                                     <label>조건 값:</label>
-                                    <select id="condition-value-2">
+                                    <select id="condition-value-2" multiple size="20">
                                         <option value="">선택하세요</option>
                                         <option value="Hearts">하트</option>
                                         <option value="Diamonds">다이아몬드</option>
                                         <option value="Clubs">클럽</option>
                                         <option value="Spades">스페이드</option>
-                                        <option value="Ace">에이스</option>
-                                        <option value="King">킹</option>
-                                        <option value="Queen">퀸</option>
-                                        <option value="Jack">잭</option>
-                                        <option value="Ten">10</option>
-                                        <option value="Nine">9</option>
-                                        <option value="Eight">8</option>
-                                        <option value="Seven">7</option>
-                                        <option value="Six">6</option>
-                                        <option value="Five">5</option>
-                                        <option value="Four">4</option>
-                                        <option value="Three">3</option>
-                                        <option value="Two">2</option>
+                                        <option value="1">1 (에이스)</option>
+                                        <option value="13">13 (킹)</option>
+                                        <option value="12">12 (퀸)</option>
+                                        <option value="11">11 (잭)</option>
+                                        <option value="10">10</option>
+                                        <option value="9">9</option>
+                                        <option value="8">8</option>
+                                        <option value="7">7</option>
+                                        <option value="6">6</option>
+                                        <option value="5">5</option>
+                                        <option value="4">4</option>
+                                        <option value="3">3</option>
+                                        <option value="2">2</option>
                                         <option value="HighCard">하이카드</option>
                                         <option value="OnePair">원페어</option>
                                         <option value="TwoPair">투페어</option>
@@ -772,6 +805,7 @@ export class CardsController {
                                         <option value="MulChips">칩 곱하기</option>
                                         <option value="GrowBaseValue">기본값 성장</option>
                                         <option value="DecrementBaseValue">기본값 감소</option>
+                                        <option value="GrowCardChips">카드 칩스 성장</option>
                                     </select>
                                 </div>
                                 <div class="form-group">
@@ -786,13 +820,351 @@ export class CardsController {
                                         <option value="Joker">조커</option>
                                     </select>
                                 </div>
+                                <div class="form-group">
+                                    <label>
+                                        <input type="checkbox" id="effect-by-count-2"> 효과값에 카운트 적용
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 조건-효과 쌍 3 -->
+                        <div class="form-group full-width" id="condition-effect-pair-3-container" style="display: none;">
+                            <h3 style="margin-bottom: 15px; color: #333; border-bottom: 2px solid #667eea; padding-bottom: 5px;">조건-효과 쌍 3</h3>
+                            <div class="condition-effect-pair">
+                                <div class="form-group">
+                                    <label>조건 타입:</label>
+                                    <select id="condition-type-3" onchange="updateConditionFields(3)">
+                                        <option value="">선택하세요</option>
+                                        <option value="CardSuit">카드 무늬</option>
+                                        <option value="CardRank">카드 숫자</option>
+                                        <option value="HandType">카드 핸드</option>
+                                        <option value="UsedSuitCount">카드 무늬 개수</option>
+                                        <option value="UsedCardCount">카드 개수</option>
+                                        <option value="UnUsedHandType">미사용 카드 핸드</option>
+                                        <option value="UnUsedSuitCount">미사용 카드 무늬 개수</option>
+                                        <option value="RemainingCardCount">미사용 카드 개수</option>
+                                        <option value="DeckCardCount">덱 안에 카드 개수</option>
+                                        <option value="RemainingDeck">남은 덱 카드 개수</option>
+                                        <option value="TotalDeck">전체 덱 카드 개수</option>
+                                        <option value="RemainingDiscards">남은 버리기 횟수</option>
+                                        <option value="Always">항상 참</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>조건 값:</label>
+                                    <select id="condition-value-3" multiple size="20">
+                                        <option value="">선택하세요</option>
+                                        <option value="Hearts">하트</option>
+                                        <option value="Diamonds">다이아몬드</option>
+                                        <option value="Clubs">클럽</option>
+                                        <option value="Spades">스페이드</option>
+                                        <option value="1">1 (에이스)</option>
+                                        <option value="13">13 (킹)</option>
+                                        <option value="12">12 (퀸)</option>
+                                        <option value="11">11 (잭)</option>
+                                        <option value="10">10</option>
+                                        <option value="9">9</option>
+                                        <option value="8">8</option>
+                                        <option value="7">7</option>
+                                        <option value="6">6</option>
+                                        <option value="5">5</option>
+                                        <option value="4">4</option>
+                                        <option value="3">3</option>
+                                        <option value="2">2</option>
+                                        <option value="HighCard">하이카드</option>
+                                        <option value="OnePair">원페어</option>
+                                        <option value="TwoPair">투페어</option>
+                                        <option value="ThreeOfAKind">트리플</option>
+                                        <option value="Straight">스트레이트</option>
+                                        <option value="Flush">플러시</option>
+                                        <option value="FullHouse">풀하우스</option>                                        
+                                        <option value="FourOfAKind">포카드</option>                                        
+                                        <option value="StraightFlush">스트레이트 플러시</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>조건 숫자 값:</label>
+                                    <input type="number" id="condition-numeric-3" placeholder="숫자 값 입력">
+                                </div>
+                                <div class="form-group">
+                                    <label>조건 연산자:</label>
+                                    <select id="condition-operator-3">
+                                        <option value="">선택하세요</option>
+                                        <option value="Equals">같음</option>
+                                        <option value="GreaterOrEqual">이상</option>
+                                        <option value="LessOrEqual">이하</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>효과 타이밍:</label>
+                                    <select id="effect-timing-3">
+                                        <option value="">선택하세요</option>
+                                        <option value="OnScoring">득점 시</option>
+                                        <option value="OnHandPlay">핸드플레이 시</option>
+                                        <option value="OnAfterScoring">득점 후</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>효과 타입:</label>
+                                    <select id="effect-type-3" onchange="updateEffectValueField(3)">
+                                        <option value="">선택하세요</option>
+                                        <option value="AddMultiplier">배수 추가</option>
+                                        <option value="AddMultiplierByRandomValue">랜덤 값에 따른 배수 추가</option>
+                                        <option value="MulMultiplier">배수 곱하기</option>
+                                        <option value="AddChips">칩 추가</option>
+                                        <option value="MulChips">칩 곱하기</option>
+                                        <option value="GrowBaseValue">기본값 성장</option>
+                                        <option value="DecrementBaseValue">기본값 감소</option>
+                                        <option value="GrowCardChips">카드 칩스 성장</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>효과 값:</label>
+                                    <input type="number" id="effect-value-3" step="0.1" placeholder="효과 값 입력">
+                                </div>
+                                <div class="form-group">
+                                    <label>효과 표시 대상:</label>
+                                    <select id="effect-target-3">
+                                        <option value="">선택하세요</option>
+                                        <option value="Card">카드</option>
+                                        <option value="Joker">조커</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>
+                                        <input type="checkbox" id="effect-by-count-3"> 효과값에 카운트 적용
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 조건-효과 쌍 4 -->
+                        <div class="form-group full-width" id="condition-effect-pair-4-container" style="display: none;">
+                            <h3 style="margin-bottom: 15px; color: #333; border-bottom: 2px solid #667eea; padding-bottom: 5px;">조건-효과 쌍 4</h3>
+                            <div class="condition-effect-pair">
+                                <div class="form-group">
+                                    <label>조건 타입:</label>
+                                    <select id="condition-type-4" onchange="updateConditionFields(4)">
+                                        <option value="">선택하세요</option>
+                                        <option value="CardSuit">카드 무늬</option>
+                                        <option value="CardRank">카드 숫자</option>
+                                        <option value="HandType">카드 핸드</option>
+                                        <option value="UsedSuitCount">카드 무늬 개수</option>
+                                        <option value="UsedCardCount">카드 개수</option>
+                                        <option value="UnUsedHandType">미사용 카드 핸드</option>
+                                        <option value="UnUsedSuitCount">미사용 카드 무늬 개수</option>
+                                        <option value="RemainingCardCount">미사용 카드 개수</option>
+                                        <option value="DeckCardCount">덱 안에 카드 개수</option>
+                                        <option value="RemainingDeck">남은 덱 카드 개수</option>
+                                        <option value="TotalDeck">전체 덱 카드 개수</option>
+                                        <option value="RemainingDiscards">남은 버리기 횟수</option>
+                                        <option value="Always">항상 참</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>조건 값:</label>
+                                    <select id="condition-value-4" multiple size="20">
+                                        <option value="">선택하세요</option>
+                                        <option value="Hearts">하트</option>
+                                        <option value="Diamonds">다이아몬드</option>
+                                        <option value="Clubs">클럽</option>
+                                        <option value="Spades">스페이드</option>
+                                        <option value="1">1 (에이스)</option>
+                                        <option value="13">13 (킹)</option>
+                                        <option value="12">12 (퀸)</option>
+                                        <option value="11">11 (잭)</option>
+                                        <option value="10">10</option>
+                                        <option value="9">9</option>
+                                        <option value="8">8</option>
+                                        <option value="7">7</option>
+                                        <option value="6">6</option>
+                                        <option value="5">5</option>
+                                        <option value="4">4</option>
+                                        <option value="3">3</option>
+                                        <option value="2">2</option>
+                                        <option value="HighCard">하이카드</option>
+                                        <option value="OnePair">원페어</option>
+                                        <option value="TwoPair">투페어</option>
+                                        <option value="ThreeOfAKind">트리플</option>
+                                        <option value="Straight">스트레이트</option>
+                                        <option value="Flush">플러시</option>
+                                        <option value="FullHouse">풀하우스</option>                                        
+                                        <option value="FourOfAKind">포카드</option>                                        
+                                        <option value="StraightFlush">스트레이트 플러시</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>조건 숫자 값:</label>
+                                    <input type="number" id="condition-numeric-4" placeholder="숫자 값 입력">
+                                </div>
+                                <div class="form-group">
+                                    <label>조건 연산자:</label>
+                                    <select id="condition-operator-4">
+                                        <option value="">선택하세요</option>
+                                        <option value="Equals">같음</option>
+                                        <option value="GreaterOrEqual">이상</option>
+                                        <option value="LessOrEqual">이하</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>효과 타이밍:</label>
+                                    <select id="effect-timing-4">
+                                        <option value="">선택하세요</option>
+                                        <option value="OnScoring">득점 시</option>
+                                        <option value="OnHandPlay">핸드플레이 시</option>
+                                        <option value="OnAfterScoring">득점 후</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>효과 타입:</label>
+                                    <select id="effect-type-4" onchange="updateEffectValueField(4)">
+                                        <option value="">선택하세요</option>
+                                        <option value="AddMultiplier">배수 추가</option>
+                                        <option value="AddMultiplierByRandomValue">랜덤 값에 따른 배수 추가</option>
+                                        <option value="MulMultiplier">배수 곱하기</option>
+                                        <option value="AddChips">칩 추가</option>
+                                        <option value="MulChips">칩 곱하기</option>
+                                        <option value="GrowBaseValue">기본값 성장</option>
+                                        <option value="DecrementBaseValue">기본값 감소</option>
+                                        <option value="GrowCardChips">카드 칩스 성장</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>효과 값:</label>
+                                    <input type="number" id="effect-value-4" step="0.1" placeholder="효과 값 입력">
+                                </div>
+                                <div class="form-group">
+                                    <label>효과 표시 대상:</label>
+                                    <select id="effect-target-4">
+                                        <option value="">선택하세요</option>
+                                        <option value="Card">카드</option>
+                                        <option value="Joker">조커</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>
+                                        <input type="checkbox" id="effect-by-count-4"> 효과값에 카운트 적용
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 조건-효과 쌍 5 -->
+                        <div class="form-group full-width" id="condition-effect-pair-5-container" style="display: none;">
+                            <h3 style="margin-bottom: 15px; color: #333; border-bottom: 2px solid #667eea; padding-bottom: 5px;">조건-효과 쌍 5</h3>
+                            <div class="condition-effect-pair">
+                                <div class="form-group">
+                                    <label>조건 타입:</label>
+                                    <select id="condition-type-5" onchange="updateConditionFields(5)">
+                                        <option value="">선택하세요</option>
+                                        <option value="CardSuit">카드 무늬</option>
+                                        <option value="CardRank">카드 숫자</option>
+                                        <option value="HandType">카드 핸드</option>
+                                        <option value="UsedSuitCount">카드 무늬 개수</option>
+                                        <option value="UsedCardCount">카드 개수</option>
+                                        <option value="UnUsedHandType">미사용 카드 핸드</option>
+                                        <option value="UnUsedSuitCount">미사용 카드 무늬 개수</option>
+                                        <option value="RemainingCardCount">미사용 카드 개수</option>
+                                        <option value="DeckCardCount">덱 안에 카드 개수</option>
+                                        <option value="RemainingDeck">남은 덱 카드 개수</option>
+                                        <option value="TotalDeck">전체 덱 카드 개수</option>
+                                        <option value="RemainingDiscards">남은 버리기 횟수</option>
+                                        <option value="Always">항상 참</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>조건 값:</label>
+                                    <select id="condition-value-5" multiple size="20">
+                                        <option value="">선택하세요</option>
+                                        <option value="Hearts">하트</option>
+                                        <option value="Diamonds">다이아몬드</option>
+                                        <option value="Clubs">클럽</option>
+                                        <option value="Spades">스페이드</option>
+                                        <option value="1">1 (에이스)</option>
+                                        <option value="13">13 (킹)</option>
+                                        <option value="12">12 (퀸)</option>
+                                        <option value="11">11 (잭)</option>
+                                        <option value="10">10</option>
+                                        <option value="9">9</option>
+                                        <option value="8">8</option>
+                                        <option value="7">7</option>
+                                        <option value="6">6</option>
+                                        <option value="5">5</option>
+                                        <option value="4">4</option>
+                                        <option value="3">3</option>
+                                        <option value="2">2</option>
+                                        <option value="HighCard">하이카드</option>
+                                        <option value="OnePair">원페어</option>
+                                        <option value="TwoPair">투페어</option>
+                                        <option value="ThreeOfAKind">트리플</option>
+                                        <option value="Straight">스트레이트</option>
+                                        <option value="Flush">플러시</option>
+                                        <option value="FullHouse">풀하우스</option>                                        
+                                        <option value="FourOfAKind">포카드</option>                                        
+                                        <option value="StraightFlush">스트레이트 플러시</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>조건 숫자 값:</label>
+                                    <input type="number" id="condition-numeric-5" placeholder="숫자 값 입력">
+                                </div>
+                                <div class="form-group">
+                                    <label>조건 연산자:</label>
+                                    <select id="condition-operator-5">
+                                        <option value="">선택하세요</option>
+                                        <option value="Equals">같음</option>
+                                        <option value="GreaterOrEqual">이상</option>
+                                        <option value="LessOrEqual">이하</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>효과 타이밍:</label>
+                                    <select id="effect-timing-5">
+                                        <option value="">선택하세요</option>
+                                        <option value="OnScoring">득점 시</option>
+                                        <option value="OnHandPlay">핸드플레이 시</option>
+                                        <option value="OnAfterScoring">득점 후</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>효과 타입:</label>
+                                    <select id="effect-type-5" onchange="updateEffectValueField(5)">
+                                        <option value="">선택하세요</option>
+                                        <option value="AddMultiplier">배수 추가</option>
+                                        <option value="AddMultiplierByRandomValue">랜덤 값에 따른 배수 추가</option>
+                                        <option value="MulMultiplier">배수 곱하기</option>
+                                        <option value="AddChips">칩 추가</option>
+                                        <option value="MulChips">칩 곱하기</option>
+                                        <option value="GrowBaseValue">기본값 성장</option>
+                                        <option value="DecrementBaseValue">기본값 감소</option>
+                                        <option value="GrowCardChips">카드 칩스 성장</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>효과 값:</label>
+                                    <input type="number" id="effect-value-5" step="0.1" placeholder="효과 값 입력">
+                                </div>
+                                <div class="form-group">
+                                    <label>효과 표시 대상:</label>
+                                    <select id="effect-target-5">
+                                        <option value="">선택하세요</option>
+                                        <option value="Card">카드</option>
+                                        <option value="Joker">조커</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>
+                                        <input type="checkbox" id="effect-by-count-5"> 효과값에 카운트 적용
+                                    </label>
+                                </div>
                             </div>
                         </div>
                         
                         <div class="form-group full-width" id="add-condition-effect-pair-btn" style="display: none;">
-                            <button type="button" class="btn btn-secondary" onclick="addConditionEffectPair()" style="width: 100%; padding: 10px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;">
-                                + 조건-효과 쌍 추가
-                            </button>
+                                        <button type="button" class="btn btn-secondary" onclick="addConditionEffectPair()" style="width: 100%; padding: 10px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                + 조건-효과 쌍 추가
+            </button>
                         </div>
                     </div>
             </form>
@@ -889,19 +1261,19 @@ export class CardsController {
                     // 한 번에 모든 플레이스홀더를 치환하는 함수
                     return desc.replace(/\\[([^\\]]+)\\]/g, function(match, placeholder) {
                         switch(placeholder) {
-                            case 'baseValue':
+                            case 'basevalue':
                                 return card.baseValue || 0;
                             case 'increase':
                                 return card.increase || 0;
                             case 'decrease':
                                 return card.decrease || 0;
-                            case 'enhanceChips':
+                            case 'enhancechips':
                                 return card.enhanceChips || 0;
-                            case 'enhanceMul':
+                            case 'enhancemul':
                                 return card.enhanceMul || 0;
-                            case 'needCardCount':
+                            case 'needcardcount':
                                 return card.needCardCount || 0;
-                            case 'maxValue':
+                            case 'maxvalue':
                                 return card.maxValue || 0;
                             case 'level':
                                 return '1'; // 임시로 1로 표시
@@ -911,7 +1283,7 @@ export class CardsController {
                     });
                 }
                 
-                const processedDescription = replaceDescription(card.description);
+                const processedDescription = replaceDescription(card.descriptionKo);
                 
                 cardElement.innerHTML = \`
                     <div class="card-header">
@@ -932,10 +1304,6 @@ export class CardsController {
                             <span class="stat-label">조건2:</span>
                             <span class="stat-value">\${formatConditionEffect(card.conditionType2, card.conditionValue2, card.effectTiming2, card.effectType2, card.effectTarget2)}</span>
                         </div>\` : ''}
-                        \${isTarot ? \`<div class="stat-item">
-                            <span class="stat-label">적용 카드수:</span>
-                            <span class="stat-value">\${card.needCardCount || 0}</span>
-                        </div>\` : ''}
                         \${isPlanet ? \`<div class="stat-item">
                             <span class="stat-label">칩 강화:</span>
                             <span class="stat-value">\${card.enhanceChips || 0}</span>
@@ -943,6 +1311,10 @@ export class CardsController {
                         <div class="stat-item">
                             <span class="stat-label">배율 강화:</span>
                             <span class="stat-value">\${card.enhanceMul || 0}</span>
+                        </div>\` : ''}
+                        \${isTarot ? \`<div class="stat-item">
+                            <span class="stat-label">필요 카드수:</span>
+                            <span class="stat-value">\${card.needCardCount || 0}</span>
                         </div>\` : ''}
                     </div>
                     <button class="edit-btn" onclick="openEditModal(\${JSON.stringify(card).replace(/"/g, '&quot;')})">편집</button>
@@ -954,30 +1326,106 @@ export class CardsController {
         function openEditModal(cardData) {
             const card = typeof cardData === 'string' ? JSON.parse(cardData) : cardData;
             console.log('편집할 카드 데이터:', card);
+            
+            // 디버깅: 조건-효과 쌍 3, 4, 5 데이터 확인
+            console.log('조건-효과 쌍 3 데이터:', {
+                conditionType3: card.conditionType3,
+                conditionValue3: card.conditionValue3,
+                conditionOperator3: card.conditionOperator3,
+                conditionNumeric3: card.conditionNumeric3,
+                effectTiming3: card.effectTiming3,
+                effectType3: card.effectType3,
+                effectValue3: card.effectValue3,
+                effectTarget3: card.effectTarget3
+            });
+            
+            console.log('조건-효과 쌍 4 데이터:', {
+                conditionType4: card.conditionType4,
+                conditionValue4: card.conditionValue4,
+                conditionOperator4: card.conditionOperator4,
+                conditionNumeric4: card.conditionNumeric4,
+                effectTiming4: card.effectTiming4,
+                effectType4: card.effectType4,
+                effectValue4: card.effectValue4,
+                effectTarget4: card.effectTarget4
+            });
+            
+            console.log('조건-효과 쌍 5 데이터:', {
+                conditionType5: card.conditionType5,
+                conditionValue5: card.conditionValue5,
+                conditionOperator5: card.conditionOperator5,
+                conditionNumeric5: card.conditionNumeric5,
+                effectTiming5: card.effectTiming5,
+                effectType5: card.effectType5,
+                effectValue5: card.effectValue5,
+                effectTarget5: card.effectTarget5
+            });
             document.getElementById('edit-id').value = card.id;
             document.getElementById('edit-name').value = card.name || '';
-            document.getElementById('edit-description-ko').value = card.descriptionKo || card.description || '';
+            document.getElementById('edit-description-ko').value = card.descriptionKo || '';
+            
+            // 카드 타입에 따라 필드 토글
+            const isJoker = card.id.startsWith('joker_');
+            const isPlanet = card.id.startsWith('planet_');
+            const isTarot = card.id.startsWith('tarot_');
+            
+            // 모든 카드 타입별 필드 숨기기
+            document.getElementById('planet-fields').style.display = 'none';
+            document.getElementById('planet-fields-2').style.display = 'none';
+            document.getElementById('tarot-fields').style.display = 'none';
+            document.getElementById('joker-fields').style.display = 'none';
+            
+            // 카드 타입에 따라 해당 필드 표시
+            if (isPlanet) {
+                document.getElementById('planet-fields').style.display = 'block';
+                document.getElementById('planet-fields-2').style.display = 'block';
+                // 행성카드 데이터 로드
+                document.getElementById('edit-enhance-chips').value = card.enhanceChips || '';
+                document.getElementById('edit-enhance-mul').value = card.enhanceMul || '';
+            } else if (isTarot) {
+                document.getElementById('tarot-fields').style.display = 'block';
+                // 타로카드 데이터 로드
+                document.getElementById('edit-need-card-count').value = card.needCardCount || '';
+            } else if (isJoker) {
+                document.getElementById('joker-fields').style.display = 'block';
+            }
+            
             const extraId = document.getElementById('extra-description-id');
             const extraEn = document.getElementById('extra-description-en');
             if (extraId) extraId.value = card.descriptionId || '';
             if (extraEn) extraEn.value = card.descriptionEn || '';
             document.getElementById('edit-price').value = card.price || '';
-            document.getElementById('edit-need-card-count').value = card.needCardCount || '';
-            document.getElementById('edit-enhance-chips').value = card.enhanceChips || '';
-            document.getElementById('edit-enhance-mul').value = card.enhanceMul || '';
+
             document.getElementById('edit-is-active').checked = card.isActive !== false;
             
             // 2개 고정 조건-효과 시스템 필드들
             document.getElementById('condition-type-1').value = card.conditionType1 || '';
-            document.getElementById('condition-value-1').value = card.conditionValue1 || '';
+            
+            // multiple select 값 로드 (쉼표로 구분된 문자열을 배열로 파싱)
+            const conditionValue1Select = document.getElementById('condition-value-1');
+            if (card.conditionValue1) {
+                const values = card.conditionValue1.split(',').map(v => v.trim());
+                Array.from(conditionValue1Select.options).forEach(option => {
+                    option.selected = values.includes(option.value);
+                });
+            } else {
+                // 값이 없으면 모든 옵션 선택 해제
+                Array.from(conditionValue1Select.options).forEach(option => {
+                    option.selected = false;
+                });
+            }
+            
             document.getElementById('condition-operator-1').value = card.conditionOperator1 || '';
             document.getElementById('condition-numeric-1').value = card.conditionNumeric1 !== null && card.conditionNumeric1 !== undefined ? card.conditionNumeric1 : '';
             document.getElementById('effect-timing-1').value = card.effectTiming1 || '';
             document.getElementById('effect-type-1').value = card.effectType1 || '';
             document.getElementById('effect-target-1').value = card.effectTarget1 || 'Joker';
+            document.getElementById('effect-by-count-1').checked = card.effectByCount1 || false;
             
-            // 효과 값 필드에 baseValue 로드 (기본값)
-            document.getElementById('effect-value-1').value = card.baseValue !== null && card.baseValue !== undefined ? card.baseValue : '';
+                            // effectValue1을 우선적으로 로드하고, 없으면 기존 필드에서 로드
+            const effectValue1 = card.effectValue1 !== null && card.effectValue1 !== undefined ? card.effectValue1 : 
+                               (card.baseValue !== null && card.baseValue !== undefined ? card.baseValue : '');
+            document.getElementById('effect-value-1').value = effectValue1;
             
             // 조건 타입에 따른 필드 초기화
             updateConditionFields(1);
@@ -985,110 +1433,47 @@ export class CardsController {
             // 효과 타입에 따른 효과 값 필드 업데이트
             updateEffectValueField(1);
             
-            // 효과 타입에 따라 적절한 값 로드
-            if (card.effectType1 === 'GrowBaseValue') {
-                document.getElementById('effect-value-1').value = card.increase !== null && card.increase !== undefined ? card.increase : '';
-            } else if (card.effectType1 === 'DecrementBaseValue') {
-                document.getElementById('effect-value-1').value = card.decrease !== null && card.decrease !== undefined ? card.decrease : '';
+            // effectValue1을 우선적으로 로드하고, 없으면 기존 필드에서 로드
+            if (card.effectValue1 !== null && card.effectValue1 !== undefined) {
+                document.getElementById('effect-value-1').value = card.effectValue1;
             } else {
-                document.getElementById('effect-value-1').value = card.baseValue !== null && card.baseValue !== undefined ? card.baseValue : '';
-            }
-            
-            // 조건-효과 쌍 2 표시/숨김 처리
-            const hasPair2Data = card.conditionType2 || card.conditionValue2 || card.conditionOperator2 || 
-                                card.conditionNumeric2 || card.effectTiming2 || card.effectType2 || card.effectTarget2;
-            
-            // 기본적으로 쌍 2는 숨기고 추가 버튼도 숨김
-            document.getElementById('condition-effect-pair-2-container').style.display = 'none';
-            document.getElementById('add-condition-effect-pair-btn').style.display = 'none';
-            
-            if (hasPair2Data) {
-                // 데이터가 있으면 쌍 2 표시
-                document.getElementById('condition-effect-pair-2-container').style.display = 'block';
-                
-                // 값 설정
-                document.getElementById('condition-type-2').value = card.conditionType2 || '';
-                document.getElementById('condition-value-2').value = card.conditionValue2 || '';
-                document.getElementById('condition-operator-2').value = card.conditionOperator2 || '';
-                document.getElementById('condition-numeric-2').value = card.conditionNumeric2 !== null && card.conditionNumeric2 !== undefined ? card.conditionNumeric2 : '';
-                document.getElementById('effect-timing-2').value = card.effectTiming2 || '';
-                document.getElementById('effect-type-2').value = card.effectType2 || '';
-                document.getElementById('effect-target-2').value = card.effectTarget2 || 'Joker';
-                
-                // 조건 타입에 따른 필드 초기화
-                updateConditionFields(2);
-                
-                // 효과 타입에 따른 효과 값 필드 업데이트
-                updateEffectValueField(2);
-                
-                // 효과 타입에 따라 적절한 값 로드
-                if (card.effectType2 === 'GrowBaseValue') {
-                    document.getElementById('effect-value-2').value = card.increase !== null && card.increase !== undefined ? card.increase : '';
-                } else if (card.effectType2 === 'DecrementBaseValue') {
-                    document.getElementById('effect-value-2').value = card.decrease !== null && card.decrease !== undefined ? card.decrease : '';
+                // 기존 로직: 효과 타입에 따라 적절한 값 로드
+                if (card.effectType1 === 'GrowBaseValue') {
+                    document.getElementById('effect-value-1').value = card.increase !== null && card.increase !== undefined ? card.increase : '';
+                } else if (card.effectType1 === 'DecrementBaseValue') {
+                    document.getElementById('effect-value-1').value = card.decrease !== null && card.decrease !== undefined ? card.decrease : '';
+                } else if (card.effectType1 === 'GrowCardChips') {
+                    document.getElementById('effect-value-1').value = card.increase !== null && card.increase !== undefined ? card.increase : '';
                 } else {
-                    document.getElementById('effect-value-2').value = card.baseValue !== null && card.baseValue !== undefined ? card.baseValue : '';
+                    document.getElementById('effect-value-1').value = card.baseValue !== null && card.baseValue !== undefined ? card.baseValue : '';
                 }
-            } else {
-                // 데이터가 없으면 추가 버튼 표시하고 쌍 2 필드들 초기화
-                document.getElementById('add-condition-effect-pair-btn').style.display = 'block';
-                
-                // 쌍 2 필드들 초기화
-                document.getElementById('condition-type-2').value = '';
-                document.getElementById('condition-value-2').value = '';
-                document.getElementById('condition-operator-2').value = '';
-                document.getElementById('condition-numeric-2').value = '';
-                document.getElementById('effect-timing-2').value = '';
-                document.getElementById('effect-type-2').value = '';
-                document.getElementById('effect-value-2').value = '';
-                document.getElementById('effect-target-2').value = '';
             }
             
-            // 카드 타입에 따라 필드 표시/숨김
-            const isJoker = card.id.startsWith('joker_');
-            const isPlanet = card.id.startsWith('planet_');
-            const isTarot = card.id.startsWith('tarot_');
-            
-            // 조커 카드에서는 필요 카드 수, 칩 강화, 배율 강화 필드 숨김
-            document.getElementById('edit-need-card-count').parentElement.style.display = isJoker ? 'none' : (isTarot ? 'block' : 'none');
-            document.getElementById('edit-enhance-chips').parentElement.style.display = isPlanet ? 'block' : 'none';
-            document.getElementById('edit-enhance-mul').parentElement.style.display = isPlanet ? 'block' : 'none';
-            
+            // 조건-효과 쌍 2 로드
+            loadConditionEffectPair(2, card);
 
+            // 조건-효과 쌍 3 로드
+            loadConditionEffectPair(3, card);
             
-            // 타로 카드에서는 칩 강화, 배율 강화 필드 숨김
-            if (isTarot) {
-                document.getElementById('edit-enhance-chips').parentElement.style.display = 'none';
-                document.getElementById('edit-enhance-mul').parentElement.style.display = 'none';
-            }
+            // 조건-효과 쌍 4 로드
+            loadConditionEffectPair(4, card);
             
-            // 조건-효과 쌍 1은 조커 카드에서만 표시
-            const pair1Container = document.querySelector('.condition-effect-pair').parentElement;
-            if (pair1Container) {
-                pair1Container.style.display = isJoker ? 'block' : 'none';
-            }
+            // 조건-효과 쌍 5 로드
+            loadConditionEffectPair(5, card);
             
-            // 조건-효과 쌍 2와 추가 버튼은 조커 카드에서만 표시
-            if (isJoker) {
-                const pair2Container = document.getElementById('condition-effect-pair-2-container');
-                const addButton = document.getElementById('add-condition-effect-pair-btn');
-                
-                if (pair2Container && addButton) {
-                    // 이미 위에서 설정한 display 상태를 유지
-                    // (데이터가 있으면 pair2Container가 block, 없으면 addButton이 block)
-                }
-            } else {
-                // 조커 카드가 아닌 경우 (행성, 타로) 조건-효과 쌍 2와 추가 버튼 숨김
-                const pair2Container = document.getElementById('condition-effect-pair-2-container');
-                const addButton = document.getElementById('add-condition-effect-pair-btn');
-                
-                if (pair2Container) {
-                    pair2Container.style.display = 'none';
-                }
-                if (addButton) {
-                    addButton.style.display = 'none';
-                }
-            }
+            // 추가 버튼 표시 (데이터가 있는 쌍이 2개 미만이면)
+            // const visiblePairs = [1, 2, 3, 4, 5].filter(i => {
+            //     const container = document.getElementById('condition-effect-pair-' + i + '-container');
+            //     return container.style.display === 'block';
+            // }).length;
+            
+            // if (visiblePairs < 5) {
+            //     document.getElementById('add-condition-effect-pair-btn').style.display = 'block';
+            // } else {
+            //     document.getElementById('add-condition-effect-pair-btn').style.display = 'none';
+            // }
+
+            document.getElementById('add-condition-effect-pair-btn').style.display = 'block';
             
             document.getElementById('editModal').style.display = 'block';
         }
@@ -1114,17 +1499,15 @@ export class CardsController {
                 price: parseInt(document.getElementById('edit-price').value) || 0
             };
             
-
-            
-            // 타로 카드인 경우 적용 카드수만 추가
-            if (isTarot) {
-                updateData.needCardCount = parseInt(document.getElementById('edit-need-card-count').value) || 0;
+            // 행성카드 데이터 추가
+            if (isPlanet) {
+                updateData.enhanceChips = parseFloat(document.getElementById('edit-enhance-chips').value) || 0;
+                updateData.enhanceMul = parseFloat(document.getElementById('edit-enhance-mul').value) || 0;
             }
             
-            // 행성 카드인 경우에만 칩 강화, 배율 강화 추가
-            if (isPlanet) {
-                updateData.enhanceChips = parseInt(document.getElementById('edit-enhance-chips').value) || 0;
-                updateData.enhanceMul = parseFloat(document.getElementById('edit-enhance-mul').value) || 0;
+            // 타로카드 데이터 추가
+            if (isTarot) {
+                updateData.needCardCount = parseInt(document.getElementById('edit-need-card-count').value) || 0;
             }
 
             // 활성화 상태 추가
@@ -1134,7 +1517,12 @@ export class CardsController {
             if (isJoker) {
                 // 2개 고정 조건-효과 시스템 필드들
                 updateData.conditionType1 = document.getElementById('condition-type-1').value;
-                updateData.conditionValue1 = document.getElementById('condition-value-1').value;
+                
+                // multiple select 값 저장 (선택된 옵션들을 쉼표로 구분된 문자열로 변환)
+                const conditionValue1Select = document.getElementById('condition-value-1');
+                const selectedValues1 = Array.from(conditionValue1Select.selectedOptions).map(option => option.value);
+                updateData.conditionValue1 = selectedValues1.join(', ');
+                
                 updateData.conditionOperator1 = document.getElementById('condition-operator-1').value;
                 updateData.conditionNumeric1 = document.getElementById('condition-numeric-1').value ? parseInt(document.getElementById('condition-numeric-1').value) : null;
                 updateData.effectTiming1 = document.getElementById('effect-timing-1').value;
@@ -1150,10 +1538,18 @@ export class CardsController {
                 } else {
                     updateData.baseValue = effectValue1;
                 }
+                // effectValue1도 함께 저장
+                updateData.effectValue1 = effectValue1;
                 updateData.effectTarget1 = document.getElementById('effect-target-1').value;
+                updateData.effectByCount1 = document.getElementById('effect-by-count-1').checked;
                 
                 updateData.conditionType2 = document.getElementById('condition-type-2').value;
-                updateData.conditionValue2 = document.getElementById('condition-value-2').value;
+                
+                // multiple select 값 저장 (선택된 옵션들을 쉼표로 구분된 문자열로 변환)
+                const conditionValue2Select = document.getElementById('condition-value-2');
+                const selectedValues2 = Array.from(conditionValue2Select.selectedOptions).map(option => option.value);
+                updateData.conditionValue2 = selectedValues2.join(', ');
+                
                 updateData.conditionOperator2 = document.getElementById('condition-operator-2').value;
                 updateData.conditionNumeric2 = document.getElementById('condition-numeric-2').value ? parseInt(document.getElementById('condition-numeric-2').value) : null;
                 updateData.effectTiming2 = document.getElementById('effect-timing-2').value;
@@ -1171,12 +1567,81 @@ export class CardsController {
                     } else {
                         updateData.baseValue = effectValue2;
                     }
+                    // effectValue2도 함께 저장
+                    updateData.effectValue2 = effectValue2;
                 }
                 updateData.effectTarget2 = document.getElementById('effect-target-2').value;
+                updateData.effectByCount2 = document.getElementById('effect-by-count-2').checked;
+
+                // 조건-효과 쌍 3 데이터 저장
+                const conditionType3 = document.getElementById('condition-type-3').value;
+                const conditionValue3 = Array.from(document.getElementById('condition-value-3').selectedOptions).map(option => option.value).join(', ');
+                const conditionNumeric3 = document.getElementById('condition-numeric-3').value ? parseInt(document.getElementById('condition-numeric-3').value) : null;
+                const conditionOperator3 = document.getElementById('condition-operator-3').value;
+                const effectTiming3 = document.getElementById('effect-timing-3').value;
+                const effectType3 = document.getElementById('effect-type-3').value;
+                const effectValue3 = document.getElementById('effect-value-3').value ? parseFloat(document.getElementById('effect-value-3').value) : null;
+                const effectTarget3 = document.getElementById('effect-target-3').value;
+
+                // 쌍 3 데이터 저장 (항상 저장)
+                updateData.conditionType3 = conditionType3;
+                updateData.conditionValue3 = conditionValue3;
+                updateData.conditionNumeric3 = conditionNumeric3;
+                updateData.conditionOperator3 = conditionOperator3;
+                updateData.effectTiming3 = effectTiming3;
+                updateData.effectType3 = effectType3;
+                updateData.effectValue3 = effectValue3;
+                updateData.effectTarget3 = effectTarget3;
+                updateData.effectByCount3 = document.getElementById('effect-by-count-3').checked;
+
+                // 조건-효과 쌍 4 데이터 저장
+                const conditionType4 = document.getElementById('condition-type-4').value;
+                const conditionValue4 = Array.from(document.getElementById('condition-value-4').selectedOptions).map(option => option.value).join(', ');
+                const conditionNumeric4 = document.getElementById('condition-numeric-4').value ? parseInt(document.getElementById('condition-numeric-4').value) : null;
+                const conditionOperator4 = document.getElementById('condition-operator-4').value;
+                const effectTiming4 = document.getElementById('effect-timing-4').value;
+                const effectType4 = document.getElementById('effect-type-4').value;
+                const effectValue4 = document.getElementById('effect-value-4').value ? parseFloat(document.getElementById('effect-value-4').value) : null;
+                const effectTarget4 = document.getElementById('effect-target-4').value;
+
+                // 쌍 4 데이터 저장 (항상 저장)
+                updateData.conditionType4 = conditionType4;
+                updateData.conditionValue4 = conditionValue4;
+                updateData.conditionNumeric4 = conditionNumeric4;
+                updateData.conditionOperator4 = conditionOperator4;
+                updateData.effectTiming4 = effectTiming4;
+                updateData.effectType4 = effectType4;
+                updateData.effectValue4 = effectValue4;
+                updateData.effectTarget4 = effectTarget4;
+                updateData.effectByCount4 = document.getElementById('effect-by-count-4').checked;
+
+                // 조건-효과 쌍 5 데이터 저장
+                const conditionType5 = document.getElementById('condition-type-5').value;
+                const conditionValue5 = Array.from(document.getElementById('condition-value-5').selectedOptions).map(option => option.value).join(', ');
+                const conditionNumeric5 = document.getElementById('condition-numeric-5').value ? parseInt(document.getElementById('condition-numeric-5').value) : null;
+                const conditionOperator5 = document.getElementById('condition-operator-5').value;
+                const effectTiming5 = document.getElementById('effect-timing-5').value;
+                const effectType5 = document.getElementById('effect-type-5').value;
+                const effectValue5 = document.getElementById('effect-value-5').value ? parseFloat(document.getElementById('effect-value-5').value) : null;
+                const effectTarget5 = document.getElementById('effect-target-5').value;
+
+                // 쌍 5 데이터 저장 (항상 저장)
+                updateData.conditionType5 = conditionType5;
+                updateData.conditionValue5 = conditionValue5;
+                updateData.conditionNumeric5 = conditionNumeric5;
+                updateData.conditionOperator5 = conditionOperator5;
+                updateData.effectTiming5 = effectTiming5;
+                updateData.effectType5 = effectType5;
+                updateData.effectValue5 = effectValue5;
+                updateData.effectTarget5 = effectTarget5;
+                updateData.effectByCount5 = document.getElementById('effect-by-count-5').checked;
             }
 
+            // 디버깅: 저장되는 데이터 확인
+            console.log('저장되는 데이터:', updateData);
+            
             try {
-                const response = await fetch(\`/dev-tools/cards/api/\${cardId}\`, {
+                const response = await fetch('/dev-tools/cards/api/' + cardId, {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
@@ -1219,7 +1684,7 @@ export class CardsController {
                 
                 // 값에 해당하는 체크박스 체크
                 values.forEach(value => {
-                    const checkbox = container.querySelector(\`input[value="\${value}"]\`);
+                                         const checkbox = container.querySelector('input[value="' + value + '"]');
                     if (checkbox) {
                         checkbox.checked = true;
                     } else {
@@ -1227,9 +1692,9 @@ export class CardsController {
                     }
                 });
                 
-                console.log(\`\${containerType} 로드 완료:\`, values);
+                                 console.log(containerType + ' 로드 완료:', values);
             } catch (e) {
-                console.error(\`\${containerType} JSON 파싱 실패:\`, e, '원본 데이터:', jsonString);
+                                 console.error(containerType + ' JSON 파싱 실패:', e, '원본 데이터:', jsonString);
             }
         }
         
@@ -1258,12 +1723,30 @@ export class CardsController {
         
         // 조건-효과 쌍 추가 함수
         function addConditionEffectPair() {
-            document.getElementById('condition-effect-pair-2-container').style.display = 'block';
-            document.getElementById('add-condition-effect-pair-btn').style.display = 'none';
+            // 현재 표시된 조건-효과 쌍 개수 확인
+            let currentPair = 1;
+            for (let i = 1; i <= 5; i++) {
+                if (document.getElementById('condition-effect-pair-' + i + '-container')){
+                    if (document.getElementById('condition-effect-pair-' + i + '-container').style.display === 'block') {
+                        currentPair = i;
+                    }
+                }
+            }
             
-            // 새로 추가된 쌍 2의 필드들을 초기화
-            updateConditionFields(2);
-            updateEffectValueField(2);
+            // 다음 쌍 표시
+            const nextPair = currentPair + 1;
+            if (nextPair <= 5) {
+                document.getElementById('condition-effect-pair-' + nextPair + '-container').style.display = 'block';
+                
+                // 새로 추가된 쌍의 필드들을 초기화
+                updateConditionFields(nextPair);
+                updateEffectValueField(nextPair);
+                
+                // 마지막 쌍이 표시되면 추가 버튼 숨김
+                if (nextPair === 5) {
+                    document.getElementById('add-condition-effect-pair-btn').style.display = 'none';
+                }
+            }
         }
         
         // 효과 타입에 따른 효과 값 필드 업데이트 함수
@@ -1277,6 +1760,9 @@ export class CardsController {
                 effectValue.value = '';
             } else if (effectType === 'DecrementBaseValue') {
                 // 기본값 감소는 decrease 값 사용
+                effectValue.value = '';
+            } else if (effectType === 'GrowCardChips') {
+                // 카드 칩스 성장은 increase 값 사용
                 effectValue.value = '';
             } else {
                 // 기타 효과들은 baseValue 값 사용
@@ -1333,8 +1819,15 @@ export class CardsController {
                     conditionNumeric.disabled = false;
                     break;
                     
-                case 'UsedAceCount':
-                case 'RemainingSevens':
+                case 'UsedCardCount':
+                case 'RemainingCardCount':
+                    // 카드 개수 조건들은 값(카드 숫자), 연산자, 숫자 값 필요
+                    conditionValue.disabled = false;
+                    conditionOperator.disabled = false;
+                    conditionNumeric.disabled = false;
+                    break;
+                    
+                case 'DeckCardCount':
                 case 'RemainingDeck':
                 case 'TotalDeck':
                 case 'RemainingDiscards':
@@ -1358,8 +1851,9 @@ export class CardsController {
                 'HasTripleInUnUsed': '미사용 트리플',
                 'UnUsedHandType': '미사용 핸드',
                 'UnUsedSuitCount': '미사용 무늬 수',
-                'UsedAceCount': '사용된 에이스',
-                'RemainingSevens': '남은 7',
+                'UsedCardCount': '사용된 카드',
+                'RemainingCardCount': '미사용 카드',
+                'DeckCardCount': '덱 안에 카드',
                 'RemainingDeck': '남은 덱',
                 'TotalDeck': '전체 덱',
                 'UsedSuitCount': '사용된 무늬 수',
@@ -1374,10 +1868,10 @@ export class CardsController {
                 'Diamonds': '다이아몬드',
                 'Clubs': '클럽',
                 'Spades': '스페이드',
-                'Ace': '에이스',
-                'King': '킹',
-                'Queen': '퀸',
-                'Jack': '잭',
+                'Ace': '1',
+                'King': '13',
+                'Queen': '12',
+                'Jack': '11',
                 'Ten': '10',
                 'Nine': '9',
                 'Eight': '8',
@@ -1411,7 +1905,8 @@ export class CardsController {
                 'AddChips': '칩+',
                 'MulChips': '칩×',
                 'GrowBaseValue': '기본값↑',
-                'DecrementBaseValue': '기본값↓'
+                'DecrementBaseValue': '기본값↓',
+                'GrowCardChips': '카드칩스↑'
             };
             
             const targetMap = {
@@ -1420,15 +1915,39 @@ export class CardsController {
             };
             
             const type = typeMap[conditionType] || conditionType;
-            const value = conditionValue ? (valueMap[conditionValue] || conditionValue) : '';
+            
+            // 조건값이 쉼표나 슬래시로 구분된 여러 값인지 확인
+            let value = '';
+            if (conditionValue) {
+                // 쉼표나 슬래시로 구분된 여러 값인지 확인
+                const separator = conditionValue.includes(',') ? ',' : (conditionValue.includes('/') ? '/' : null);
+                if (separator) {
+                    // 여러 값으로 구분된 경우
+                    const values = conditionValue.split(separator).map(v => v.trim()).filter(Boolean);
+                    console.log('[formatConditionEffect] 여러 값 감지:', conditionValue, '->', values.join(', '));
+                    if (values.length > 1) {
+                        const firstValue = valueMap[values[0]] || values[0];
+                        const remainingCount = values.length - 1;
+                        value = firstValue + ' 외 ' + remainingCount + '개';
+                        console.log('[formatConditionEffect] "외 x개" 형태로 변환:', value);
+                    } else {
+                        value = valueMap[conditionValue] || conditionValue;
+                    }
+                } else {
+                    // 단일 값인 경우
+                    value = valueMap[conditionValue] || conditionValue;
+                    console.log('[formatConditionEffect] 단일 값:', conditionValue, '->', value);
+                }
+            }
+            
             const timing = effectTiming ? (timingMap[effectTiming] || effectTiming) : '';
             const effect = effectMap[effectType] || effectType;
             const target = effectTarget ? (targetMap[effectTarget] || effectTarget) : '';
             
-            let result = \`\${type}\`;
-            if (value) result += \`:\${value}\`;
-            result += \` → \${effect}\`;
-            if (timing) result += \` [\${timing}]\`;
+                         let result = type;
+             if (value) result += ':' + value;
+             result += ' → ' + effect;
+             if (timing) result += ' [' + timing + ']';
             
             return result;
         }
@@ -1438,6 +1957,105 @@ export class CardsController {
             const modal = document.getElementById('editModal');
             if (event.target === modal) {
                 closeModal();
+            }
+        }
+
+        // 조건-효과 쌍 로드 함수
+        function loadConditionEffectPair(pairNumber, card) {
+            const hasData = card['conditionType' + pairNumber] || card['conditionValue' + pairNumber] || 
+                card['conditionOperator' + pairNumber] || card['conditionNumeric' + pairNumber] || 
+                card['effectTiming' + pairNumber] || card['effectType' + pairNumber] || 
+                card['effectTarget' + pairNumber];
+            
+            console.log('조건-효과 쌍 ' + pairNumber + ' 로드:', {
+                pairNumber: pairNumber,
+                hasData: hasData,
+                conditionType: card['conditionType' + pairNumber],
+                conditionValue: card['conditionValue' + pairNumber],
+                conditionOperator: card['conditionOperator' + pairNumber],
+                conditionNumeric: card['conditionNumeric' + pairNumber],
+                effectTiming: card['effectTiming' + pairNumber],
+                effectType: card['effectType' + pairNumber],
+                effectTarget: card['effectTarget' + pairNumber]
+            });
+            
+            const container = document.getElementById('condition-effect-pair-' + pairNumber + '-container');
+            
+            if (hasData) {
+                // 데이터가 있으면 표시
+                container.style.display = 'block';
+                
+                // 값 설정
+                document.getElementById('condition-type-' + pairNumber).value = card['conditionType' + pairNumber] || '';
+                
+                // multiple select 값 로드
+                const conditionValueSelect = document.getElementById('condition-value-' + pairNumber);
+                if (card['conditionValue' + pairNumber]) {
+                    let values;
+                    // 배열인 경우와 문자열인 경우 모두 처리
+                    if (Array.isArray(card['conditionValue' + pairNumber])) {
+                        values = card['conditionValue' + pairNumber];
+                    } else {
+                        values = card['conditionValue' + pairNumber].split(',').map(v => v.trim());
+                    }
+                    
+                    console.log('조건값 로드:', {
+                        pairNumber: pairNumber,
+                        rawValue: card['conditionValue' + pairNumber],
+                        parsedValues: values
+                    });
+                    
+                    Array.from(conditionValueSelect.options).forEach(option => {
+                        option.selected = values.includes(option.value);
+                    });
+                } else {
+                    Array.from(conditionValueSelect.options).forEach(option => {
+                        option.selected = false;
+                    });
+                }
+                
+                document.getElementById('condition-operator-' + pairNumber).value = card['conditionOperator' + pairNumber] || '';
+                document.getElementById('condition-numeric-' + pairNumber).value = card['conditionNumeric' + pairNumber] !== null && card['conditionNumeric' + pairNumber] !== undefined ? card['conditionNumeric' + pairNumber] : '';
+                document.getElementById('effect-timing-' + pairNumber).value = card['effectTiming' + pairNumber] || '';
+                document.getElementById('effect-type-' + pairNumber).value = card['effectType' + pairNumber] || '';
+                document.getElementById('effect-target-' + pairNumber).value = card['effectTarget' + pairNumber] || 'Joker';
+                document.getElementById('effect-by-count-' + pairNumber).checked = card['effectByCount' + pairNumber] || false;
+                
+                // 조건 타입에 따른 필드 초기화
+                updateConditionFields(pairNumber);
+                
+                // 효과 타입에 따른 효과 값 필드 업데이트
+                updateEffectValueField(pairNumber);
+                
+                // effectValue 로드
+                if (card['effectValue' + pairNumber] !== null && card['effectValue' + pairNumber] !== undefined) {
+                    document.getElementById('effect-value-' + pairNumber).value = card['effectValue' + pairNumber];
+                } else {
+                    // 기존 로직: 효과 타입에 따라 적절한 값 로드
+                    if (card['effectType' + pairNumber] === 'GrowBaseValue') {
+                        document.getElementById('effect-value-' + pairNumber).value = card.increase !== null && card.increase !== undefined ? card.increase : '';
+                    } else if (card['effectType' + pairNumber] === 'DecrementBaseValue') {
+                        document.getElementById('effect-value-' + pairNumber).value = card.decrease !== null && card.decrease !== undefined ? card.decrease : '';
+                    } else if (card['effectType' + pairNumber] === 'GrowCardChips') {
+                        document.getElementById('effect-value-' + pairNumber).value = card.increase !== null && card.increase !== undefined ? card.increase : '';
+                    } else {
+                        document.getElementById('effect-value-' + pairNumber).value = card.baseValue !== null && card.baseValue !== undefined ? card.baseValue : '';
+                    }
+                }
+            } else {
+                // 데이터가 없으면 숨김
+                container.style.display = 'none';
+                
+                // 필드들 초기화
+                document.getElementById('condition-type-' + pairNumber).value = '';
+                document.getElementById('condition-value-' + pairNumber).value = '';
+                document.getElementById('condition-operator-' + pairNumber).value = '';
+                document.getElementById('condition-numeric-' + pairNumber).value = '';
+                document.getElementById('effect-timing-' + pairNumber).value = '';
+                document.getElementById('effect-type-' + pairNumber).value = '';
+                document.getElementById('effect-value-' + pairNumber).value = '';
+                document.getElementById('effect-target-' + pairNumber).value = '';
+                document.getElementById('effect-by-count-' + pairNumber).checked = false;
             }
         }
     </script>

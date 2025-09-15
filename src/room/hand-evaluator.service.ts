@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { CardType, CardValue, PokerHand, PokerHandResult, HandContext } from './poker-types';
 import { CardData } from './deck.util';
 import { PaytableService } from './paytable.service';
+import { SpecialCardData } from './special-card-manager.service';
 
 @Injectable()
 export class HandEvaluatorService {
@@ -214,15 +215,18 @@ export class HandEvaluatorService {
     }
 
     // 카드 값 계산 헬퍼 메서드
-    calculateCardValue(rank: number): number {
-        if (rank >= 2 && rank <= 10) return rank;
-        if (rank === 1) return 11; // Ace
-        return 10; // J, Q, K
+    calculateCardValue(userId: string, card: CardData): number {
+        const enhanceChips = this.paytableService.getCardEnhanceChips(userId, card);
+
+        if (card.rank >= 2 && card.rank <= 10) return card.rank + enhanceChips;
+        if (card.rank === 1) return 11 + enhanceChips; // Ace
+        return 10 + enhanceChips; // J, Q, K
     }
 
     // HandContext 생성 헬퍼 메서드
-    createHandContext(handResult: PokerHandResult, remainingDiscards: number = 0, remainingDeck: number = 0, totalDeck: number = 0, remainingSevens: number = 0): HandContext {
+    createHandContext(userId: string, handResult: PokerHandResult, remainingDiscards: number = 0, remainingDeck: CardData[] = [], totalDeck: number = 0, ownedJokers: SpecialCardData[] = []): HandContext {
         const context = new HandContext();
+        context.userId = userId;  // userId 설정
 
         if (handResult.usedCards) {
             context.playedCards.push(...handResult.usedCards);
@@ -238,8 +242,33 @@ export class HandEvaluatorService {
         context.unUsedPokerHand = handResult.unUsedPokerHand;
         context.remainingDiscards = remainingDiscards;
         context.remainingDeck = remainingDeck;
-        context.remainingSevens = remainingSevens;
         context.totalDeck = totalDeck;
+
+        // ownedJokers 수만큼 randomValue 생성 (effectValues 범위에 따른 랜덤값)
+        for (const joker of ownedJokers) {
+            console.log('joker:', joker.effectValues);
+
+            // conditionTypes 개수만큼 for문 돌리기
+            if (joker.conditionTypes && joker.effectValues) {
+                for (let i = 0; i < joker.conditionTypes.length; i++) {
+                    if (joker.effectValues[i]) {
+
+                        for (const effectValue of joker.effectValues[i]) {
+                            if (effectValue.includes('@')) {
+                                const min = parseFloat(effectValue.split('@')[0]);
+                                const max = parseFloat(effectValue.split('@')[1]);
+                                const randomVal = Math.random() * (max - min) + min;
+
+                                console.log(`joker ${joker.id} conditionTypes[${i}]: min=${min}, max=${max}, randomValue=${randomVal}`);
+
+                                context.randomValue.push({ id: joker.id + '_' + i, value: randomVal });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         return context;
     }
 } 

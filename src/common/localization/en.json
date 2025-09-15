@@ -5,6 +5,10 @@
             "value": "Login successful"
         },
         {
+            "key": "save_login_info",
+            "value": "Save Login Info"
+        },
+        {
             "key": "logging_in",
             "value": "Logging in..."
         },

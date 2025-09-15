@@ -2,10 +2,24 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { CardUpdateDto } from './dto/card-update.dto';
 import { CardsResponseDto } from './dto/cards-response.dto';
 import { PrismaService } from '../prisma.service';
-import { SpecialCard, SpecialCardType } from '../room/special-card-manager.service';
+import { SpecialCardType } from '../room/special-card-manager.service';
 import { SpecialCardManagerService } from '../room/special-card-manager.service';
 import { RedisService } from '../redis/redis.service';
 import { GameSettingsService } from '../common/services/game-settings.service';
+import { CsvImporterService } from './csv-importer.service';
+
+// 파싱된 조건 정보 인터페이스
+interface ParsedCondition {
+    effect: string;           // 'total', 'total_count', 'count' 등
+    conditionType: string;    // 'include_rank', 'by_suite', 'by_number', 'suite', 'remain_discard' 등
+    handTypes: string[];      // ['onepair', 'twopair', 'triple', ...]
+    target: string;           // 'handcard', 'playcard', 'playingcard'
+    numbers?: string[];       // by_number 패턴에서 숫자들
+    count?: number;           // count 패턴에서 숫자
+    remainType?: string;      // remain 패턴에서 타입
+    suit?: string;            // suite 패턴에서 무늬 (단일)
+    suits?: string[];         // by_suite 패턴에서 무늬들 (복수)
+}
 
 @Injectable()
 export class DevToolsService implements OnModuleInit {
@@ -19,6 +33,7 @@ export class DevToolsService implements OnModuleInit {
         private readonly specialCardManagerService: SpecialCardManagerService,
         private readonly redisService: RedisService,
         private readonly gameSettingsService: GameSettingsService,
+        private readonly csvImporterService: CsvImporterService,
     ) { }
 
 
@@ -47,8 +62,7 @@ export class DevToolsService implements OnModuleInit {
         return {
             id: dbCard.id,
             name: dbCard.name,
-            description: dbCard.description || dbCard.descriptionKo || '',
-            descriptionKo: dbCard.descriptionKo || dbCard.description || '',
+            descriptionKo: dbCard.descriptionKo || '',
             descriptionId: dbCard.descriptionId || '',
             descriptionEn: dbCard.descriptionEn || '',
             price: dbCard.price,
@@ -69,14 +83,48 @@ export class DevToolsService implements OnModuleInit {
             conditionNumeric1: dbCard.conditionNumeric1,
             effectTiming1: dbCard.effectTiming1,
             effectType1: dbCard.effectType1,
+            effectValue1: dbCard.effectValue1,
             effectTarget1: dbCard.effectTarget1,
+            effectByCount1: dbCard.effectByCount1,
             conditionType2: dbCard.conditionType2,
             conditionValue2: dbCard.conditionValue2,
             conditionOperator2: dbCard.conditionOperator2,
             conditionNumeric2: dbCard.conditionNumeric2,
             effectTiming2: dbCard.effectTiming2,
             effectType2: dbCard.effectType2,
+            effectValue2: dbCard.effectValue2,
             effectTarget2: dbCard.effectTarget2,
+            effectByCount2: dbCard.effectByCount2,
+            // 세 번째 조건-효과 쌍
+            conditionType3: dbCard.conditionType3,
+            conditionValue3: dbCard.conditionValue3,
+            conditionOperator3: dbCard.conditionOperator3,
+            conditionNumeric3: dbCard.conditionNumeric3,
+            effectTiming3: dbCard.effectTiming3,
+            effectType3: dbCard.effectType3,
+            effectValue3: dbCard.effectValue3,
+            effectTarget3: dbCard.effectTarget3,
+            effectByCount3: dbCard.effectByCount3,
+            // 네 번째 조건-효과 쌍
+            conditionType4: dbCard.conditionType4,
+            conditionValue4: dbCard.conditionValue4,
+            conditionOperator4: dbCard.conditionOperator4,
+            conditionNumeric4: dbCard.conditionNumeric4,
+            effectTiming4: dbCard.effectTiming4,
+            effectType4: dbCard.effectType4,
+            effectValue4: dbCard.effectValue4,
+            effectTarget4: dbCard.effectTarget4,
+            effectByCount4: dbCard.effectByCount4,
+            // 다섯 번째 조건-효과 쌍
+            conditionType5: dbCard.conditionType5,
+            conditionValue5: dbCard.conditionValue5,
+            conditionOperator5: dbCard.conditionOperator5,
+            conditionNumeric5: dbCard.conditionNumeric5,
+            effectTiming5: dbCard.effectTiming5,
+            effectType5: dbCard.effectType5,
+            effectValue5: dbCard.effectValue5,
+            effectTarget5: dbCard.effectTarget5,
+            effectByCount5: dbCard.effectByCount5,
         };
     }
 
@@ -137,9 +185,10 @@ export class DevToolsService implements OnModuleInit {
                 await this.prisma.specialCard.create({
                     data: {
                         id: card.id,
-                        name: card.name,
-                        description: card.description,
-                        descriptionKo: card.description || undefined,
+                        name: card.name || '',
+                        description: card.descriptionKo || undefined,
+                        descriptionEn: card.descriptionEn || undefined,
+                        descriptionKo: card.descriptionKo || undefined,
                         descriptionId: undefined,
                         price: card.price,
                         sprite: card.sprite,
@@ -178,6 +227,7 @@ export class DevToolsService implements OnModuleInit {
     async updateCard(cardId: string, updateData: CardUpdateDto): Promise<boolean> {
         try {
             this.logger.log(`[DevTools] 카드 업데이트 시도: ${cardId}`);
+            this.logger.log(`[DevTools] 업데이트 데이터:`, JSON.stringify(updateData, null, 2));
 
             // 데이터베이스 업데이트
             const updatedCard = await this.prisma.specialCard.update({
@@ -197,21 +247,56 @@ export class DevToolsService implements OnModuleInit {
                     enhanceChips: updateData.enhanceChips,
                     enhanceMul: updateData.enhanceMul,
                     isActive: updateData.isActive,
-                    // 2개 고정 조건-효과 시스템 필드들
+
                     conditionType1: updateData.conditionType1,
                     conditionValue1: updateData.conditionValue1,
                     conditionOperator1: updateData.conditionOperator1,
-                    conditionNumeric1: updateData.conditionNumeric1,
+                    conditionNumeric1: updateData.conditionNumeric1?.toString(),
                     effectTiming1: updateData.effectTiming1,
                     effectType1: updateData.effectType1,
+                    effectValue1: updateData.effectValue1,
                     effectTarget1: updateData.effectTarget1,
+                    effectByCount1: updateData.effectByCount1,
+
                     conditionType2: updateData.conditionType2,
                     conditionValue2: updateData.conditionValue2,
                     conditionOperator2: updateData.conditionOperator2,
-                    conditionNumeric2: updateData.conditionNumeric2,
+                    conditionNumeric2: updateData.conditionNumeric2?.toString(),
                     effectTiming2: updateData.effectTiming2,
                     effectType2: updateData.effectType2,
+                    effectValue2: updateData.effectValue2,
                     effectTarget2: updateData.effectTarget2,
+                    effectByCount2: updateData.effectByCount2,
+
+                    conditionType3: updateData.conditionType3,
+                    conditionValue3: updateData.conditionValue3,
+                    conditionOperator3: updateData.conditionOperator3,
+                    conditionNumeric3: updateData.conditionNumeric3?.toString(),
+                    effectTiming3: updateData.effectTiming3,
+                    effectType3: updateData.effectType3,
+                    effectValue3: updateData.effectValue3,
+                    effectTarget3: updateData.effectTarget3,
+                    effectByCount3: updateData.effectByCount3,
+
+                    conditionType4: updateData.conditionType4,
+                    conditionValue4: updateData.conditionValue4,
+                    conditionOperator4: updateData.conditionOperator4,
+                    conditionNumeric4: updateData.conditionNumeric4?.toString(),
+                    effectTiming4: updateData.effectTiming4,
+                    effectType4: updateData.effectType4,
+                    effectValue4: updateData.effectValue4,
+                    effectTarget4: updateData.effectTarget4,
+                    effectByCount4: updateData.effectByCount4,
+
+                    conditionType5: updateData.conditionType5,
+                    conditionValue5: updateData.conditionValue5,
+                    conditionOperator5: updateData.conditionOperator5,
+                    conditionNumeric5: updateData.conditionNumeric5?.toString(),
+                    effectTiming5: updateData.effectTiming5,
+                    effectType5: updateData.effectType5,
+                    effectValue5: updateData.effectValue5,
+                    effectTarget5: updateData.effectTarget5,
+                    effectByCount5: updateData.effectByCount5,
                 }
             });
 
@@ -246,13 +331,13 @@ export class DevToolsService implements OnModuleInit {
             const dbCards = await this.prisma.specialCard.findMany();
             this.jokerCards = dbCards.filter((card: any) => card.id.startsWith('joker_'))
                 .map(this.convertToSpecialCard)
-                .sort((a: SpecialCard, b: SpecialCard) => this.sortCardsById(a.id, b.id));
+                .sort((a: any, b: any) => this.sortCardsById(a.id, b.id));
             this.planetCards = dbCards.filter((card: any) => card.id.startsWith('planet_'))
                 .map(this.convertToSpecialCard)
-                .sort((a: SpecialCard, b: SpecialCard) => this.sortCardsById(a.id, b.id));
+                .sort((a: any, b: any) => this.sortCardsById(a.id, b.id));
             this.tarotCards = dbCards.filter((card: any) => card.id.startsWith('tarot_'))
                 .map(this.convertToSpecialCard)
-                .sort((a: SpecialCard, b: SpecialCard) => this.sortCardsById(a.id, b.id));
+                .sort((a: any, b: any) => this.sortCardsById(a.id, b.id));
         } catch (error) {
             this.logger.error('[DevTools] 메모리 데이터 새로고침 실패:', error);
         }
@@ -390,6 +475,352 @@ export class DevToolsService implements OnModuleInit {
             this.logger.error('[DevTools] 사용자 목록 조회 실패:', error);
             throw error;
         }
+    }
+
+    // =========================
+    // Joker CSV Import
+    // =========================
+    async importJokerCsv(buffer: Buffer) {
+        const text = buffer.toString('utf8');
+        const rows = this.parseCsv(text);
+
+        if (rows.length === 0) {
+            return { success: false, message: '빈 CSV 입니다.' };
+        }
+
+        const header = rows[0].map(h => h.trim());
+        const dataRows = rows.slice(1);
+
+        const timingColumns = [
+            'timing_draw',
+            'timing_round_start',
+            'timing_hand_play',
+            'timing_scoring',
+            'timing_after_scoring',
+            'timing_fold',
+            'timing_round_clear',
+            'timing_tarot_card_use',
+            'timing_planet_card_use',
+        ];
+
+        const warnings: string[] = [];
+        const ops: any[] = [];
+        let created = 0;
+        let updated = 0;
+        let skipped = 0;
+
+        for (const row of dataRows) {
+            if (row.length === 0 || row.every(v => v === '')) {
+                skipped++;
+                continue;
+            }
+
+            const rec = this.rowToRecord(header, row);
+            const idNum = (rec.id ?? '').toString().trim();
+
+            if (!idNum) {
+                warnings.push('id 누락 행 스킵');
+                skipped++;
+                continue;
+            }
+
+            const cardId = idNum.startsWith('joker_') ? idNum : `joker_${idNum}`;
+
+            // 새로운 파싱 서비스를 사용하여 효과 쌍 추출
+            const effectPairs = this.extractEffectPairs(rec, timingColumns, warnings, cardId);
+
+            // 모든 조건-효과 쌍 필드 클리어
+            const clearFields: any = {};
+
+            // 1-5번 조건-효과 쌍 모두 클리어
+            for (let i = 1; i <= 5; i++) {
+                clearFields[`conditionType${i}`] = null;
+                clearFields[`conditionValue${i}`] = null;
+                clearFields[`conditionOperator${i}`] = null;
+                clearFields[`conditionNumeric${i}`] = null;
+                clearFields[`effectTiming${i}`] = null;
+                clearFields[`effectType${i}`] = null;
+                clearFields[`effectValue${i}`] = null;
+                clearFields[`effectByCount${i}`] = null;
+                clearFields[`effectTarget${i}`] = null;
+            }
+
+
+            // 새 레코드 생성 데이터
+            const createData: any = this.cleanUndefined({
+                id: cardId,
+                type: 'Joker',
+                name: rec.nameText,
+                descriptionKo: rec.descText,
+                price: this.parseIntSafe(rec.price),
+                sprite: this.parseIntSafe(rec.sprite),
+                basevalue: this.parseFloatSafe(rec.basevalue),
+                increase: this.parseFloatSafe(rec.increase) || 0,
+                decrease: this.parseFloatSafe(rec.decrease) || 0,
+                maxvalue: this.parseIntSafe(rec.maxvalue) || 0,
+                isActive: true,
+                // 모든 조건-효과 쌍 클리어 후 새로운 데이터 설정
+                ...clearFields,
+                ...this.buildEffectFields(effectPairs, 1),
+                ...this.buildEffectFields(effectPairs, 2),
+                ...this.buildEffectFields(effectPairs, 3),
+                ...this.buildEffectFields(effectPairs, 4),
+                ...this.buildEffectFields(effectPairs, 5),
+            });
+
+            // 기존 레코드 업데이트 데이터
+            const updateData: any = this.cleanUndefined({
+                name: rec.nameText,
+                descriptionKo: rec.descText,
+                price: this.parseIntSafe(rec.price) || 0,
+                sprite: this.parseIntSafe(rec.sprite) || 0,
+                basevalue: this.parseFloatSafe(rec.basevalue),
+                increase: this.parseFloatSafe(rec.increase) || 0,
+                decrease: this.parseFloatSafe(rec.decrease) || 0,
+                maxvalue: this.parseIntSafe(rec.maxvalue) || 0,
+                // 모든 조건-효과 쌍 클리어 후 새로운 데이터 설정
+                ...clearFields,
+                ...this.buildEffectFields(effectPairs, 1),
+                ...this.buildEffectFields(effectPairs, 2),
+                ...this.buildEffectFields(effectPairs, 3),
+                ...this.buildEffectFields(effectPairs, 4),
+                ...this.buildEffectFields(effectPairs, 5),
+            });
+
+            ops.push(
+                this.prisma.specialCard.upsert({
+                    where: { id: cardId },
+                    update: updateData,
+                    create: createData,
+                })
+            );
+        }
+
+        if (ops.length > 0) {
+            await this.prisma.$transaction(ops);
+        }
+
+        // 메모리 갱신
+        await this.refreshMemoryData();
+        await this.specialCardManagerService.initializeCards(this.prisma);
+
+        return {
+            success: true,
+            message: 'CSV 반영 완료',
+            total: dataRows.length,
+            created,
+            updated,
+            skipped,
+            warnings,
+        };
+    }
+
+    /**
+     * 새로운 파싱 서비스를 사용하여 효과 쌍 추출
+     */
+    private extractEffectPairs(rec: any, timingColumns: string[], warnings: string[], cardId: string) {
+        const pairs: Array<{
+            timing: string;
+            effectType: string;
+            effectValue: string[];
+            effectByCount: boolean;
+            effectOnCard: boolean;
+            effectUseRandomValue: boolean;
+            conditionType: string;
+            conditionValues: string[];
+            conditionOperatorType: string | null;
+            conditionNumericValue: number[];
+        }> = [];
+
+        for (const tcol of timingColumns) {
+            const raw = (rec[tcol] || '').trim();
+            if (!raw) continue;
+
+            const tokens = raw.split(',').map((s: string) => s.trim()).filter(Boolean);
+
+            for (const tok of tokens) {
+                if (pairs.length >= 5) {
+                    warnings.push(`${cardId}: 효과 5개 초과, 무시 -> ${tok}`);
+                    break;
+                }
+
+                // this.logger.log(`[DevTools] 토큰 처리 중: ${cardId}, 쌍 ${pairs.length + 1}번째, 토큰: ${tok}`);
+
+                // 새로운 파싱 서비스 사용 (CSV 레코드 전달)
+                let parsed = this.csvImporterService.parseToken(tok);
+
+                if (parsed) {
+                    // 효과 값 설정
+                    // let effectValue: string[] = parsed.effectValue;
+                    // for (let i = 0; i < effectValue.length; i++) {
+                    //     if (effectValue[i].includes('[basevalue]')) {
+                    //         effectValue[i] = rec.basevalue;
+                    //     } else if (effectValue[i].includes('[increase]')) {
+                    //         effectValue[i] = rec.increase;
+                    //     } else if (effectValue[i].includes('[decrease]')) {
+                    //         effectValue[i] = rec.decrease;
+                    //     }
+                    // }
+
+                    const pairData = {
+                        timing: this.normalizeTiming(tcol),
+                        ...parsed
+                    };
+
+                    pairs.push(pairData);
+
+                    // this.logger.log(`[DevTools] 쌍 ${pairs.length}번째 추가 완료:`, pairData);
+                } else {
+                    warnings.push(`${cardId}: 토큰 파싱 실패 -> ${tok}`);
+                }
+            }
+
+            if (pairs.length >= 5) break;
+        }
+
+        // this.logger.log(`[DevTools] ${cardId} 최종 쌍 개수: ${pairs.length}`);
+        // this.logger.log(`[DevTools] ${cardId} effectPairs 상세:`, JSON.stringify(pairs, null, 2));
+        return pairs;
+    }
+
+
+    private buildEffectFields(effectPairs: Array<{
+        timing: string;
+        effectType: string;
+        effectValue: string[];
+        effectByCount: boolean;
+        effectOnCard: boolean;
+        effectUseRandomValue: boolean;
+        conditionType: string;
+        conditionValues: string[];
+        conditionOperatorType: string | null;
+        conditionNumericValue: number[];
+    }>, index: number) {
+        const pair = effectPairs[index - 1];
+        if (!pair) return {};
+
+        const fields = {
+            [`effectTiming${index}`]: pair.timing,
+            [`effectType${index}`]: pair.effectType,
+            [`effectValue${index}`]: pair.effectValue.join(', '),//this.parseFloatSafe(pair.effectValue),
+            [`effectByCount${index}`]: pair.effectByCount,
+            [`conditionType${index}`]: pair.conditionType,
+            [`conditionValue${index}`]: pair.conditionValues.join(', '),
+            [`conditionOperator${index}`]: pair.conditionOperatorType,
+            [`conditionNumeric${index}`]: pair.conditionNumericValue.length > 0 ? pair.conditionNumericValue.join(',') : null,
+        };
+
+        // this.logger.log(`[DevTools] buildEffectFields ${index}:`, fields);
+        return fields;
+    }
+
+    /**
+     * 타이밍 컬럼명을 정규화
+     */
+    private normalizeTiming(col: string): string {
+        const timingMap: Record<string, string> = {
+            'timing_draw': 'Draw',
+            'timing_round_start': 'RoundStart',
+            'timing_hand_play': 'OnHandPlay',
+            'timing_scoring': 'OnScoring',
+            'timing_after_scoring': 'OnAfterScoring',
+            'timing_fold': 'Fold',
+            'timing_round_clear': 'OnAfterScoring',
+            'timing_tarot_card_use': 'TarotCardUse',
+            'timing_planet_card_use': 'PlanetCardUse',
+        };
+        return timingMap[col] || col;
+    }
+
+    /**
+     * CSV 파싱
+     */
+    private parseCsv(text: string): string[][] {
+        const rows: string[][] = [];
+        let current: string[] = [];
+        let field = '';
+        let inQuotes = false;
+
+        for (let i = 0; i < text.length; i++) {
+            const c = text[i];
+            if (inQuotes) {
+                if (c === '"') {
+                    if (text[i + 1] === '"') {
+                        field += '"';
+                        i++;
+                    } else {
+                        inQuotes = false;
+                    }
+                } else {
+                    field += c;
+                }
+            } else {
+                if (c === '"') inQuotes = true;
+                else if (c === ',') {
+                    current.push(field);
+                    field = '';
+                }
+                else if (c === '\n' || c === '\r') {
+                    if (field !== '' || current.length > 0) {
+                        current.push(field);
+                        rows.push(current);
+                        current = [];
+                        field = '';
+                    }
+                    // consume \r\n pair
+                    if (c === '\r' && text[i + 1] === '\n') i++;
+                } else {
+                    field += c;
+                }
+            }
+        }
+
+        if (field !== '' || current.length > 0) {
+            current.push(field);
+            rows.push(current);
+        }
+
+        return rows;
+    }
+
+    /**
+     * CSV 행을 레코드로 변환
+     */
+    private rowToRecord(header: string[], row: string[]) {
+        const rec: any = {};
+        for (let i = 0; i < header.length; i++) {
+            rec[header[i]] = (row[i] ?? '').trim();
+        }
+        return rec;
+    }
+
+    /**
+     * 안전한 정수 파싱
+     */
+    private parseIntSafe(v: any): number | undefined {
+        if (v === undefined || v === null || v === '') return undefined;
+        const n = parseInt(String(v));
+        return Number.isNaN(n) ? undefined : n;
+    }
+
+    /**
+     * 안전한 부동소수점 파싱
+     */
+    private parseFloatSafe(v: any): number | undefined {
+        if (v === undefined || v === null || v === '') return undefined;
+        const n = parseFloat(String(v));
+        return Number.isNaN(n) ? undefined : n;
+    }
+
+    /**
+     * undefined 값 제거
+     */
+    private cleanUndefined<T extends Record<string, any>>(obj: T): T {
+        const out: any = {};
+        for (const [k, v] of Object.entries(obj)) {
+            if (v !== undefined) out[k] = v;
+        }
+        return out as T;
     }
 
     // GameSetting 관련 메서드들
@@ -609,4 +1040,49 @@ export class DevToolsService implements OnModuleInit {
             throw error;
         }
     }
+
+    // 효과 부분 파싱
+    private parseEffectPart(token: string): string {
+        if (token.startsWith('total_')) return 'total';
+        if (token.startsWith('total_count=')) return 'total_count';
+        if (token.startsWith('add_')) return 'add';
+        if (token.startsWith('decrease_')) return 'decrease';
+        if (token.startsWith('increase_')) return 'increase';
+        if (token.startsWith('multiple_')) return 'multiple';
+        return '';
+    }
+
+    // 조건 타입 부분 파싱
+    private parseConditionTypePart(token: string): string {
+        if (token.includes('include_rank')) return 'include_rank';
+        if (token.includes('by_suite')) return 'by_suite';
+        if (token.includes('by_number')) return 'by_number';
+        if (token.includes('by_exist')) return 'by_exist';
+        if (token.includes('by_remain')) return 'by_remain';
+        if (token.includes('count=')) return 'count';
+        if (token.includes('suite_')) return 'suite';
+        if (token.includes('remain_discard')) return 'remain_discard';
+        if (token.includes('remain_hand')) return 'remain_hand';
+        return '';
+    }
+
+    // 핸드타입들 파싱
+    private parseHandTypesPart(token: string): string[] {
+        const includeRankMatch = token.match(/include_rank_([^_]+)(?:_|$)/);
+        if (includeRankMatch) {
+            return includeRankMatch[1].split('/').map(v => v.trim().toLowerCase());
+        }
+        return [];
+    }
+
+    // 대상 부분 파싱
+    private parseTargetPart(token: string): string {
+        if (token.includes('handcard')) return 'handcard';
+        if (token.includes('playcard') || token.includes('playingcard')) return 'playcard';
+        if (token.includes('deckcardall')) return 'deckcardall';
+        if (token.includes('deckcardremain')) return 'deckcardremain';
+        return '';
+    }
+
+
 } 

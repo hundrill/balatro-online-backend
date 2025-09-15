@@ -197,9 +197,9 @@ export class GameSettingsService {
         royal: { seedMoney1: number, seedMoney2: number, seedMoney3: number, seedMoney4: number }
     }> {
         try {
-            const channelSeedMoneyRaw = await this.getSetting<string>('channelSeedMoney');
-            this.logger.log(`[GameSettings] getChannelSeedMoney 호출`);
-            this.logger.log(`[GameSettings] 원본 channelSeedMoney:`, channelSeedMoneyRaw);
+            // const channelSeedMoneyRaw = await this.getSetting<string>('channelSeedMoney');
+            // this.logger.log(`[GameSettings] getChannelSeedMoney 호출`);
+            // this.logger.log(`[GameSettings] 원본 channelSeedMoney:`, channelSeedMoneyRaw);
 
             // 기본값 제공
             const defaultChannelSeedMoney = {
@@ -210,14 +210,18 @@ export class GameSettingsService {
                 royal: { seedMoney1: 2100, seedMoney2: 2100, seedMoney3: 2100, seedMoney4: 2100 }
             };
 
-            if (channelSeedMoneyRaw) {
-                const parsed = JSON.parse(channelSeedMoneyRaw);
-                this.logger.log(`[GameSettings] 파싱된 channelSeedMoney:`, parsed);
-                return parsed;
-            } else {
-                this.logger.log(`[GameSettings] 기본값 사용:`, defaultChannelSeedMoney);
-                return defaultChannelSeedMoney;
-            }
+            // if (channelSeedMoneyRaw) {
+            //     const parsed = JSON.parse(channelSeedMoneyRaw);
+            //     this.logger.log(`[GameSettings] 파싱된 channelSeedMoney:`, parsed);
+            //     return parsed;
+            // } else {
+            //     this.logger.log(`[GameSettings] 기본값 사용:`, defaultChannelSeedMoney);
+            //     return defaultChannelSeedMoney;
+            // }
+
+            this.logger.log(`[GameSettings] 기본값 사용:`, defaultChannelSeedMoney);
+            return defaultChannelSeedMoney;
+
         } catch (error) {
             this.logger.error('[GameSettings] 채널별 씨드머니 파싱 에러:', error);
             return {

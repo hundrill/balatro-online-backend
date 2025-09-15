@@ -423,18 +423,7 @@ export class DevToolsController {
                             <label>최대값:</label>
                             <input type="number" id="edit-maxvalue">
                         </div>
-                        <div class="form-group">
-                            <label>적용 카드수:</label>
-                            <input type="number" id="edit-need-card-count">
-                        </div>
-                        <div class="form-group">
-                            <label>칩 강화:</label>
-                            <input type="number" id="edit-enhance-chips">
-                        </div>
-                        <div class="form-group">
-                            <label>배율 강화:</label>
-                            <input type="number" id="edit-enhance-mul" step="0.1">
-                        </div>
+
                         <div class="form-group checkbox-group">
                             <input type="checkbox" id="edit-is-active">
                             <label for="edit-is-active">활성화</label>
@@ -543,17 +532,10 @@ export class DevToolsController {
                             <span class="stat-value">\${card.maxValue || 0}</span>
                         </div>\` : ''}
                         \${isTarot ? \`<div class="stat-item">
-                            <span class="stat-label">적용 카드수:</span>
+                            <span class="stat-label">필요 카드수:</span>
                             <span class="stat-value">\${card.needCardCount || 0}</span>
                         </div>\` : ''}
-                        \${isPlanet ? \`<div class="stat-item">
-                            <span class="stat-label">칩 강화:</span>
-                            <span class="stat-value">\${card.enhanceChips || 0}</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-label">배율 강화:</span>
-                            <span class="stat-value">\${card.enhanceMul || 0}</span>
-                        </div>\` : ''}
+                        \${isPlanet ? \`\` : ''}
                     </div>
                     <button class="edit-btn" onclick="openEditModal(\${JSON.stringify(card).replace(/"/g, '&quot;')})">편집</button>
                 \`;
@@ -572,9 +554,7 @@ export class DevToolsController {
             document.getElementById('edit-increase').value = card.increase || '';
             document.getElementById('edit-decrease').value = card.decrease || '';
             document.getElementById('edit-maxvalue').value = card.maxValue || '';
-            document.getElementById('edit-need-card-count').value = card.needCardCount || '';
-            document.getElementById('edit-enhance-chips').value = card.enhanceChips || '';
-            document.getElementById('edit-enhance-mul').value = card.enhanceMul || '';
+
             document.getElementById('edit-is-active').checked = card.isActive !== false;
             
             // 카드 타입에 따라 필드 표시/숨김
@@ -582,27 +562,7 @@ export class DevToolsController {
             const isPlanet = card.id.startsWith('planet_');
             const isTarot = card.id.startsWith('tarot_');
             
-            // 조커 카드에서는 필요 카드 수, 칩 강화, 배율 강화 필드 숨김
-            document.getElementById('edit-need-card-count').parentElement.style.display = isJoker ? 'none' : 'block';
-            document.getElementById('edit-enhance-chips').parentElement.style.display = isPlanet ? 'block' : 'none';
-            document.getElementById('edit-enhance-mul').parentElement.style.display = isPlanet ? 'block' : 'none';
-            
-            // 행성 카드에서는 기본값, 증가값, 감소값, 최대값, 필요 카드 수 필드 숨김
-            document.getElementById('edit-basevalue').parentElement.style.display = isPlanet ? 'none' : 'block';
-            document.getElementById('edit-increase').parentElement.style.display = isPlanet ? 'none' : 'block';
-            document.getElementById('edit-decrease').parentElement.style.display = isPlanet ? 'none' : 'block';
-            document.getElementById('edit-maxvalue').parentElement.style.display = isPlanet ? 'none' : 'block';
-            
-            // 타로 카드에서는 기본값, 증가값, 감소값, 최대값, 칩 강화, 배율 강화 필드 숨김 (적용 카드수만 표시)
-            if (isTarot) {
-                document.getElementById('edit-basevalue').parentElement.style.display = 'none';
-                document.getElementById('edit-increase').parentElement.style.display = 'none';
-                document.getElementById('edit-decrease').parentElement.style.display = 'none';
-                document.getElementById('edit-maxvalue').parentElement.style.display = 'none';
-                document.getElementById('edit-enhance-chips').parentElement.style.display = 'none';
-                document.getElementById('edit-enhance-mul').parentElement.style.display = 'none';
-                document.getElementById('edit-need-card-count').parentElement.style.display = 'block';
-            }
+
             
             document.getElementById('editModal').style.display = 'block';
         }
@@ -634,16 +594,7 @@ export class DevToolsController {
                 updateData.maxValue = parseInt(document.getElementById('edit-maxvalue').value) || 0;
             }
             
-            // 타로 카드인 경우 적용 카드수만 추가
-            if (isTarot) {
-                updateData.needCardCount = parseInt(document.getElementById('edit-need-card-count').value) || 0;
-            }
-            
-            // 행성 카드인 경우에만 칩 강화, 배율 강화 추가
-            if (isPlanet) {
-                updateData.enhanceChips = parseInt(document.getElementById('edit-enhance-chips').value) || 0;
-                updateData.enhanceMul = parseFloat(document.getElementById('edit-enhance-mul').value) || 0;
-            }
+
 
             // 활성화 상태 추가
             updateData.isActive = document.getElementById('edit-is-active').checked;
@@ -1260,6 +1211,8 @@ function renderFeedbacks(feedbacks) {
         return;
     }
 
+
+
     @Post('apk/upload')
     @UseInterceptors(FileInterceptor('file'))
     async uploadApk(@UploadedFile() file: Express.Multer.File, @Body('comment') comment: string) {
@@ -1576,5 +1529,18 @@ document.addEventListener('DOMContentLoaded', function() {
     @Delete('feedback/:id')
     async deleteFeedback(@Param('id') id: string) {
         return this.feedbackService.deleteFeedback(id);
+    }
+
+    @Post('special-cards/joker-csv')
+    @UseInterceptors(FileInterceptor('file'))
+    async uploadJokerCsv(
+        @UploadedFile() file: Express.Multer.File,
+
+    ) {
+        if (!file) {
+            return { success: false, message: '파일이 없습니다.' };
+        }
+        const result = await this.devToolsService.importJokerCsv(file.buffer);
+        return { success: true, data: result, message: 'Joker CSV 처리 완료' };
     }
 }

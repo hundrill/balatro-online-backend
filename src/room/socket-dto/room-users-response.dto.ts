@@ -7,10 +7,12 @@ export interface RoomUser {
     chips: number;  // 현재 칩 타입에 따른 칩 수량
     funds: number;  // 자금
     isPlaying: boolean;
+    isRoomOwner: boolean;  // 방장 여부
     ownedCards: string[];
     paytableLevels: Record<string, number>;
     paytableBaseChips: Record<string, number>;
     paytableMultipliers: Record<string, number>;
+    cardEnhancements: Record<string, { enhanceChips: number; enhanceMul: number }>;  // 카드별 성장값 추가
 }
 
 export class RoomUsersResponseDto extends BaseSocketDto {

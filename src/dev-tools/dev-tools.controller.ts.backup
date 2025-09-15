@@ -432,7 +432,7 @@ export class DevToolsController {
                             <input type="number" id="edit-maxvalue">
                         </div>
                         <div class="form-group">
-                            <label>적용 카드수:</label>
+                            <label>필요 카드수:</label>
                             <input type="number" id="edit-need-card-count">
                         </div>
                         <div class="form-group">
@@ -551,7 +551,7 @@ export class DevToolsController {
                             <span class="stat-value">\${card.maxValue || 0}</span>
                         </div>\` : ''}
                         \${isTarot ? \`<div class="stat-item">
-                            <span class="stat-label">적용 카드수:</span>
+                            <span class="stat-label">필요 카드수:</span>
                             <span class="stat-value">\${card.needCardCount || 0}</span>
                         </div>\` : ''}
                         \${isPlanet ? \`<div class="stat-item">

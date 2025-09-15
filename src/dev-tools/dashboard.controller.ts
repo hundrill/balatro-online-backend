@@ -265,6 +265,58 @@ export class DashboardController {
             background: #f44336;
             color: white;
         }
+        .joker-csv-upload-form {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            text-align: left;
+        }
+        .joker-csv-upload-form input[type="file"], .joker-csv-upload-form input[type="checkbox"] {
+            margin: 5px 0;
+        }
+        .csv-upload-btn {
+            background: linear-gradient(45deg, #FF9800, #F57C00);
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.95em;
+            transition: transform 0.2s;
+            box-shadow: 0 2px 4px rgba(255, 152, 0, 0.3);
+            width: fit-content;
+        }
+        .csv-upload-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(255, 152, 0, 0.4);
+        }
+        .csv-result {
+            background: #f8f9fa;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            margin-top: 15px;
+            font-size: 0.9em;
+        }
+        .csv-result.error {
+            background: #ffebee;
+            border-color: #e57373;
+            color: #c62828;
+        }
+        .csv-result.success {
+            background: #e8f5e8;
+            border-color: #81c784;
+            color: #2e7d32;
+        }
+        .csv-warnings {
+            margin-top: 10px;
+            font-size: 0.85em;
+        }
+        .csv-warnings ul {
+            margin: 5px 0;
+            padding-left: 20px;
+        }
     </style>
 </head>
 <body>
@@ -334,6 +386,37 @@ export class DashboardController {
                 <button onclick="rechargeChips()" style="background: linear-gradient(45deg, #4CAF50, #45a049); color: white; padding: 12px 24px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.95em; transition: transform 0.2s; box-shadow: 0 2px 4px rgba(76, 175, 80, 0.3);">칩 충전/차감</button>
             </div>
             <div id="recharge-result" style="margin-top: 15px;"></div>
+        </div>
+    </div>
+
+    <!-- Joker CSV 업로드와 피드백 관리 섹션 -->
+    <div class="dashboard-grid">
+        <div class="dashboard-card">
+            <h3>🃏 Joker CSV Import</h3>
+            <p>joker.csv 파일을 업로드하여 Special Card 데이터를 관리합니다.</p>
+            <div style="background: #f8f9fa; border-radius: 8px; padding: 15px; margin-bottom: 20px; text-align: left;">
+                <h4 style="color:#333; margin: 0 0 10px 0; font-size: 1.1em;">CSV 업로드</h4>
+                <div class="joker-csv-upload-form">
+                    <div style="display: flex; flex-direction: column; gap: 5px;">
+                        <label style="font-weight: 600; color: #333; font-size: 0.9em;">CSV 파일</label>
+                        <input type="file" id="joker-csv-file" accept=".csv" style="padding: 10px; border: 2px solid #e0e0e0; border-radius: 6px; background: white; transition: border-color 0.3s;">
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 8px;">
+                        <button onclick="uploadJokerCsv()" class="csv-upload-btn">업로드</button>
+                    </div>
+                </div>
+            </div>
+            <div id="joker-upload-result"></div>
+        </div>
+        
+        <div class="dashboard-card">
+            <h3>📝 피드백 관리</h3>
+            <p>사용자 피드백을 확인하고 관리합니다.</p>
+            <div style="background: #f8f9fa; border-radius: 8px; padding: 15px; margin-bottom: 20px; text-align: left;">
+                <h4 style="color:#333; margin: 0 0 10px 0; font-size: 1.1em;">피드백 목록</h4>
+                <div id="feedback-files" style="font-size: 16px; color:#444; min-height: 20px;"></div>
+            </div>
+            <a href="/dev-tools/feedback" class="dashboard-btn">피드백 관리</a>
         </div>
     </div>
 
@@ -568,6 +651,66 @@ export class DashboardController {
             } catch (error) {
                 console.error('APK delete failed:', error);
                 alert('APK 삭제 중 오류가 발생했습니다.');
+            }
+        }
+
+        // Joker CSV 업로드
+        async function uploadJokerCsv() {
+            const fileInput = document.getElementById('joker-csv-file');
+            const resultDiv = document.getElementById('joker-upload-result');
+
+            if (!fileInput.files.length) {
+                resultDiv.innerHTML = '<div class="csv-result error">CSV 파일을 선택하세요.</div>';
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+
+            resultDiv.innerHTML = '<div class="csv-result">업로드 중...</div>';
+            
+            try {
+                const response = await fetch('/dev-tools/special-cards/joker-csv', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+                
+                if (!response.ok || !result.success) {
+                    resultDiv.innerHTML = \`<div class="csv-result error">실패: \${result.message || '알 수 없는 오류'}</div>\`;
+                    return;
+                }
+
+                const data = result.data;
+                const warningsHtml = data.warnings && data.warnings.length > 0 
+                    ? \`<div class="csv-warnings"><strong>⚠️ 경고:</strong><ul>\${data.warnings.map(w => \`<li>\${w}</li>\`).join('')}</ul></div>\`
+                    : '';
+                
+                const errorsHtml = data.errors && data.errors.length > 0 
+                    ? \`<div class="csv-warnings"><strong>❌ 오류:</strong><ul>\${data.errors.map(e => \`<li>\${e}</li>\`).join('')}</ul></div>\`
+                    : '';
+
+                const statusClass = data.errors && data.errors.length > 0 ? 'error' : 'success';
+
+                resultDiv.innerHTML = \`
+                    <div class="csv-result \${statusClass}">
+                        <div><strong>✅ 업로드 완료</strong></div>
+                        <div>총 행: \${data.total}</div>
+                        <div>생성: \${data.created || 0}, 갱신: \${data.updated || 0}, 스킵: \${data.skipped || 0}</div>
+                        \${warningsHtml}
+                        \${errorsHtml}
+                    </div>
+                \`;
+
+                // 카드 목록 새로고침 (카드 관리 페이지가 있다면)
+                if (typeof loadCards === 'function') {
+                    loadCards();
+                }
+
+            } catch (error) {
+                console.error('CSV upload failed:', error);
+                resultDiv.innerHTML = '<div class="csv-result error">업로드 중 오류가 발생했습니다.</div>';
             }
         }
 

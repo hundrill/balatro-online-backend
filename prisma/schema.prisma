@@ -8,14 +8,15 @@ datasource db {
 }
 
 model User {
-  email        String?    @unique
-  userId       String     @id
-  passwordHash String
-  nickname     String     @unique
-  silverChip   Int        @default(1200)
-  goldChip     Int        @default(1200)
-  createdAt    DateTime   @default(now())
-  rooms        RoomUser[]
+  email               String?    @unique
+  passwordHash        String
+  nickname            String     @unique
+  createdAt           DateTime   @default(now())
+  goldChip            Int        @default(1200)
+  silverChip          Int        @default(1200)
+  piggyBankClaimCount Int        @default(0)
+  userId              String     @id
+  rooms               RoomUser[]
 }
 
 model Channel {
@@ -42,8 +43,8 @@ model RoomUser {
   roomId Int
   userId String
   seat   Int
-  room   Room @relation(fields: [roomId], references: [id])
-  user   User @relation(fields: [userId], references: [userId])
+  room   Room   @relation(fields: [roomId], references: [id])
+  user   User   @relation(fields: [userId], references: [userId])
 
   @@index([roomId], map: "RoomUser_roomId_fkey")
   @@index([userId], map: "RoomUser_userId_fkey")
@@ -60,73 +61,96 @@ model GameHistory {
 }
 
 model SpecialCard {
-  id                String   @id
-  name              String
-  description       String?
-  descriptionKo     String?  @db.Text
-  descriptionId     String?  @db.Text
-  descriptionEn     String?  @db.Text
-  price             Int      @default(0)
-  sprite            Int      @default(0)
-  type              String   @default("Joker")
-  basevalue         Float?   @default(0)
-  increase          Float?   @default(0)
-  decrease          Float?   @default(0)
-  maxvalue          Int?     @default(0)
-  need_card_count   Int?     @default(0)
-  enhanceChips      Int?     @default(0)
-  enhanceMul        Float?   @default(0)
-  isActive          Boolean  @default(true)
-  
-  // 2개 고정 조건-효과 시스템 필드들
-  // 첫 번째 조건-효과 쌍
-  conditionType1     String?  // 조건 타입
-  conditionValue1    String?  // 조건 값
-  conditionOperator1 String?  // 조건 연산자
-  conditionNumeric1  Int?     // 조건 숫자 값
-  effectTiming1      String?  // 효과 타이밍
-  effectType1        String?  // 효과 타입
-  effectTarget1      String?  // 효과 표시 대상 (Card/Joker)
-  
-  // 두 번째 조건-효과 쌍
-  conditionType2     String?  // 조건 타입
-  conditionValue2    String?  // 조건 값
-  conditionOperator2 String?  // 조건 연산자
-  conditionNumeric2  Int?     // 조건 숫자 값
-  effectTiming2      String?  // 효과 타이밍
-  effectType2        String?  // 효과 타입
-  effectTarget2      String?  // 효과 표시 대상 (Card/Joker)
-  
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id                 String   @id
+  name               String
+  description        String?
+  price              Int      @default(0)
+  basevalue          Float?   @default(0)
+  increase           Float?   @default(0)
+  decrease           Float?   @default(0)
+  maxvalue           Int?     @default(0)
+  need_card_count    Int?     @default(0)
+  enhanceChips       Int?     @default(0)
+  enhanceMul         Float?   @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  sprite             Int      @default(0)
+  isActive           Boolean  @default(true)
+  type               String   @default("Joker")
+  conditionNumeric1  String?
+  conditionNumeric2  String?
+  conditionOperator1 String?
+  conditionOperator2 String?
+  conditionType1     String?
+  conditionType2     String?
+  conditionValue1    String?
+  conditionValue2    String?
+  effectType1        String?
+  effectType2        String?
+  effectTarget1      String?
+  effectTarget2      String?
+  effectTiming1      String?
+  effectTiming2      String?
+  descriptionId      String?  @db.Text
+  descriptionKo      String?  @db.Text
+  descriptionEn      String?  @db.Text
+  effectValue1       String?
+  effectValue2       String?
+  conditionNumeric3  String?
+  conditionNumeric4  String?
+  conditionNumeric5  String?
+  conditionOperator3 String?
+  conditionOperator4 String?
+  conditionOperator5 String?
+  conditionType3     String?
+  conditionType4     String?
+  conditionType5     String?
+  conditionValue3    String?
+  conditionValue4    String?
+  conditionValue5    String?
+  effectTarget3      String?
+  effectTarget4      String?
+  effectTarget5      String?
+  effectTiming3      String?
+  effectTiming4      String?
+  effectTiming5      String?
+  effectType3        String?
+  effectType4        String?
+  effectType5        String?
+  effectValue3       String?
+  effectValue4       String?
+  effectValue5       String?
+  effectByCount1     Boolean?
+  effectByCount2     Boolean?
+  effectByCount3     Boolean?
+  effectByCount4     Boolean?
+  effectByCount5     Boolean?
 
   @@index([id], map: "SpecialCard_id_key")
 }
 
 model GameSetting {
-  id                    String   @id
-  name                  String   @unique
-  value                 String   @db.Text // JSON 형태로 저장
-  description           String?
-  isActive              Boolean  @default(true)
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  id          String   @id
+  name        String   @unique
+  value       String   @db.Text
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@index([id], map: "GameSetting_id_key")
 }
 
 model Feedback {
-  id          String   @id @default(cuid())
-  content     String   @db.Text
-  author      String   // 작성자 (이메일 또는 닉네임)
-  assignee    String?  // 담당자 (처리할 개발자)
-  parentId    String?  // 답글인 경우 부모 댓글 ID
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  // 답글 관계
-  parent      Feedback? @relation("FeedbackReplies", fields: [parentId], references: [id], onDelete: Cascade)
-  replies     Feedback[] @relation("FeedbackReplies")
+  id        String     @id @default(cuid())
+  content   String     @db.Text
+  author    String
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  parentId  String?
+  assignee  String?
+  parent    Feedback?  @relation("FeedbackReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   Feedback[] @relation("FeedbackReplies")
 
   @@index([parentId])
 }

@@ -1,4 +1,4 @@
-export class GetSpecialCardsResponseDto {
+export class ConfigResponseDto {
     success: boolean;
     code: number;
     message: string;
@@ -37,12 +37,14 @@ export class SpecialCardApiDto {
     enhanceMul: number | null;
     isActive: boolean;
 
-    // 조건-효과 시스템 필드들
+    conditionTypes: string[] | null;
+    conditionValues: string[][] | null;
+    conditionOperators: string[] | null;
+    conditionNumericValues: number[] | null;
+
     effectTimings: string[] | null;
     effectTypes: string[] | null;
     effectOnCards: boolean[] | null;
-    conditionTypes: string[] | null;
-    conditionValues: string[] | null;
-    conditionOperators: string[] | null;
-    conditionNumericValues: number[] | null;
+    effectValues: string[][] | null;
+    effectByCounts: boolean[] | null;
 } 

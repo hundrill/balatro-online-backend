@@ -1,5 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { PokerHand } from './poker-types';
+import { CardData } from './deck.util';
+
+// 카드별 성장값 데이터 구조
+export class CardEnhancement {
+    cardId: string;           // suit_rank 형태의 카드 ID (예: Hearts_1, Spades_13)
+    enhanceChips: number;     // 성장 칩스 (초기값: 0)
+    enhanceMul: number;       // 성장 배수 (초기값: 1.0)
+}
 
 @Injectable()
 export class PaytableService {
@@ -34,6 +42,9 @@ export class PaytableService {
     private readonly userBaseChips: Map<string, Map<PokerHand, number>> = new Map(); // 유저별 baseChips
     private readonly userMultipliers: Map<string, Map<PokerHand, number>> = new Map(); // 유저별 multipliers
 
+    // 카드별 성장값 관리 추가
+    private readonly userCardEnhancements: Map<string, Map<string, CardEnhancement>> = new Map();
+
     // 유저별 데이터 초기화
     private initializeUserData(userId: string): void {
         if (!this.userLevels.has(userId)) {
@@ -53,6 +64,24 @@ export class PaytableService {
                 }
             });
         }
+    }
+
+    // 특정 카드 초기화 함수
+    private initializeCardEnhancement(userId: string, cardData: CardData): CardEnhancement {
+        if (!this.userCardEnhancements.has(userId)) {
+            this.userCardEnhancements.set(userId, new Map());
+        }
+
+        const cardId = `${cardData.suit}_${cardData.rank}`;
+
+        if (!this.userCardEnhancements.get(userId)!.has(cardId)) {
+            this.userCardEnhancements.get(userId)!.set(cardId, new CardEnhancement());
+            this.userCardEnhancements.get(userId)!.get(cardId)!.cardId = cardId;
+            this.userCardEnhancements.get(userId)!.get(cardId)!.enhanceChips = 0;    // 초기값
+            this.userCardEnhancements.get(userId)!.get(cardId)!.enhanceMul = 1.0;    // 초기값
+        }
+
+        return this.userCardEnhancements.get(userId)!.get(cardId)!;
     }
 
     getLevel(userId: string, hand: PokerHand): number {
@@ -101,11 +130,72 @@ export class PaytableService {
         this.userBaseChips.get(userId)!.set(hand, currentChips + plus);
     }
 
+    // 카드별 성장값 관리 함수들
+
+    /**
+     * 카드 칩스 증가 (enhanceChips와 유사)
+     */
+    enhanceCardChips(userId: string, cardData: CardData, amount: number): void {
+        const enhancement = this.initializeCardEnhancement(userId, cardData);
+        enhancement.enhanceChips += amount;
+    }
+
+    /**
+     * 카드 배수 증가 (enhanceMultiplier와 유사)
+     */
+    enhanceCardMultiplier(userId: string, cardData: CardData, amount: number): void {
+        const enhancement = this.initializeCardEnhancement(userId, cardData);
+        enhancement.enhanceMul += amount;
+    }
+
+    /**
+     * 카드 성장값 조회 (getChips와 유사)
+     */
+    getCardEnhancement(userId: string, cardData: CardData): CardEnhancement {
+        return this.initializeCardEnhancement(userId, cardData);
+    }
+
+    /**
+     * 카드 성장 칩스 값 가져오기
+     */
+    getCardEnhanceChips(userId: string, cardData: CardData): number {
+        const enhancement = this.initializeCardEnhancement(userId, cardData);
+        return enhancement.enhanceChips;
+    }
+
+    /**
+     * 카드 성장 배수 값 가져오기
+     */
+    getCardEnhanceMultiplier(userId: string, cardData: CardData): number {
+        const enhancement = this.initializeCardEnhancement(userId, cardData);
+        return enhancement.enhanceMul;
+    }
+
+    /**
+     * 유저의 모든 카드별 성장값을 가져오기
+     */
+    getUserCardEnhancements(userId: string): Record<string, { enhanceChips: number; enhanceMul: number }> {
+        const enhancements: Record<string, { enhanceChips: number; enhanceMul: number }> = {};
+
+        if (this.userCardEnhancements.has(userId)) {
+            const userEnhancements = this.userCardEnhancements.get(userId)!;
+            for (const [cardId, enhancement] of userEnhancements) {
+                enhancements[cardId] = {
+                    enhanceChips: enhancement.enhanceChips,
+                    enhanceMul: enhancement.enhanceMul
+                };
+            }
+        }
+
+        return enhancements;
+    }
+
     // 모든 유저 데이터 완전 초기화 (새 게임 시작 시)
     resetAllUserData(): void {
         this.userLevels.clear();
         this.userCounts.clear();
         this.userBaseChips.clear();
         this.userMultipliers.clear();
+        this.userCardEnhancements.clear();
     }
 } 
