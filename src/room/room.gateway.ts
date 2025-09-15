@@ -1447,6 +1447,13 @@ export class RoomGateway
         return;
       }
 
+      // 베팅 차례 확인
+      const roomState = this.roomService.getRoomState(roomId);
+      if (roomState.bettingState.currentUser !== userId) {
+        this.logger.warn(`[handleBettingRequest] 베팅 차례가 아닌 유저의 요청 무시: userId=${userId}, currentUser=${roomState.bettingState.currentUser}`);
+        return;
+      }
+
       // 베팅 처리
       const result = await this.roomService.processBetting(roomId, userId, data.bettingType);
 
