@@ -3,6 +3,7 @@ export class ConfigResponseDto {
     code: number;
     message: string;
     specialCards: SpecialCardApiDto[];
+    challenges: ChallengeApiDto[];
     channelSeedMoney: ChannelSeedMoneyDto;
 }
 
@@ -47,4 +48,17 @@ export class SpecialCardApiDto {
     effectOnCards: boolean[] | null;
     effectValues: string[][] | null;
     effectByCounts: boolean[] | null;
-} 
+}
+
+export class ChallengeApiDto {
+    id: string;
+    nameKo: string;
+    nameEn: string;
+    nameId: string;
+    descriptionKo: string | null;
+    descriptionEn: string | null;
+    descriptionId: string | null;
+    targetCount: number;
+    reward: number | null;
+    currentCount: number;
+}

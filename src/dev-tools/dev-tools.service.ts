@@ -66,6 +66,11 @@ export class DevToolsService implements OnModuleInit {
             descriptionId: dbCard.descriptionId || '',
             descriptionEn: dbCard.descriptionEn || '',
             price: dbCard.price,
+            roundProb1: dbCard.roundProb1 || 0,
+            roundProb2: dbCard.roundProb2 || 0,
+            roundProb3: dbCard.roundProb3 || 0,
+            roundProb4: dbCard.roundProb4 || 0,
+            roundProb5: dbCard.roundProb5 || 0,
             sprite: dbCard.sprite || 0,
             type: type.toString(),
             baseValue: dbCard.basevalue,
@@ -186,7 +191,6 @@ export class DevToolsService implements OnModuleInit {
                     data: {
                         id: card.id,
                         name: card.name || '',
-                        description: card.descriptionKo || undefined,
                         descriptionEn: card.descriptionEn || undefined,
                         descriptionKo: card.descriptionKo || undefined,
                         descriptionId: undefined,
@@ -234,8 +238,7 @@ export class DevToolsService implements OnModuleInit {
                 where: { id: cardId },
                 data: {
                     name: updateData.name,
-                    description: updateData.description, // legacy
-                    descriptionKo: updateData.descriptionKo ?? updateData.description,
+                    descriptionKo: updateData.descriptionKo,
                     descriptionId: updateData.descriptionId ?? undefined,
                     descriptionEn: updateData.descriptionEn ?? undefined,
                     price: updateData.price,
@@ -550,9 +553,14 @@ export class DevToolsService implements OnModuleInit {
             const createData: any = this.cleanUndefined({
                 id: cardId,
                 type: 'Joker',
-                name: rec.nameText,
-                descriptionKo: rec.descText,
+                name: rec.nameText,  // 임시로 주석 처리 (한글 깨짐 문제)
+                descriptionKo: rec.descText,  // 임시로 주석 처리 (한글 깨짐 문제)
                 price: this.parseIntSafe(rec.price),
+                roundProb1: this.parseIntSafe(rec.roundProb_1),
+                roundProb2: this.parseIntSafe(rec.roundProb_2),
+                roundProb3: this.parseIntSafe(rec.roundProb_3),
+                roundProb4: this.parseIntSafe(rec.roundProb_4),
+                roundProb5: this.parseIntSafe(rec.roundProb_5),
                 sprite: this.parseIntSafe(rec.sprite),
                 basevalue: this.parseFloatSafe(rec.basevalue),
                 increase: this.parseFloatSafe(rec.increase) || 0,
@@ -570,9 +578,14 @@ export class DevToolsService implements OnModuleInit {
 
             // 기존 레코드 업데이트 데이터
             const updateData: any = this.cleanUndefined({
-                name: rec.nameText,
-                descriptionKo: rec.descText,
+                name: rec.nameText,  // 임시로 주석 처리 (한글 깨짐 문제)
+                descriptionKo: rec.descText,  // 임시로 주석 처리 (한글 깨짐 문제)
                 price: this.parseIntSafe(rec.price) || 0,
+                roundProb1: this.parseIntSafe(rec.roundProb_1) || 0,
+                roundProb2: this.parseIntSafe(rec.roundProb_2) || 0,
+                roundProb3: this.parseIntSafe(rec.roundProb_3) || 0,
+                roundProb4: this.parseIntSafe(rec.roundProb_4) || 0,
+                roundProb5: this.parseIntSafe(rec.roundProb_5) || 0,
                 sprite: this.parseIntSafe(rec.sprite) || 0,
                 basevalue: this.parseFloatSafe(rec.basevalue),
                 increase: this.parseFloatSafe(rec.increase) || 0,

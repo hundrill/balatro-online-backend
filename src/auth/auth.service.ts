@@ -34,7 +34,7 @@ export class AuthService {
   }
 
   // 연결 해제
-  async removeConnection(userId: string) {
+  async removeRedisChannelMember(userId: string) {
     await this.redisService.removeChannelMember(userId);
   }
 

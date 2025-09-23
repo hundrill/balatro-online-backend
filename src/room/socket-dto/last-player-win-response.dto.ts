@@ -4,7 +4,8 @@ export class LastPlayerWinResponseDto extends BaseSocketDto {
     override responseEventName = 'LastPlayerWinResponse';
 
     lastWinnerId: string;
-    chipsReward: number;
+    chipsGain: number;
+    originalChipsGain: number;
     finalChips: number;
 
     constructor(init?: Partial<LastPlayerWinResponseDto>) {

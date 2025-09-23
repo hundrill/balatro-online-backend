@@ -144,16 +144,7 @@ export class RoomGateway
    */
   private async removeUserFromRoom(roomId: string, userId: string, socket: Socket, isKickOut: boolean = false): Promise<void> {
 
-    const saveResult = await this.roomService.saveUserChipsOnLeave(roomId, userId);
-    this.emitUserResponse(socket, new LeaveRoomResponseDto({
-      silverChip: saveResult.silverChip,
-      goldChip: saveResult.goldChip,
-      isKickOuted: isKickOut
-    }));
-
-    await socket.leave(roomId);
-    await this.roomService.leaveRoom(roomId, userId);
-
+    // 중요!!! 제일 먼저 클리어 해주어야 된다..밑에 await 문이 있으면 다른 곳에서 호출 될수 있어서 문제 생긴다
     const session = this.socketSessions.get(socket.id);
     if (session) {
       session.roomId = null;
@@ -166,6 +157,16 @@ export class RoomGateway
         if (remainingUserCount > 1) break; // 2명 이상이면 더 이상 체크할 필요 없음
       }
     }
+
+    const saveResult = await this.roomService.saveUserChipsOnLeave(roomId, userId);
+    this.emitUserResponse(socket, new LeaveRoomResponseDto({
+      silverChip: saveResult.silverChip,
+      goldChip: saveResult.goldChip,
+      isKickOuted: isKickOut
+    }));
+
+    await socket.leave(roomId);
+    await this.roomService.leaveRoom(roomId, userId);
 
     if (remainingUserCount === 0) {
       // 방에 유저가 없으면 방 삭제
@@ -183,7 +184,8 @@ export class RoomGateway
           roomId,
           new LastPlayerWinResponseDto({
             lastWinnerId: lastPlayerWinResult.lastWinnerId,
-            chipsReward: lastPlayerWinResult.chipsReward || 0,
+            chipsGain: lastPlayerWinResult.chipsGain || 0,
+            originalChipsGain: lastPlayerWinResult.originalChipsGain || 0,
             finalChips: lastPlayerWinResult.finalChips || 0,
           })
         );
@@ -639,7 +641,7 @@ export class RoomGateway
       const roomId = session?.roomId;
 
       if (userId) {
-        await this.authService.removeConnection(userId);
+        await this.authService.removeRedisChannelMember(userId);
 
         if (roomId) {
           this.removeUserFromRoom(roomId, userId, client);
@@ -766,19 +768,21 @@ export class RoomGateway
       }
 
       // 유저가 playing 상태인지 확인
-      if (userId && this.roomService.isUserPlaying(roomId, userId)) {
-        // silver 방일 때는 playing 상태에서도 퇴장 허용
-        const roomState = this.roomService.getRoomState(roomId);
-        const chipType = roomState.chipSettings.chipType;
+      if (userId !== 'hundrill') { // 테스트용
+        if (userId && this.roomService.isUserPlaying(roomId, userId)) {
+          // silver 방일 때는 playing 상태에서도 퇴장 허용
+          const roomState = this.roomService.getRoomState(roomId);
+          const chipType = roomState.chipSettings.chipType;
 
-        if (chipType === ChipType.GOLD) {
-          this.emitUserResponse(
-            client,
-            new ErrorResponseDto({
-              message: this.localizationService.getText(TranslationKeys.GameInProgress, this.getUserLanguage(client))
-            }),
-          );
-          return;
+          if (chipType === ChipType.GOLD) {
+            this.emitUserResponse(
+              client,
+              new ErrorResponseDto({
+                message: this.localizationService.getText(TranslationKeys.GameInProgress, this.getUserLanguage(client))
+              }),
+            );
+            return;
+          }
         }
       }
 
@@ -929,9 +933,11 @@ export class RoomGateway
 
     const roomState = this.roomService.getRoomState(roomId);
     const chipType = roomState.chipSettings.chipType;
-    if (this.getRoomUserIds(roomId).length < 2 && chipType === ChipType.GOLD) {
-      this.logger.warn(`[canStart] roomId=${roomId}에 유저가 2명 미만임`);
-      return;
+    if (userId !== 'hundrill') { // 테스트용
+      if (this.getRoomUserIds(roomId).length < 2 && chipType === ChipType.GOLD) {
+        this.logger.warn(`[canStart] roomId=${roomId}에 유저가 2명 미만임`);
+        return;
+      }
     }
 
     const setReadyResult = await this.roomService.setReady(roomId, userId);
@@ -1469,7 +1475,8 @@ export class RoomGateway
           roomId,
           new LastPlayerWinResponseDto({
             lastWinnerId: lastPlayerWinResult.lastWinnerId,
-            chipsReward: lastPlayerWinResult.chipsReward || 0,
+            chipsGain: lastPlayerWinResult.chipsGain || 0,
+            originalChipsGain: lastPlayerWinResult.originalChipsGain || 0,
             finalChips: lastPlayerWinResult.finalChips || 0,
           })
         );

@@ -14,6 +14,7 @@ import { DevToolsModule } from './dev-tools/dev-tools.module';
 import { CommonModule } from './common/common.module';
 import { StressTestModule } from './stresstest/stresstest.module';
 import { IAPModule } from './iap/iap.module';
+import { ChallengeModule } from './challenge/challenge.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { IAPModule } from './iap/iap.module';
     CommonModule,
     StressTestModule,
     IAPModule,
+    ChallengeModule,
   ],
   controllers: [AppController],
   providers: [AppService],

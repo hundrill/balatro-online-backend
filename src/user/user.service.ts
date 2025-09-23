@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { PiggyBankResponseDto } from './dto/piggybank-response.dto';
 import { PiggyBankClaimRequestDto } from './dto/piggybank-claim-request.dto';
@@ -6,6 +6,8 @@ import { PiggyBankClaimResponseDto } from './dto/piggybank-claim-response.dto';
 
 @Injectable()
 export class UserService {
+  private readonly logger = new Logger(UserService.name);
+
   constructor(private readonly prisma: PrismaService) { }
 
   async findAll() {
@@ -163,5 +165,70 @@ export class UserService {
         goldChip: 0,
       };
     }
+  }
+
+  /**
+   * 사용자 챌린지 진행도 조회
+   */
+  async getUserChallengeProgress(userId: string): Promise<Map<string, number>> {
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: { userId },
+        select: { challengeProgress: true }
+      });
+
+      return this.parseChallengeProgress(user?.challengeProgress || "");
+    } catch (error) {
+      this.logger.error(`[UserService] 사용자 챌린지 진행도 조회 실패: userId=${userId}`, error);
+      return new Map();
+    }
+  }
+
+  /**
+   * 사용자 챌린지 진행도 업데이트
+   */
+  async updateUserChallengeProgress(userId: string, challengeId: string, count: number): Promise<boolean> {
+    try {
+      const currentProgress = await this.getUserChallengeProgress(userId);
+      currentProgress.set(challengeId, count);
+      const progressString = this.serializeChallengeProgress(currentProgress);
+
+      await this.prisma.user.update({
+        where: { userId },
+        data: { challengeProgress: progressString }
+      });
+
+      this.logger.log(`[UserService] 챌린지 진행도 업데이트: userId=${userId}, challengeId=${challengeId}, count=${count}`);
+      return true;
+    } catch (error) {
+      this.logger.error(`[UserService] 챌린지 진행도 업데이트 실패: userId=${userId}, challengeId=${challengeId}`, error);
+      return false;
+    }
+  }
+
+  /**
+   * 챌린지 진행도 파싱
+   */
+  private parseChallengeProgress(progressString: string): Map<string, number> {
+    const progressMap = new Map<string, number>();
+    if (!progressString) return progressMap;
+
+    progressString.split(',').forEach(pair => {
+      const [challengeId, count] = pair.split(':');
+      if (challengeId && count) {
+        progressMap.set(challengeId, parseInt(count));
+      }
+    });
+
+    return progressMap;
+  }
+
+  /**
+   * 챌린지 진행도 직렬화
+   */
+  private serializeChallengeProgress(progressMap: Map<string, number>): string {
+    return Array.from(progressMap.entries())
+      .map(([id, count]) => `${id}:${count}`)
+      .join(',');
   }
 }

@@ -9,6 +9,7 @@ export interface RoundResult {
     fullHand: CardData[];
     score: number;
     chipsGain: number;
+    originalChipsGain: number;
     finalChips: number;
     finalFunds: number;
     discardRemainingFunds: number;    // 버리기 남은 횟수에 따른 funds

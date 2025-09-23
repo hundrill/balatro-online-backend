@@ -15,6 +15,7 @@ model User {
   goldChip            Int        @default(1200)
   silverChip          Int        @default(1200)
   piggyBankClaimCount Int        @default(0)
+  challengeProgress   String?
   userId              String     @id
   rooms               RoomUser[]
 }
@@ -63,8 +64,12 @@ model GameHistory {
 model SpecialCard {
   id                 String   @id
   name               String
-  description        String?
   price              Int      @default(0)
+  roundProb1         Int?     @default(0)
+  roundProb2         Int?     @default(0)
+  roundProb3         Int?     @default(0)
+  roundProb4         Int?     @default(0)
+  roundProb5         Int?     @default(0)
   basevalue          Float?   @default(0)
   increase           Float?   @default(0)
   decrease           Float?   @default(0)
@@ -153,4 +158,21 @@ model Feedback {
   replies   Feedback[] @relation("FeedbackReplies")
 
   @@index([parentId])
+}
+
+model Challenge {
+  id            String   @id
+  nameKo        String
+  nameEn        String
+  nameId        String
+  descriptionKo String?  @db.Text
+  descriptionEn String?  @db.Text
+  descriptionId String?  @db.Text
+  targetCount   Int      @default(0)
+  reward        Int?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([id], map: "Challenge_id_key")
 }

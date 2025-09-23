@@ -10,9 +10,10 @@ import {
 } from '@nestjs/common';
 import { RoomService, ChipType } from './room.service';
 import { SpecialCardData, SpecialCardManagerService } from './special-card-manager.service';
+import { ChallengeManagerService } from '../challenge/challenge-manager.service';
 import { CreateRoomRequestDto } from './dto/create-room-request.dto';
 import { CreateRoomResponseDto } from './dto/create-room-response.dto';
-import { ConfigResponseDto, SpecialCardApiDto } from './dto/config-response.dto';
+import { ConfigResponseDto, SpecialCardApiDto, ChallengeApiDto } from './dto/config-response.dto';
 import { ConfigRequestDto } from './dto/config-request.dto';
 import { RoomListResponseDto } from './dto/room-list-response.dto';
 import { SetTestJokerRequestDto } from './dto/set-test-joker-request.dto';
@@ -30,6 +31,7 @@ export class RoomController {
   constructor(
     private readonly roomService: RoomService,
     private readonly specialCardManagerService: SpecialCardManagerService,
+    private readonly challengeManagerService: ChallengeManagerService,
     private readonly prisma: PrismaService,
   ) { }
 
@@ -177,8 +179,8 @@ export class RoomController {
         effectByCounts: card.effectByCounts || [],
       }));
 
-      // 처음 5개 카드의 상세 로그 출력
-      for (let i = 0; i < Math.min(5, specialCardsApi.length); i++) {
+      // 처음 1개 카드의 상세 로그 출력
+      for (let i = 0; i < Math.min(1, specialCardsApi.length); i++) {
         const card = specialCardsApi[i];
         this.logger.log(`GET /rooms/config - Card ${i + 1}:`, {
           id: card.id,
@@ -206,6 +208,36 @@ export class RoomController {
         });
       }
 
+      // 챌린지 데이터 가져오기
+      const challenges = this.challengeManagerService.getAllChallenges();
+      const challengesApi: ChallengeApiDto[] = challenges.map((challenge) => ({
+        id: challenge.id,
+        nameKo: challenge.nameKo,
+        nameEn: challenge.nameEn,
+        nameId: challenge.nameId,
+        descriptionKo: challenge.descriptionKo || null,
+        descriptionEn: challenge.descriptionEn || null,
+        descriptionId: challenge.descriptionId || null,
+        targetCount: challenge.targetCount,
+        reward: challenge.reward ?? 0,
+        currentCount: challenge.currentCount
+      }));
+
+
+      for (let i = 0; i < challengesApi.length; i++) {
+        const card = challengesApi[i];
+        this.logger.log(`GET /rooms/config - Challenge ${i + 1}:`, {
+          id: card.id,
+          name: card.nameKo,
+          descriptionKo: card.descriptionKo,
+          descriptionEn: card.descriptionEn,
+          descriptionId: card.descriptionId,
+          targetCount: card.targetCount,
+          reward: card.reward,
+          currentCount: card.currentCount
+        });
+      }
+
       // 채널별 씨드머니 데이터 가져오기
       const gameSettingsService = new GameSettingsService(this.prisma);
 
@@ -216,6 +248,7 @@ export class RoomController {
         code: 0,
         message: 'Special cards data retrieved successfully',
         specialCards: specialCardsApi,
+        challenges: challengesApi,
         channelSeedMoney: channelSeedMoney
       };
 
@@ -230,6 +263,7 @@ export class RoomController {
         code: 1000,
         message: 'Internal server error while fetching special cards',
         specialCards: [],
+        challenges: [],
         channelSeedMoney: {
           beginner: { seedMoney1: 15, seedMoney2: 30, seedMoney3: 60, seedMoney4: 90 },
           intermediate: { seedMoney1: 120, seedMoney2: 180, seedMoney3: 240, seedMoney4: 300 },

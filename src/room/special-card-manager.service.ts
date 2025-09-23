@@ -142,6 +142,11 @@ export interface SpecialCardData {
     descriptionEn: string;
     descriptionId: string;
     price: number;
+    roundProb1: number;
+    roundProb2: number;
+    roundProb3: number;
+    roundProb4: number;
+    roundProb5: number;
     sprite: number;
     baseValue: number;
     increase: number;
@@ -577,10 +582,130 @@ export class SpecialCardManagerService {
             .filter(card => card.isActive !== false);
     }
 
+    // 라운드별 확률값 가져오기
+    private getRoundProbability(card: SpecialCardData, round: number): number {
+        switch (round) {
+            case 1: return card.roundProb1;
+            case 2: return card.roundProb2;
+            case 3: return card.roundProb3;
+            case 4: return card.roundProb4;
+            case 5: return card.roundProb5;
+            default: return 0;
+        }
+    }
+
+    // 현재 라운드에 사용 가능한 조커 카드 필터링
+    private getAvailableJokersForRound(round: number, usedJokerCardIds: Set<string>): SpecialCardData[] {
+        return this.getActiveSpecialCards()
+            .filter(card =>
+                card.type === SpecialCardType.Joker &&
+                !usedJokerCardIds.has(card.id) &&
+                this.getRoundProbability(card, round) > 0
+            );
+    }
+
+    // 현재 라운드에 사용 가능한 행성 카드 필터링
+    private getAvailablePlanetsForRound(round: number): SpecialCardData[] {
+        const planets = this.getActiveSpecialCards()
+            .filter(card => card.type === SpecialCardType.Planet);
+
+        // roundProb가 0보다 큰 카드가 있는지 확인
+        const availablePlanets = planets.filter(card => this.getRoundProbability(card, round) > 0);
+
+        // roundProb가 모두 0이면 모든 행성 카드 반환 (랜덤 선택용)
+        return availablePlanets.length > 0 ? availablePlanets : planets;
+    }
+
+    // 현재 라운드에 사용 가능한 타로 카드 필터링
+    private getAvailableTarotsForRound(round: number): SpecialCardData[] {
+        const tarots = this.getActiveSpecialCards()
+            .filter(card => card.type === SpecialCardType.Tarot);
+
+        // roundProb가 0보다 큰 카드가 있는지 확인
+        const availableTarots = tarots.filter(card => this.getRoundProbability(card, round) > 0);
+
+        // roundProb가 모두 0이면 모든 타로 카드 반환 (랜덤 선택용)
+        return availableTarots.length > 0 ? availableTarots : tarots;
+    }
+
+    // 확률 기반 카드 선택 (정수 기반으로 부동소수점 오차 방지)
+    private selectCardByProbability(availableCards: SpecialCardData[], round: number): SpecialCardData {
+        if (availableCards.length === 0) {
+            return this.getDummyCard();
+        }
+
+        if (availableCards.length === 1) {
+            return availableCards[0];
+        }
+
+        const probabilities = availableCards.map(card => this.getRoundProbability(card, round));
+        const totalProbability = probabilities.reduce((sum, prob) => sum + prob, 0);
+
+        // 모든 확률이 0이면 균등한 확률로 랜덤 선택
+        if (totalProbability === 0) {
+            const randomIndex = Math.floor(Math.random() * availableCards.length);
+            return availableCards[randomIndex];
+        }
+
+        // 정수 기반 랜덤 선택 (부동소수점 오차 완전 방지)
+        const randomInt = Math.floor(Math.random() * totalProbability);
+
+        let cumulativeProbability = 0;
+        for (let i = 0; i < availableCards.length; i++) {
+            cumulativeProbability += probabilities[i];
+            if (randomInt < cumulativeProbability) {
+                return availableCards[i];
+            }
+        }
+
+        // 이론적으로 도달하지 않음
+        return availableCards[availableCards.length - 1];
+    }
+
+    // 더미 카드 생성
+    private getDummyCard(): SpecialCardData {
+        return {
+            id: 'dummy_card',
+            name: 'Dummy Card',
+            descriptionKo: 'Dummy card for fallback',
+            descriptionEn: 'Dummy card for fallback',
+            descriptionId: 'Dummy card for fallback',
+            price: 0,
+            roundProb1: 0,
+            roundProb2: 0,
+            roundProb3: 0,
+            roundProb4: 0,
+            roundProb5: 0,
+            sprite: 0,
+            type: SpecialCardType.Joker,
+            baseValue: 0,
+            increase: 0,
+            decrease: 0,
+            maxValue: 0,
+            needCardCount: 0,
+            enhanceChips: 0,
+            enhanceMul: 0,
+            isActive: true,
+            conditionTypes: [],
+            conditionValues: [['']],
+            conditionOperators: [],
+            conditionNumericValues: [],
+            effectTimings: [],
+            effectTypes: [],
+            effectTypesOrigin: [],
+            effectValues: [['']],
+            effectOnCards: [],
+            effectUseRandomValue: [],
+            effectByCounts: [],
+            pokerHand: PokerHand.None,
+        };
+    }
+
     // 기존 joker-cards.util.ts 함수들을 대체하는 메서드들
-    getRandomShopCards(count: number, usedJokerCardIds: Set<string> = new Set(), testJokerIds: string[] = ['', '', '', '', '']): SpecialCardData[] {
+    getRandomShopCards(count: number, currentRound: number, usedJokerCardIds: Set<string> = new Set(), testJokerIds: string[] = ['', '', '', '', '']): SpecialCardData[] {
         const result: SpecialCardData[] = [];
 
+        console.log('getRandomShopCards currentRound:', currentRound);
         console.log('getRandomShopCards usedJokerCardIds:', usedJokerCardIds);
         console.log('getRandomShopCards testJokerIds:', testJokerIds);
 
@@ -595,19 +720,61 @@ export class SpecialCardManagerService {
                 if (testCard) {
                     result.push(testCard);
                 } else {
-                    // 테스트 조커 ID가 유효하지 않은 경우 원래 로직으로 대체
-                    result.push(this.getRandomCardForSlot(i, usedJokerCardIds, result));
+                    // 테스트 조커 ID가 유효하지 않은 경우 확률 기반 로직으로 대체
+                    result.push(this.getRandomCardForSlotByProbability(i, currentRound, usedJokerCardIds, result));
                 }
             } else {
-                // 테스트 조커 ID가 없는 경우 원래 로직으로 랜덤 생성
-                result.push(this.getRandomCardForSlot(i, usedJokerCardIds, result));
+                // 테스트 조커 ID가 없는 경우 확률 기반 로직으로 랜덤 생성
+                result.push(this.getRandomCardForSlotByProbability(i, currentRound, usedJokerCardIds, result));
             }
         }
 
         return result;
     }
 
-    // 슬롯별 랜덤 카드 생성 헬퍼 메서드
+    // 슬롯별 확률 기반 카드 생성 헬퍼 메서드
+    private getRandomCardForSlotByProbability(slotIndex: number, currentRound: number, usedJokerCardIds: Set<string>, newCards: SpecialCardData[]): SpecialCardData {
+        // 슬롯 0, 1, 2: 조커 카드 (확률 기반)
+        if (slotIndex < 3) {
+            const availableJokers = this.getAvailableJokersForRound(currentRound, usedJokerCardIds);
+
+            if (availableJokers.length > 0) {
+                const selectedJoker = this.selectCardByProbability(availableJokers, currentRound);
+                usedJokerCardIds.add(selectedJoker.id); // 중복 방지
+                return selectedJoker;
+            } else {
+                // 사용 가능한 조커가 없는 경우 더미 카드
+                return this.getDummyCard();
+            }
+        }
+        // 슬롯 3: 행성 카드 (확률 기반)
+        else if (slotIndex === 3) {
+            const availablePlanets = this.getAvailablePlanetsForRound(currentRound);
+
+            if (availablePlanets.length > 0) {
+                return this.selectCardByProbability(availablePlanets, currentRound);
+            } else {
+                // 사용 가능한 행성이 없는 경우 더미 카드
+                return this.getDummyCard();
+            }
+        }
+        // 슬롯 4: 타로 카드 (확률 기반)
+        else if (slotIndex === 4) {
+            const availableTarots = this.getAvailableTarotsForRound(currentRound);
+
+            if (availableTarots.length > 0) {
+                return this.selectCardByProbability(availableTarots, currentRound);
+            } else {
+                // 사용 가능한 타로가 없는 경우 더미 카드
+                return this.getDummyCard();
+            }
+        }
+
+        // 기본값으로 더미 카드 반환
+        return this.getDummyCard();
+    }
+
+    // 슬롯별 랜덤 카드 생성 헬퍼 메서드 (기존 방식 - 호환성 유지)
     private getRandomCardForSlot(slotIndex: number, usedJokerCardIds: Set<string>, newCards: SpecialCardData[]): SpecialCardData {
         // 슬롯 0,1,2: 조커 카드
         if (slotIndex < 3) {
@@ -657,6 +824,11 @@ export class SpecialCardManagerService {
             descriptionEn: 'Dummy card for fallback',
             descriptionId: 'Dummy card for fallback',
             price: 0,
+            roundProb1: 0,
+            roundProb2: 0,
+            roundProb3: 0,
+            roundProb4: 0,
+            roundProb5: 0,
             sprite: 0,
             type: SpecialCardType.Joker,
             baseValue: 0,
@@ -680,20 +852,6 @@ export class SpecialCardManagerService {
             effectUseRandomValue: [],
             pokerHand: PokerHand.None
         };
-    }
-
-    // 카드 풀에서 랜덤하게 선택하는 헬퍼 함수
-    private getRandomCardsFromPool(cardPool: SpecialCardData[], count: number): SpecialCardData[] {
-        const result: SpecialCardData[] = [];
-        const tempPool = [...cardPool];
-
-        for (let i = 0; i < Math.min(count, tempPool.length); i++) {
-            const idx = Math.floor(Math.random() * tempPool.length);
-            result.push(tempPool[idx]);
-            tempPool.splice(idx, 1);
-        }
-
-        return result;
     }
 
     getRandomPlanetCards(count: number): SpecialCardData[] {
@@ -749,6 +907,11 @@ export class SpecialCardManagerService {
                     descriptionEn: dbCard.descriptionEn,
                     descriptionId: dbCard.descriptionId,
                     price: dbCard.price,
+                    roundProb1: dbCard.roundProb1 || 0,
+                    roundProb2: dbCard.roundProb2 || 0,
+                    roundProb3: dbCard.roundProb3 || 0,
+                    roundProb4: dbCard.roundProb4 || 0,
+                    roundProb5: dbCard.roundProb5 || 0,
                     sprite: dbCard.sprite,
                     baseValue: dbCard.basevalue,
                     increase: dbCard.increase,
@@ -778,6 +941,11 @@ export class SpecialCardManagerService {
                 newCard.descriptionEn = dbCard.descriptionEn;
                 newCard.descriptionId = dbCard.descriptionId;
                 newCard.price = dbCard.price;
+                newCard.roundProb1 = dbCard.roundProb1 || 0;
+                newCard.roundProb2 = dbCard.roundProb2 || 0;
+                newCard.roundProb3 = dbCard.roundProb3 || 0;
+                newCard.roundProb4 = dbCard.roundProb4 || 0;
+                newCard.roundProb5 = dbCard.roundProb5 || 0;
                 newCard.sprite = dbCard.sprite;
                 newCard.baseValue = dbCard.basevalue;
                 newCard.increase = dbCard.increase;
@@ -936,35 +1104,40 @@ export class SpecialCardManagerService {
 
                 updatedCount++;
 
-                // if (updatedCount <= 1) {
-                console.log(`[SpecialCardManagerService] 로드된 카드 ${updatedCount}:`, {
-                    id: dbCard.id,
-                    name: dbCard.name,
-                    descriptionKo: dbCard.descriptionKo,
-                    descriptionEn: dbCard.descriptionEn,
-                    descriptionId: dbCard.descriptionId,
-                    price: dbCard.price,
-                    sprite: dbCard.sprite,
-                    type: dbCard.type,
-                    basevalue: dbCard.basevalue,
-                    increase: dbCard.increase,
-                    decrease: dbCard.decrease,
-                    maxvalue: dbCard.maxvalue,
-                    need_card_count: dbCard.need_card_count,
-                    enhanceChips: dbCard.enhanceChips,
-                    enhanceMul: dbCard.enhanceMul,
-                    isActive: dbCard.isActive,
-                    ConditionTypes: newConditionTypes,
-                    ConditionValues: newConditionValues,
-                    ConditionOperators: newConditionOperators,
-                    ConditionNumericValues: newConditionNumericValues,
-                    EffectTimings: newEffectTimings,
-                    EffectTypes: newEffectTypes,
-                    EffectTypesOrigin: newEffectTypesOrigin,
-                    EffectValues: newEffectValues,
-                    EffectOnCards: newEffectOnCards
-                });
-                // }
+                if (updatedCount <= 1) {
+                    console.log(`[SpecialCardManagerService] 로드된 카드 ${updatedCount}:`, {
+                        id: dbCard.id,
+                        name: dbCard.name,
+                        descriptionKo: dbCard.descriptionKo,
+                        descriptionEn: dbCard.descriptionEn,
+                        descriptionId: dbCard.descriptionId,
+                        price: dbCard.price,
+                        roundProb1: dbCard.roundProb1 || 0,
+                        roundProb2: dbCard.roundProb2 || 0,
+                        roundProb3: dbCard.roundProb3 || 0,
+                        roundProb4: dbCard.roundProb4 || 0,
+                        roundProb5: dbCard.roundProb5 || 0,
+                        sprite: dbCard.sprite,
+                        type: dbCard.type,
+                        basevalue: dbCard.basevalue,
+                        increase: dbCard.increase,
+                        decrease: dbCard.decrease,
+                        maxvalue: dbCard.maxvalue,
+                        need_card_count: dbCard.need_card_count,
+                        enhanceChips: dbCard.enhanceChips,
+                        enhanceMul: dbCard.enhanceMul,
+                        isActive: dbCard.isActive,
+                        ConditionTypes: newConditionTypes,
+                        ConditionValues: newConditionValues,
+                        ConditionOperators: newConditionOperators,
+                        ConditionNumericValues: newConditionNumericValues,
+                        EffectTimings: newEffectTimings,
+                        EffectTypes: newEffectTypes,
+                        EffectTypesOrigin: newEffectTypesOrigin,
+                        EffectValues: newEffectValues,
+                        EffectOnCards: newEffectOnCards
+                    });
+                }
 
             }
 
@@ -992,7 +1165,6 @@ export class SpecialCardManagerService {
     //                     data: {
     //                         id: card.id,
     //                         name: card.name,
-    //                         description: card.description,
     //                         price: card.price,
     //                         sprite: card.sprite,
     //                         type: card.type.toString(),

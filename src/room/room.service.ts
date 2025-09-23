@@ -26,6 +26,8 @@ import { BettingState } from './betting-state.interface';
 import { BettingType } from './betting-type.enum';
 import { BettingResponseDto } from './socket-dto/betting-response.dto';
 import { StartGameResponseDto } from './socket-dto/start-game-response.dto';
+import { ChallengeService } from '../challenge/challenge.service';
+import { ChallengeManagerService } from '../challenge/challenge-manager.service';
 
 // RoomState 인터페이스 정의
 interface RoomState {
@@ -211,6 +213,8 @@ export class RoomService {
     private readonly handEvaluatorService: HandEvaluatorService,
     private readonly specialCardManagerService: SpecialCardManagerService,
     private readonly gameSettingsService: GameSettingsService,
+    private readonly challengeService: ChallengeService,
+    private readonly challengeManagerService: ChallengeManagerService,
   ) { }
 
   // 통합된 RoomState 관리
@@ -823,7 +827,7 @@ export class RoomService {
     }
 
     // 샵 카드 5장 생성 (조커 3장, 행성 1장, 타로 1장) - 이미 등장한 조커카드 제외
-    const shopCards = this.specialCardManagerService.getRandomShopCards(5, roomState.usedJokerCardIds, roomState.testJokerIds);
+    const shopCards = this.specialCardManagerService.getRandomShopCards(5, roomState.round, roomState.usedJokerCardIds, roomState.testJokerIds);
     roomState.shopCards = [...shopCards]; // 복사본 저장
 
     // 새로 뽑힌 조커카드 id를 usedJokerSet에 추가
@@ -1061,7 +1065,7 @@ export class RoomService {
 
     // 아무도 카드를 가지고 있지 않으면 새로 생성
     const usedJokerSet = roomState.usedJokerCardIds;
-    const reRollCardsRaw: SpecialCardData[] = this.specialCardManagerService.getRandomShopCards(5, usedJokerSet, roomState.testJokerIds);
+    const reRollCardsRaw: SpecialCardData[] = this.specialCardManagerService.getRandomShopCards(5, roomState.round, usedJokerSet, roomState.testJokerIds);
 
     // 새로 뽑힌 조커카드 id를 usedJokerSet에 추가
     reRollCardsRaw.forEach(card => {
@@ -1905,10 +1909,47 @@ export class RoomService {
       await this.saveUserChipsOnLeave(roomId, userId);
     }
 
-    // 2. 게임 상태 초기화
+    // 2. SILVER 방에서 5라운드 완료 시 piggybank 챌린지 업데이트
+    if (roomState.chipSettings.chipType === ChipType.SILVER && roomState.round === 5) {
+      await this.updatePiggybankChallenges(userIds);
+    }
+
+    // 3. 게임 상태 초기화
     roomState.resetGameStateForNewGame();
     this.setAllUsersToWaiting(roomId, userIds);
     this.setRoomPhase(roomId, RoomPhase.WAITING);
+  }
+
+  /**
+   * SILVER 방에서 5라운드 완료 시 piggybank 챌린지들을 업데이트합니다.
+   */
+  private async updatePiggybankChallenges(userIds: string[]): Promise<void> {
+    try {
+      const piggybankChallengeIds = ['PiggyBankPlay0', 'PiggyBankPlay1', 'PiggyBankPlay2', 'PiggyBankPlay3'];
+
+      for (const userId of userIds) {
+        for (const challengeId of piggybankChallengeIds) {
+          // 현재 진행도와 targetCount 확인
+          const userProgress = await this.challengeService.getUserChallengeProgress(userId);
+          const progressData = userProgress.get(challengeId);
+          const challenge = this.challengeManagerService.getChallenge(challengeId);
+
+          if (challenge && progressData) {
+            // targetCount를 넘지 않도록 제한
+            if (progressData.currentCount < challenge.targetCount) {
+              await this.challengeService.updateChallengeProgressOnly(userId, challengeId, 1);
+            }
+          } else if (challenge) {
+            // 진행도가 없는 경우 새로 생성 (currentCount = 1)
+            await this.challengeService.updateChallengeProgressOnly(userId, challengeId, 1);
+          }
+        }
+      }
+
+      this.logger.log(`[RoomService] SILVER 방 5라운드 완료 - piggybank 챌린지 업데이트: userIds=${userIds.length}명, challenges=${piggybankChallengeIds.length}개`);
+    } catch (error) {
+      this.logger.error(`[RoomService] piggybank 챌린지 업데이트 실패`, error);
+    }
   }
 
   /**
@@ -1928,22 +1969,27 @@ export class RoomService {
   private async calculateLastPlayerRewards(
     roomId: string,
     lastPlayerId: string
-  ): Promise<{ chips: number; funds: number }> {
+  ): Promise<{ chipsGain: number; funds: number; originalChipsGain: number }> {
     const roomState = this.getRoomState(roomId);
 
     // 시드머니 합산
-    let totalChips = 0;
+    let chipsGain = 0;
     let totalFunds = 0;
     roomState.userSeedMoneyPayments.forEach((payment) => {
-      totalChips += payment.payment;
+      chipsGain += payment.payment;
     });
 
+    const originalChipsGain = chipsGain;
+    const dealerFee = Math.floor(chipsGain * 0.03);
+    chipsGain -= dealerFee;
+
     // 마지막 남은 유저에게 시드머니 지급
-    await this.updateUserChips(roomId, lastPlayerId, totalChips, totalFunds);
+    await this.updateUserChips(roomId, lastPlayerId, chipsGain, totalFunds);
 
     return {
-      chips: totalChips,
-      funds: totalFunds
+      chipsGain: chipsGain,
+      funds: totalFunds,
+      originalChipsGain: originalChipsGain
     };
   }
 
@@ -2481,6 +2527,19 @@ export class RoomService {
           }
         }
 
+        // 승자인 경우 딜러비 차감 (3% 수수료)
+        const originalChipsGain = chipsGain;
+        if (isWinner === 1 && chipsGain > 0 && roomState.chipSettings.chipType === ChipType.GOLD) {
+          const dealerFee = Math.floor(chipsGain * 0.03);
+          chipsGain -= dealerFee;
+          this.logger.log(
+            `[processHandPlayResult] ${userId} 딜러비 차감: ` +
+            `원래획득(chips=${originalChipsGain}), ` +
+            `딜러비(chips=${dealerFee}), ` +
+            `최종획득(chips=${chipsGain})`
+          );
+        }
+
         // 유저 칩 업데이트
         const updateSuccess = await this.updateUserChips(
           roomId,
@@ -2529,6 +2588,7 @@ export class RoomService {
           fullHand: fullHand,
           score: finalScore,
           chipsGain: chipsGain,
+          originalChipsGain: originalChipsGain,
           discardRemainingFunds: discardRemainingFunds,
           rankFunds: rankFunds,
           totalFundsGain: totalFundsGain,
@@ -3043,7 +3103,8 @@ export class RoomService {
   async handleLastPlayerWin(roomId: string): Promise<{
     success: boolean;
     lastWinnerId?: string;
-    chipsReward?: number;
+    chipsGain?: number;
+    originalChipsGain?: number;
     finalChips?: number;
   }> {
     try {
@@ -3064,13 +3125,14 @@ export class RoomService {
         const lastPlayerChips = await this.getUserChips(roomId, lastPlayerId);
 
         this.logger.log(
-          `[handleLastPlayerWin] 마지막 플레이어 승리: roomId=${roomId}, lastPlayerId=${lastPlayerId}, chipsReward=${rewards.chips}`
+          `[handleLastPlayerWin] 마지막 플레이어 승리: roomId=${roomId}, lastPlayerId=${lastPlayerId}, chipsReward=${rewards.chipsGain}`
         );
 
         return {
           success: true,
           lastWinnerId: lastPlayerId,
-          chipsReward: rewards.chips,
+          chipsGain: rewards.chipsGain,
+          originalChipsGain: rewards.originalChipsGain,
           finalChips: lastPlayerChips.chips
         };
       }
