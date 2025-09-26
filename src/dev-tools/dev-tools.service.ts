@@ -491,6 +491,10 @@ export class DevToolsService implements OnModuleInit {
             return { success: false, message: '빈 CSV 입니다.' };
         }
 
+        // 기존 스페셜카드 테이블 모두 삭제
+        await this.prisma.specialCard.deleteMany({});
+        this.logger.log('[DevTools] 기존 스페셜카드 데이터 모두 삭제 완료');
+
         const header = rows[0].map(h => h.trim());
         const dataRows = rows.slice(1);
 
@@ -601,10 +605,8 @@ export class DevToolsService implements OnModuleInit {
             });
 
             ops.push(
-                this.prisma.specialCard.upsert({
-                    where: { id: cardId },
-                    update: updateData,
-                    create: createData,
+                this.prisma.specialCard.create({
+                    data: createData,
                 })
             );
         }
@@ -619,10 +621,10 @@ export class DevToolsService implements OnModuleInit {
 
         return {
             success: true,
-            message: 'CSV 반영 완료',
+            message: 'CSV 반영 완료 (기존 데이터 삭제 후 새로 생성)',
             total: dataRows.length,
-            created,
-            updated,
+            created: ops.length,
+            updated: 0,
             skipped,
             warnings,
         };
