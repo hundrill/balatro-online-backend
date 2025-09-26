@@ -61,7 +61,7 @@ export class CsvImporterService {
                 countCondition = this.parseCountCondition(part) || { operator: 'GreaterOrEqual', numericValue: 1 };
             }
             else {
-                conditionOperator = part.split('=')[0]; // include_rank
+                conditionOperator = part.split('=')[0];
                 const conditionValues = part.split('=')[1] || ''; // triple/fullhouse/fourcard
                 parsedConditionValues = this.parseConditionValues(conditionValues);
             }
@@ -229,8 +229,8 @@ export class CsvImporterService {
             'by_number+playcard': 'UsedCardCount',
             'by_number+handcard': 'UnUsedRankCount',
             'by_number+deckcardall': 'RemainingCardCount',
-            'include_rank+playcard': 'HandType',
-            'include_rank+handcard': 'UnUsedHandType',
+            'by_rank+playcard': 'HandType',
+            'by_rank+handcard': 'UnUsedHandType',
             'count+remain_discard': 'RemainingDiscards',
             'count+remain_hand': 'RemainingHand',
             'count+remain_deckcard': 'RemainingDeck',

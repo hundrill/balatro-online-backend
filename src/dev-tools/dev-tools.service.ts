@@ -11,7 +11,7 @@ import { CsvImporterService } from './csv-importer.service';
 // 파싱된 조건 정보 인터페이스
 interface ParsedCondition {
     effect: string;           // 'total', 'total_count', 'count' 등
-    conditionType: string;    // 'include_rank', 'by_suite', 'by_number', 'suite', 'remain_discard' 등
+    conditionType: string;    // 'by_rank', 'by_suite', 'by_number', 'suite', 'remain_discard' 등
     handTypes: string[];      // ['onepair', 'twopair', 'triple', ...]
     target: string;           // 'handcard', 'playcard', 'playingcard'
     numbers?: string[];       // by_number 패턴에서 숫자들
@@ -1053,49 +1053,5 @@ export class DevToolsService implements OnModuleInit {
             throw error;
         }
     }
-
-    // 효과 부분 파싱
-    private parseEffectPart(token: string): string {
-        if (token.startsWith('total_')) return 'total';
-        if (token.startsWith('total_count=')) return 'total_count';
-        if (token.startsWith('add_')) return 'add';
-        if (token.startsWith('decrease_')) return 'decrease';
-        if (token.startsWith('increase_')) return 'increase';
-        if (token.startsWith('multiple_')) return 'multiple';
-        return '';
-    }
-
-    // 조건 타입 부분 파싱
-    private parseConditionTypePart(token: string): string {
-        if (token.includes('include_rank')) return 'include_rank';
-        if (token.includes('by_suite')) return 'by_suite';
-        if (token.includes('by_number')) return 'by_number';
-        if (token.includes('by_exist')) return 'by_exist';
-        if (token.includes('by_remain')) return 'by_remain';
-        if (token.includes('count=')) return 'count';
-        if (token.includes('suite_')) return 'suite';
-        if (token.includes('remain_discard')) return 'remain_discard';
-        if (token.includes('remain_hand')) return 'remain_hand';
-        return '';
-    }
-
-    // 핸드타입들 파싱
-    private parseHandTypesPart(token: string): string[] {
-        const includeRankMatch = token.match(/include_rank_([^_]+)(?:_|$)/);
-        if (includeRankMatch) {
-            return includeRankMatch[1].split('/').map(v => v.trim().toLowerCase());
-        }
-        return [];
-    }
-
-    // 대상 부분 파싱
-    private parseTargetPart(token: string): string {
-        if (token.includes('handcard')) return 'handcard';
-        if (token.includes('playcard') || token.includes('playingcard')) return 'playcard';
-        if (token.includes('deckcardall')) return 'deckcardall';
-        if (token.includes('deckcardremain')) return 'deckcardremain';
-        return '';
-    }
-
 
 } 
