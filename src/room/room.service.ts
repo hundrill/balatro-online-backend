@@ -62,6 +62,7 @@ interface RoomState {
   userTotalDeckCardsMap: Map<string, number>; // userId -> 초기 덱 총 카드 개수
   userNicknameMap: Map<string, string>; // userId -> nickname
   bettingState: BettingState; // 베팅 상태
+
   testJokerIds: string[]; // 테스트 조커 ID 5개
   silverTotalScore: number; // SILVER 방용 총 스코어 (라운드별 점수 누적)
   roomOwnerId: string | null; // 방장 아이디
@@ -158,7 +159,8 @@ export class RoomService {
         checkUsed: false,
         remainingTableMoney: 0,
         userCallChips: new Map(),
-        initialTableChips: 0
+        initialTableChips: 0,
+        currentBettingRound: 0
       },
 
       // 메서드 구현
@@ -199,7 +201,8 @@ export class RoomService {
           checkUsed: false,
           remainingTableMoney: 0,
           userCallChips: new Map(),
-          initialTableChips: 0
+          initialTableChips: 0,
+          currentBettingRound: 0
         };
       }
     };
@@ -703,13 +706,16 @@ export class RoomService {
   }
 
   async startGame(roomId: string) {
-    this.logger.debug(`[startGame] === 게임 시작 단계 진입: roomId=${roomId} ===`);
+
     const roomState = this.getRoomState(roomId);
     roomState.handPlayMap.clear();
     roomState.nextRoundReadySet.clear();
     roomState.userTarotCardsMap.clear();
     roomState.userFirstDeckCardsMap.clear();
     roomState.round = roomState.round + 1;
+    roomState.bettingState.currentBettingRound = 0;
+
+    this.logger.debug(`[startGame] === 게임 시작 단계 진입: roomId=${roomId} round=${roomState.round} ===`);
 
     const gateway = (
       global as {
@@ -758,6 +764,7 @@ export class RoomService {
 
     let participatingUserIds: string[];
 
+    /*
     if (round === 1) {
       // 1라운드: 칩이 충분한 유저만 참여
       const usersWithEnoughChips: string[] = [];
@@ -777,6 +784,23 @@ export class RoomService {
       // 2라운드 이상: playing 상태인 유저만 참여
       participatingUserIds = this.getPlayingUserIds(roomId, userIds);
     }
+    */
+
+    // 1111
+    const usersWithEnoughChips: string[] = [];
+    for (const userId of userIds) {
+      if (await this.hasEnoughChipsForPlay(roomId, userId)) {
+        usersWithEnoughChips.push(userId);
+      }
+    }
+    participatingUserIds = usersWithEnoughChips;
+
+    // 1라운드에서 칩이 있는 유저가 없으면 게임 시작 중단
+    if (participatingUserIds.length === 0) {
+      this.logger.warn(`[startGame] 1라운드 - 칩이 있는 유저가 없어 게임 시작 중단: roomId=${roomId}`);
+      return;
+    }
+
 
     // userId별로 덱 셔플 (참여하는 유저만)
     const decks = new Map<string, CardData[]>();
@@ -818,13 +842,13 @@ export class RoomService {
     roomState.round = round;
     roomState.phase = RoomPhase.PLAYING;
 
-    // 라운드에 따라 유저 상태 변경
+    // 1111
     if (round === 1) {
-      // 1라운드: 모든 유저를 playing으로 변경
-      this.setAllUsersToPlaying(roomId, userIds);
-      roomState.usedJokerCardIds.clear();
       this.paytableService.resetAllUserData();
     }
+
+    this.setAllUsersToPlaying(roomId, participatingUserIds); // 1111 userIds -> participatingUserIds
+    roomState.usedJokerCardIds.clear();
 
     // 샵 카드 5장 생성 (조커 3장, 행성 1장, 타로 1장) - 이미 등장한 조커카드 제외
     const shopCards = this.specialCardManagerService.getRandomShopCards(5, roomState.round, roomState.usedJokerCardIds, roomState.testJokerIds);
@@ -843,12 +867,12 @@ export class RoomService {
     roomState.discardCountMap.clear();
 
     // 1라운드일 때만 시드머니 납부 처리 (GOLD 방만)
-    if (round === 1) {
+    if (round === 1 || true) { // 1111
       const chipType = roomState.chipSettings.chipType;
       const baseSeedAmount = this.getSeedChip(roomId);
 
       // 유저별 시드머니 납부 처리
-      for (const uid of userIds) {
+      for (const uid of participatingUserIds) { // userIds -> participatingUserIds
         const chips = await this.getUserChips(roomId, uid);
 
         if (chipType === ChipType.GOLD) {
@@ -1787,13 +1811,13 @@ export class RoomService {
   // 유저의 남은 버리기 횟수 계산
   getRemainingDiscards(roomId: string, userId: string): number {
     const currentCount = this.getUserDiscardCount(roomId, userId);
-    return Math.max(0, 4 - currentCount);
+    return Math.max(0, 1 - currentCount);
   }
 
   // 유저가 버리기를 할 수 있는지 확인
   canUserDiscard(roomId: string, userId: string): boolean {
     const currentCount = this.getUserDiscardCount(roomId, userId);
-    return currentCount < 4;
+    return currentCount < 1;
   }
 
   // 방의 모든 유저 버리기 횟수 초기화
@@ -1871,6 +1895,9 @@ export class RoomService {
    */
   getRoundMaxPrize(roomId: string, round: number): number {
 
+    return this.getTableChips(roomId); // 1111
+
+    /*
     const roomState = this.getRoomState(roomId);
     if (round < 1 || round > 5) {
       // 기본값: 라운드 번호 그대로 반환 (1, 2, 3, 4, 5)
@@ -1882,6 +1909,7 @@ export class RoomService {
     const totalMaxPrize = baseMaxPrize;
 
     return totalMaxPrize;
+    */
   }
 
   /**
@@ -1894,7 +1922,6 @@ export class RoomService {
 
   /**
    * 게임 종료 및 새 게임 시작을 처리하는 공통 함수
-   * - handleRoundEnd의 5라운드 종료 시
    * - handleFold의 마지막 1명 남았을 때
    * 위 두 경우에서 사용됨
    */
@@ -2915,6 +2942,37 @@ export class RoomService {
     // playing 상태인 유저들만 필터링
     const playingUserIds = this.getPlayingUserIds(roomId, userIds);
 
+    // 샵 카드들 가져오기 (모든 유저에게 동일하게 전송)
+    const roomState = this.getRoomState(roomId);
+    const shopCards = roomState.shopCards || [];
+
+    // 조커 카드와 행성 카드 분리
+    const jokerCards = shopCards.filter(card => this.specialCardManagerService.isJokerCard(card.id));
+    const planetCards = shopCards.filter(card => this.specialCardManagerService.isPlanetCard(card.id));
+    const allSpecialCardIds = shopCards.map(card => card.id); // 조커 + 행성 카드 ID 모두 추출
+
+    // 모든 playing 유저의 userOwnedCardsMap에 조커 카드들만 추가 (기존 카드 초기화 후)
+    for (const uid of playingUserIds) {
+      const userCards = [...jokerCards]; // 기존 카드 초기화하고 조커 카드들만 새로 설정
+      roomState.userOwnedCardsMap.set(uid, userCards);
+
+      // 행성 카드 효과 즉시 적용
+      for (const planetCard of planetCards) {
+        this.logger.log(`[createStartGameInfo] userId=${uid}의 행성 카드 ${planetCard.id} 효과를 적용합니다.`);
+
+        if (planetCard.pokerHand && planetCard.enhanceChips !== undefined && planetCard.enhanceMul !== undefined) {
+          // paytable에 행성 카드 효과 적용
+          this.paytableService.enhanceLevel(uid, planetCard.pokerHand);
+          this.paytableService.enhanceChips(uid, planetCard.pokerHand, planetCard.enhanceChips);
+          this.paytableService.enhanceMultiplier(uid, planetCard.pokerHand, planetCard.enhanceMul);
+
+          this.logger.log(`[createStartGameInfo] 행성 카드 ${planetCard.id} 효과 적용 완료: ${planetCard.pokerHand} - 칩스 +${planetCard.enhanceChips}, 배수 +${planetCard.enhanceMul}`);
+        } else {
+          this.logger.warn(`[createStartGameInfo] 행성 카드 ${planetCard.id}의 데이터가 올바르지 않습니다.`);
+        }
+      }
+    }
+
     // playing 상태인 유저들만 userInfo에 포함
     for (const uid of playingUserIds) {
       const userChips = await this.getUserChips(roomId, uid);
@@ -2927,12 +2985,14 @@ export class RoomService {
         // 내 정보 (카드 포함)
         userInfo[uid] = {
           cards: myCards,
+          ownedJokers: allSpecialCardIds, // 조커 + 행성 카드 ID 모두 전송
           chipGain: -seedPayment.payment,
           chipNow: userChips.chips,
           funds: userChips.funds
         };
       } else {
         userInfo[uid] = {
+          ownedJokers: allSpecialCardIds, // 조커 + 행성 카드 ID 모두 전송
           chipGain: -seedPayment.payment,
           chipNow: userChips.chips,
           funds: userChips.funds
@@ -2953,8 +3013,12 @@ export class RoomService {
 
 
   getRoundChips(roomId: string, isNextRound: boolean) {
-    const round = isNextRound ? this.getRound(roomId) + 1 : this.getRound(roomId);
 
+    return this.getTableChips(roomId);
+
+    /*
+    const round = isNextRound ? this.getRound(roomId) + 1 : this.getRound(roomId);
+    
     if (round >= 5) {
       return this.getTableChips(roomId);
     }
@@ -2969,6 +3033,7 @@ export class RoomService {
       chipsRound += Math.min(baseRoundPrize, seedPayment.payment);
     }
     return chipsRound;
+    */
   }
 
   // === 유저별 게임 상태 관리 메서드들 ===
@@ -3100,7 +3165,7 @@ export class RoomService {
    * 마지막 플레이어 승리 처리를 합니다.
    * 게임 중인 유저가 1명만 남았을 때 호출됩니다.
    */
-  async handleLastPlayerWin(roomId: string): Promise<{
+  async handleLastPlayerWin(roomId: string, byFold: boolean): Promise<{
     success: boolean;
     lastWinnerId?: string;
     chipsGain?: number;
@@ -3117,9 +3182,9 @@ export class RoomService {
         // 마지막 플레이어 보상 계산
         const rewards = await this.calculateLastPlayerRewards(roomId, lastPlayerId);
 
-        // 게임 종료 처리 및 새 게임 시작
-        await this.handleGameEnd(roomId);
-
+        if (!byFold) {
+          await this.handleGameEnd(roomId);
+        }
 
         // 마지막 승자의 최종 칩 정보 가져오기
         const lastPlayerChips = await this.getUserChips(roomId, lastPlayerId);
@@ -3150,6 +3215,7 @@ export class RoomService {
       };
     }
   }
+
 
   /**
    * 유저의 fold 요청을 처리합니다.
@@ -3226,7 +3292,8 @@ export class RoomService {
       raiseCounts: new Map(), // 각 유저의 레이스 횟수 초기화
       checkUsed: false, // check 사용 여부 초기화
       remainingTableMoney: initialTableChips, // 레이스 가능한 남은 테이블 머니 한도 초기화      
-      initialTableChips: initialTableChips // 라운드 시작 시 테이블칩 저장
+      initialTableChips: initialTableChips, // 라운드 시작 시 테이블칩 저장
+      currentBettingRound: roomState.bettingState.currentBettingRound + 1  // 현재 베팅라운드 횟수 증가
     };
   }
 
@@ -3252,8 +3319,8 @@ export class RoomService {
       default: calculatedAmount = callChips;
     }
 
-    return Math.min(calculatedAmount, userChips, remainingTableMoney + callChips);
-
+    // return Math.min(calculatedAmount, userChips, remainingTableMoney + callChips);
+    return Math.min(calculatedAmount, userChips);
 
     // 주석 제거 하지 말것 - 나중에 복구 할수도 있음
     // let calculatedAmount: number;
@@ -3339,7 +3406,7 @@ export class RoomService {
 
     // 일반 베팅 처리
     const userCallChips = bettingState.userCallChips.get(userId) || 0;
-    const bettingAmount = this.calculateBettingAmount(bettingType, userCallChips, bettingState.initialTableChips, userChips.chips, bettingState.remainingTableMoney);
+    const bettingAmount = this.calculateBettingAmount(bettingType, userCallChips, bettingState.tableChips, userChips.chips, bettingState.remainingTableMoney);
 
     // 베팅 정보 저장
     bettingState.bets.set(userId, {
@@ -3481,14 +3548,13 @@ export class RoomService {
     const canRaise = bettingState.tableChips > 0 &&
       bettingState.tableChips > (bettingState.userCallChips.get(currentUserId) || 0) &&
       remainingChipsAfterCall > 0 &&
-      currentRaiseCount < 2 && // 최대 2번까지만 레이스 가능
-      bettingState.remainingTableMoney > 0; // 남은 테이블 머니가 있어야 레이스 가능
+      currentRaiseCount < 3; // 최대 2번까지만 레이스 가능      
 
     // 각 베팅 타입별 금액 계산 (실제 유저 보유 칩 사용)
-    const quarterAmount = this.calculateBettingAmount(BettingType.QUARTER, userCallChips, bettingState.initialTableChips, availableChips, bettingState.remainingTableMoney);
-    const halfAmount = this.calculateBettingAmount(BettingType.HALF, userCallChips, bettingState.initialTableChips, availableChips, bettingState.remainingTableMoney);
-    const fullAmount = this.calculateBettingAmount(BettingType.FULL, userCallChips, bettingState.initialTableChips, availableChips, bettingState.remainingTableMoney);
-    const callAmountCalculated = this.calculateBettingAmount(BettingType.CALL, userCallChips, bettingState.initialTableChips, availableChips, bettingState.remainingTableMoney);
+    const quarterAmount = this.calculateBettingAmount(BettingType.QUARTER, userCallChips, bettingState.tableChips, availableChips, bettingState.remainingTableMoney);
+    const halfAmount = this.calculateBettingAmount(BettingType.HALF, userCallChips, bettingState.tableChips, availableChips, bettingState.remainingTableMoney);
+    const fullAmount = this.calculateBettingAmount(BettingType.FULL, userCallChips, bettingState.tableChips, availableChips, bettingState.remainingTableMoney);
+    const callAmountCalculated = this.calculateBettingAmount(BettingType.CALL, userCallChips, bettingState.tableChips, availableChips, bettingState.remainingTableMoney);
 
     return {
       currentUserId,

@@ -1,8 +1,10 @@
 import { CardData } from '../deck.util';
 import { BaseSocketDto } from './base-socket.dto';
+import { SpecialCardData } from '../special-card-manager.service';
 
 export interface UserInfo {
     cards?: CardData[]; // 내 정보에만 있음
+    ownedJokers?: string[]; // 보유한 조커 카드 ID들
     chipGain: number;  // 현재 칩 타입에 따른 칩 획득량
     chipNow: number;   // 현재 칩 타입에 따른 칩 수량
     funds: number;     // 자금

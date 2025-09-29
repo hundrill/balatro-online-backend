@@ -709,8 +709,12 @@ export class SpecialCardManagerService {
         console.log('getRandomShopCards usedJokerCardIds:', usedJokerCardIds);
         console.log('getRandomShopCards testJokerIds:', testJokerIds);
 
-        // 테스트 조커 ID가 설정된 슬롯들 처리
-        for (let i = 0; i < count && i < testJokerIds.length; i++) {
+        // 조커 카드 개수 랜덤 선택 (1-4장)
+        const jokerCount = Math.floor(Math.random() * 4) + 1; // 1-4장
+        console.log('Selected joker count:', jokerCount);
+
+        // 조커 카드들 선택
+        for (let i = 0; i < jokerCount; i++) {
             const testJokerId = testJokerIds[i];
 
             if (testJokerId && testJokerId.trim() !== '') {
@@ -721,15 +725,45 @@ export class SpecialCardManagerService {
                     result.push(testCard);
                 } else {
                     // 테스트 조커 ID가 유효하지 않은 경우 확률 기반 로직으로 대체
-                    result.push(this.getRandomCardForSlotByProbability(i, currentRound, usedJokerCardIds, result));
+                    result.push(this.getRandomJokerCard(currentRound, usedJokerCardIds, result));
                 }
             } else {
                 // 테스트 조커 ID가 없는 경우 확률 기반 로직으로 랜덤 생성
-                result.push(this.getRandomCardForSlotByProbability(i, currentRound, usedJokerCardIds, result));
+                result.push(this.getRandomJokerCard(currentRound, usedJokerCardIds, result));
             }
         }
 
+        // 행성 카드 1장 고정 선택 (중복 허용) - 임시로 비활성화
+        // const planetCard = this.getRandomPlanetCard(currentRound);
+        // result.push(planetCard);
+
         return result;
+    }
+
+    // 조커 카드 랜덤 선택 헬퍼 메서드
+    private getRandomJokerCard(currentRound: number, usedJokerCardIds: Set<string>, newCards: SpecialCardData[]): SpecialCardData {
+        const availableJokers = this.getAvailableJokersForRound(currentRound, usedJokerCardIds);
+
+        if (availableJokers.length > 0) {
+            const selectedJoker = this.selectCardByProbability(availableJokers, currentRound);
+            usedJokerCardIds.add(selectedJoker.id); // 중복 방지
+            return selectedJoker;
+        } else {
+            // 사용 가능한 조커가 없는 경우 더미 카드
+            return this.getDummyCard();
+        }
+    }
+
+    // 행성 카드 랜덤 선택 헬퍼 메서드 (중복 허용)
+    private getRandomPlanetCard(currentRound: number): SpecialCardData {
+        const availablePlanets = this.getAvailablePlanetsForRound(currentRound);
+
+        if (availablePlanets.length > 0) {
+            return this.selectCardByProbability(availablePlanets, currentRound);
+        } else {
+            // 사용 가능한 행성이 없는 경우 더미 카드
+            return this.getDummyCard();
+        }
     }
 
     // 슬롯별 확률 기반 카드 생성 헬퍼 메서드

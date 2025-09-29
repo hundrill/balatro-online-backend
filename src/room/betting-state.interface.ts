@@ -11,4 +11,5 @@ export interface BettingState {
     remainingTableMoney: number; // 레이스 가능한 남은 테이블 머니 한도
     userCallChips: Map<string, number>; // 각 유저별 콜머니
     initialTableChips: number; // 라운드 시작 시 테이블칩 (칩 계산용)
+    currentBettingRound: number; // 현재 베팅라운드 횟수
 } 

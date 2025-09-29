@@ -9,6 +9,8 @@ export class BettingResultDto extends BaseSocketDto {
     bettingAmount: number;
     tableChips: number;
     callChips: number;
+    isBettingComplete: boolean; // 모든 베팅이 완료됐는지 여부
+    currentBettingRound: number; // 현재 몇 번째 베팅라운드인지
 
     constructor(init?: Partial<BettingResultDto>) {
         super();
