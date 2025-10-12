@@ -15,9 +15,16 @@ import { CommonModule } from './common/common.module';
 import { StressTestModule } from './stresstest/stresstest.module';
 import { IAPModule } from './iap/iap.module';
 import { ChallengeModule } from './challenge/challenge.module';
+import { ConfigModule } from '@nestjs/config';
 
 @Module({
   imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: process.env.NODE_ENV === 'production'
+        ? '.env.prod'
+        : '.env.dev',
+    }),
     PrismaModule,
     RedisModule,
     UserModule,

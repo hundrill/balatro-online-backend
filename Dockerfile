@@ -16,4 +16,5 @@ COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/prisma ./prisma
 
 # 시드 데이터 생성 및 서버 시작
-CMD ["sh", "-c", "npx prisma db seed && npm run start:prod"] 
+#CMD ["sh", "-c", "npx prisma db seed && npm run start:prod"] 
+CMD ["npm", "run", "start:prod"]

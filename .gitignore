@@ -1,7 +1,8 @@
 node_modules
 
 # 환경 변수
-.env
+.env.dev
+.env.prod
 
 # 빌드 결과물
 dist/
