@@ -15,9 +15,7 @@ export class RedisService implements OnModuleDestroy {
       retryDelayOnFailover: 100,
       enableReadyCheck: true,
       lazyConnect: false,
-      tls: {
-        // rejectUnauthorized: false,
-      },
+      // tls: {},
     };
 
     this.client = new Redis(redisOptions);
