@@ -845,21 +845,21 @@ export class RoomService {
     // 1111
     if (round === 1) {
       this.paytableService.resetAllUserData();
+      roomState.usedJokerCardIds.clear();
     }
 
-    this.setAllUsersToPlaying(roomId, participatingUserIds); // 1111 userIds -> participatingUserIds
-    roomState.usedJokerCardIds.clear();
+    this.setAllUsersToPlaying(roomId, participatingUserIds); // 1111 userIds -> participatingUserIds    
 
-    // 샵 카드 5장 생성 (조커 3장, 행성 1장, 타로 1장) - 이미 등장한 조커카드 제외
-    const shopCards = this.specialCardManagerService.getRandomShopCards(5, roomState.round, roomState.usedJokerCardIds, roomState.testJokerIds);
-    roomState.shopCards = [...shopCards]; // 복사본 저장
+    // 1111
+    // const shopCards = this.specialCardManagerService.getRandomShopCards(3, roomState.round, roomState.usedJokerCardIds, roomState.testJokerIds);
+    // roomState.shopCards = [...shopCards]; // 복사본 저장
 
-    // 새로 뽑힌 조커카드 id를 usedJokerSet에 추가
-    shopCards.forEach(card => {
-      if (this.specialCardManagerService.isJokerCard(card.id)) {
-        roomState.usedJokerCardIds.add(card.id);
-      }
-    });
+    // // 새로 뽑힌 조커카드 id를 usedJokerSet에 추가
+    // shopCards.forEach(card => {
+    //   if (this.specialCardManagerService.isJokerCard(card.id)) {
+    //     roomState.usedJokerCardIds.add(card.id);
+    //   }
+    // });
 
     // 새로운 라운드 시작 시 다시뽑기 카드 초기화
     roomState.reRollCardsMap.clear();
@@ -1177,6 +1177,7 @@ export class RoomService {
       }
 
       // 5. 유저의 funds 확인 및 구매 가능 여부 체크
+      /* 1111
       const userChips = await this.getUserChips(roomId, userId);
       if (userChips.funds < shopCard.price) {
         this.logger.warn(
@@ -1187,6 +1188,7 @@ export class RoomService {
           message: TranslationKeys.InsufficientFundsForCard,
         };
       }
+      */
 
       // 6. funds 차감
       await this.updateUserFunds(roomId, userId, -shopCard.price);
@@ -2942,6 +2944,7 @@ export class RoomService {
     // playing 상태인 유저들만 필터링
     const playingUserIds = this.getPlayingUserIds(roomId, userIds);
 
+    /*
     // 샵 카드들 가져오기 (모든 유저에게 동일하게 전송)
     const roomState = this.getRoomState(roomId);
     const shopCards = roomState.shopCards || [];
@@ -2972,6 +2975,7 @@ export class RoomService {
         }
       }
     }
+    */
 
     // playing 상태인 유저들만 userInfo에 포함
     for (const uid of playingUserIds) {
@@ -2985,14 +2989,14 @@ export class RoomService {
         // 내 정보 (카드 포함)
         userInfo[uid] = {
           cards: myCards,
-          ownedJokers: allSpecialCardIds, // 조커 + 행성 카드 ID 모두 전송
+          // ownedJokers: allSpecialCardIds, // 조커 + 행성 카드 ID 모두 전송
           chipGain: -seedPayment.payment,
           chipNow: userChips.chips,
           funds: userChips.funds
         };
       } else {
         userInfo[uid] = {
-          ownedJokers: allSpecialCardIds, // 조커 + 행성 카드 ID 모두 전송
+          // ownedJokers: allSpecialCardIds, // 조커 + 행성 카드 ID 모두 전송
           chipGain: -seedPayment.payment,
           chipNow: userChips.chips,
           funds: userChips.funds

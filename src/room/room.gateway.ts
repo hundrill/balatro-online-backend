@@ -375,26 +375,15 @@ export class RoomGateway
       else {
         this.emitRoomResponse(roomId, handPlayRes);
 
-        // 1111
-
-        if (roomState.round === 3) {
-          await this.roomService.handleGameEnd(roomId);
-        }
-        else {
-          this.logger.log(`[startHandPlayResult] ${roomState.round} 라운드 끝`);
-          await this.startGameForRoom(roomId);
-        }
-
+        // if (roomState.round !== 5 || chipType === ChipType.GOLD) {
+        //   await this.sendShopResponse(roomId);
+        // }
+        // else {
+        //   await this.roomService.handleGameEnd(roomId);
+        // }
 
         // 1111
-        /*
-        if (roomState.round !== 5 || chipType === ChipType.GOLD) {
-          await this.sendShopResponse(roomId);
-        }
-        else {
-          await this.roomService.handleGameEnd(roomId);
-        }
-        */
+        await this.roomService.handleGameEnd(roomId);
       }
 
     } catch (error) {
@@ -427,10 +416,21 @@ export class RoomGateway
    */
   private async sendShopResponse(roomId: string): Promise<void> {
     try {
-      this.roomService.setRoomPhase(roomId, RoomPhase.SHOP);
 
-      const shopCardIds = this.roomService.getShopCards(roomId);
       const roomState = this.roomService.getRoomState(roomId);
+
+      const shopCards = this.specialCardManagerService.getRandomShopCards(3, roomState.round, roomState.usedJokerCardIds, roomState.testJokerIds);
+      roomState.shopCards = [...shopCards]; // 복사본 저장
+
+      // 새로 뽑힌 조커카드 id를 usedJokerSet에 추가
+      shopCards.forEach(card => {
+        if (this.specialCardManagerService.isJokerCard(card.id)) {
+          roomState.usedJokerCardIds.add(card.id);
+        }
+      });
+
+      this.roomService.setRoomPhase(roomId, RoomPhase.SHOP);
+      const shopCardIds = this.roomService.getShopCards(roomId);
       let chipsRound = this.roomService.getRoundChips(roomId, true);
       let chipsTable = this.roomService.getTableChips(roomId) - chipsRound;
 
@@ -1032,9 +1032,10 @@ export class RoomGateway
       );
 
       if (allUsersDiscards) {
-        this.roomService.startBettingRound(roomId);
-        const bettingResponse = await this.roomService.createBettingResponse(roomId, true); // isFirst: true
-        this.emitRoomResponse(roomId, new BettingResponseDto(bettingResponse));
+
+        // 1111
+        await this.sendShopResponse(roomId);
+        this.logger.log(`------------------------- 샵 정보 보냄`);
       }
 
     } catch (error) {
@@ -1148,7 +1149,14 @@ export class RoomGateway
       );
 
       if (this.roomService.canStartNextRound(roomId)) {
-        await this.startGameForRoom(roomId);
+        // 1111
+        this.roomService.startBettingRound(roomId);
+        const bettingResponse = await this.roomService.createBettingResponse(roomId, true); // isFirst: true
+        this.emitRoomResponse(roomId, new BettingResponseDto(bettingResponse));
+
+        this.roomService.getRoomState(roomId).nextRoundReadySet.clear();
+
+        // await this.startGameForRoom(roomId);
       }
     } catch (error) {
       this.emitUserResponse(
@@ -1541,6 +1549,7 @@ export class RoomGateway
             // await this.sendShopResponse(roomId); 
 
             this.roomService.resetDiscardCounts(roomId);
+            this.roomService.setRoomPhase(roomId, RoomPhase.PLAYING);
           }
         }
       }

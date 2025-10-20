@@ -710,8 +710,11 @@ export class SpecialCardManagerService {
         console.log('getRandomShopCards testJokerIds:', testJokerIds);
 
         // 조커 카드 개수 랜덤 선택 (1-4장)
-        const jokerCount = Math.floor(Math.random() * 4) + 1; // 1-4장
+        let jokerCount = Math.floor(Math.random() * 4) + 1; // 1-4장
         console.log('Selected joker count:', jokerCount);
+
+        // 1111
+        jokerCount = 3;
 
         // 조커 카드들 선택
         for (let i = 0; i < jokerCount; i++) {
