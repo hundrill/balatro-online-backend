@@ -1,7 +1,7 @@
-export const SERVER_VERSION = 113; // 1.0.0을 100으로 표현
+export const SERVER_VERSION = 120; // 1.0.0을 100으로 표현
 
 // 지원하는 최소 클라이언트 버전
-export const MIN_CLIENT_VERSION = 113; // 1.0.0을 100으로 표현
+export const MIN_CLIENT_VERSION = 120; // 1.0.0을 100으로 표현
 
 // 버전 비교 함수 (int 형)
 export function compareVersions(version1: number, version2: number): number {
