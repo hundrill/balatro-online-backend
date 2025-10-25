@@ -45,6 +45,7 @@ interface RoomState {
   // 통합된 필드들
   handPlayMap: Map<string, CardData[]>; // userId -> hand
   nextRoundReadySet: Set<string>; // userId Set
+  bettingRound: number;
   gameReadySet: Set<string>; // userId Set
   shopCards: SpecialCardData[]; // 샵 카드 5장
   reRollCardsMap: Map<string, SpecialCardData[]>; // userId -> reRollCards
@@ -129,6 +130,7 @@ export class RoomService {
       timeLimit: 0,
       handPlayMap: new Map(),
       nextRoundReadySet: new Set(),
+      bettingRound: 0,
       gameReadySet: new Set(),
       shopCards: [],
       reRollCardsMap: new Map(),
@@ -714,6 +716,7 @@ export class RoomService {
     roomState.userFirstDeckCardsMap.clear();
     roomState.round = roomState.round + 1;
     roomState.bettingState.currentBettingRound = 0;
+    roomState.bettingRound = 0;
 
     this.logger.debug(`[startGame] === 게임 시작 단계 진입: roomId=${roomId} round=${roomState.round} ===`);
 
@@ -3531,6 +3534,10 @@ export class RoomService {
     const roomState = this.getRoomState(roomId);
     const bettingState = roomState.bettingState;
     const currentUserId = bettingState.currentUser || '';
+
+    if (isFirst) {
+      roomState.bettingRound++;
+    }
 
     // 현재 베팅 유저의 보유 칩 가져오기
     const userChips = currentUserId ? await this.getUserChips(roomId, currentUserId) : { chips: 0 };

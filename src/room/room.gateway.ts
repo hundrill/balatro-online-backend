@@ -588,6 +588,9 @@ export class RoomGateway
         }),
       );
     }
+
+    await this.sendShopResponse(roomId);
+    this.logger.log(`------------------------- 샵 정보 보냄`);
   }
 
 
@@ -1102,8 +1105,16 @@ export class RoomGateway
 
       if (this.roomService.canRevealHandPlay(roomId, userIds)) {
         try {
+
+          // 1111
+          this.roomService.startBettingRound(roomId);
+          const bettingResponse = await this.roomService.createBettingResponse(roomId, true); // isFirst: true
+          this.emitRoomResponse(roomId, new BettingResponseDto(bettingResponse));
+
+          console.log(`[----------------------- 핸드플레이 끝나고 베팅 라운드 시작: bettingRound=${this.roomService.getRoomState(roomId).bettingRound}`);
+
           // HandPlayResult 바로 시작
-          await this.startHandPlayResult(roomId);
+          // await this.startHandPlayResult(roomId);
         } catch (error) {
           this.logger.error(`[handleHandPlayReady] Error starting hand play result: roomId=${roomId}`, error);
         }
@@ -1143,16 +1154,26 @@ export class RoomGateway
 
       this.roomService.setNextRoundReady(roomId, userId);
 
+      const canStart = this.roomService.canStartNextRound(roomId);
+
       this.emitRoomResponse(
         roomId,
-        new NextRoundReadyResponseDto({ userId }),
+        new NextRoundReadyResponseDto({ userId, canStartNextRound: canStart }),
       );
 
-      if (this.roomService.canStartNextRound(roomId)) {
+      if (canStart) {
         // 1111
-        this.roomService.startBettingRound(roomId);
-        const bettingResponse = await this.roomService.createBettingResponse(roomId, true); // isFirst: true
-        this.emitRoomResponse(roomId, new BettingResponseDto(bettingResponse));
+        if (this.roomService.getRoomState(roomId).bettingRound < 3) {
+          this.roomService.startBettingRound(roomId);
+          const bettingResponse = await this.roomService.createBettingResponse(roomId, true); // isFirst: true
+          this.emitRoomResponse(roomId, new BettingResponseDto(bettingResponse));
+
+          console.log(`[----------------------- 베팅 라운드 시작: bettingRound=${this.roomService.getRoomState(roomId).bettingRound}`);
+        }
+        else {
+          console.log(`[----------------------- 핸드플레이 시작: bettingRound=${this.roomService.getRoomState(roomId).bettingRound}`);
+          this.roomService.setRoomPhase(roomId, RoomPhase.PLAYING);
+        }
 
         this.roomService.getRoomState(roomId).nextRoundReadySet.clear();
 
@@ -1542,7 +1563,7 @@ export class RoomGateway
           // 베팅 라운드 완료
           const roomState = this.roomService.getRoomState(roomId);
 
-          if (roomState.round === 5) {
+          if (roomState.bettingRound === 4) {
             await this.processHandPlayResultAfterBetting(roomId);
           } else {
             // 1111
