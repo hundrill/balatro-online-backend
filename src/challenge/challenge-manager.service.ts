@@ -31,9 +31,11 @@ export class ChallengeManagerService {
                     nameKo: challenge.nameKo,
                     nameEn: challenge.nameEn,
                     nameId: challenge.nameId,
+                    nameTh: challenge.nameTh,
                     descriptionKo: challenge.descriptionKo || undefined,
                     descriptionEn: challenge.descriptionEn || undefined,
                     descriptionId: challenge.descriptionId || undefined,
+                    descriptionTh: challenge.descriptionTh || undefined,
                     targetCount: challenge.targetCount,
                     reward: challenge.reward || undefined,
                     currentCount: 0

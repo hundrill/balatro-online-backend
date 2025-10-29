@@ -141,6 +141,7 @@ export interface SpecialCardData {
     descriptionKo: string;
     descriptionEn: string;
     descriptionId: string;
+    descriptionTh: string;
     price: number;
     roundProb1: number;
     roundProb2: number;
@@ -670,6 +671,7 @@ export class SpecialCardManagerService {
             descriptionKo: 'Dummy card for fallback',
             descriptionEn: 'Dummy card for fallback',
             descriptionId: 'Dummy card for fallback',
+            descriptionTh: 'Dummy card for fallback',
             price: 0,
             roundProb1: 0,
             roundProb2: 0,
@@ -860,6 +862,7 @@ export class SpecialCardManagerService {
             descriptionKo: 'Dummy card for fallback',
             descriptionEn: 'Dummy card for fallback',
             descriptionId: 'Dummy card for fallback',
+            descriptionTh: 'Dummy card for fallback',
             price: 0,
             roundProb1: 0,
             roundProb2: 0,
@@ -943,6 +946,7 @@ export class SpecialCardManagerService {
                     descriptionKo: dbCard.descriptionKo,
                     descriptionEn: dbCard.descriptionEn,
                     descriptionId: dbCard.descriptionId,
+                    descriptionTh: dbCard.descriptionTh,
                     price: dbCard.price,
                     roundProb1: dbCard.roundProb1 || 0,
                     roundProb2: dbCard.roundProb2 || 0,
@@ -977,6 +981,7 @@ export class SpecialCardManagerService {
                 newCard.descriptionKo = dbCard.descriptionKo;
                 newCard.descriptionEn = dbCard.descriptionEn;
                 newCard.descriptionId = dbCard.descriptionId;
+                newCard.descriptionTh = dbCard.descriptionTh;
                 newCard.price = dbCard.price;
                 newCard.roundProb1 = dbCard.roundProb1 || 0;
                 newCard.roundProb2 = dbCard.roundProb2 || 0;
@@ -1148,6 +1153,7 @@ export class SpecialCardManagerService {
                         descriptionKo: dbCard.descriptionKo,
                         descriptionEn: dbCard.descriptionEn,
                         descriptionId: dbCard.descriptionId,
+                        descriptionTh: dbCard.descriptionTh,
                         price: dbCard.price,
                         roundProb1: dbCard.roundProb1 || 0,
                         roundProb2: dbCard.roundProb2 || 0,

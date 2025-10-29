@@ -55,9 +55,11 @@ export class ChallengeApiDto {
     nameKo: string;
     nameEn: string;
     nameId: string;
+    nameTh: string;
     descriptionKo: string | null;
     descriptionEn: string | null;
     descriptionId: string | null;
+    descriptionTh: string | null;
     targetCount: number;
     reward: number | null;
     currentCount: number;
