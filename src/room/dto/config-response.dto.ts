@@ -58,6 +58,7 @@ export class ChallengeApiDto {
     descriptionKo: string | null;
     descriptionEn: string | null;
     descriptionId: string | null;
+    descriptionTh: string | null;
     targetCount: number;
     reward: number | null;
     currentCount: number;

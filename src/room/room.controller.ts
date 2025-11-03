@@ -154,7 +154,7 @@ export class RoomController {
       const specialCardsApi: SpecialCardApiDto[] = specialCards.map((card: SpecialCardData) => ({
         id: card.id || '',
         name: card.name || '',
-        description: configRequest.language === 'in' ? card.descriptionId : configRequest.language === 'en' ? card.descriptionEn : card.descriptionKo || '',
+        description: configRequest.language === 'th' ? card.descriptionTh : configRequest.language === 'in' ? card.descriptionId : configRequest.language === 'en' ? card.descriptionEn : card.descriptionKo || '',
         price: card.price || 0,
         sprite: card.sprite || 0,
         type: card.type.toString(),
@@ -218,6 +218,7 @@ export class RoomController {
         descriptionKo: challenge.descriptionKo || null,
         descriptionEn: challenge.descriptionEn || null,
         descriptionId: challenge.descriptionId || null,
+        descriptionTh: challenge.descriptionTh || null,
         targetCount: challenge.targetCount,
         reward: challenge.reward ?? 0,
         currentCount: challenge.currentCount
@@ -232,6 +233,7 @@ export class RoomController {
           descriptionKo: card.descriptionKo,
           descriptionEn: card.descriptionEn,
           descriptionId: card.descriptionId,
+          descriptionTh: card.descriptionTh,
           targetCount: card.targetCount,
           reward: card.reward,
           currentCount: card.currentCount

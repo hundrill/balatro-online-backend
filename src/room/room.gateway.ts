@@ -69,8 +69,10 @@ interface SocketSession {
   cors: true,
   // pingInterval: 25000,
   // pingTimeout: 20000,
-  pingInterval: 60000 * 5 + 5000,
-  pingTimeout: 60000 * 5,
+  // pingInterval: 60000 * 5 + 5000,
+  // pingTimeout: 60000 * 5,
+  pingInterval: 60000 * 1 + 5000,
+  pingTimeout: 60000 * 1,
   transports: ['websocket']
   // transports: ['polling']
 })

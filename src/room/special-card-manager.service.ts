@@ -141,6 +141,7 @@ export interface SpecialCardData {
     descriptionKo: string;
     descriptionEn: string;
     descriptionId: string;
+    descriptionTh: string;
     price: number;
     roundProb1: number;
     roundProb2: number;
@@ -664,41 +665,42 @@ export class SpecialCardManagerService {
 
     // 더미 카드 생성
     private getDummyCard(): SpecialCardData {
-        return {
-            id: 'dummy_card',
-            name: 'Dummy Card',
-            descriptionKo: 'Dummy card for fallback',
-            descriptionEn: 'Dummy card for fallback',
-            descriptionId: 'Dummy card for fallback',
-            price: 0,
-            roundProb1: 0,
-            roundProb2: 0,
-            roundProb3: 0,
-            roundProb4: 0,
-            roundProb5: 0,
-            sprite: 0,
-            type: SpecialCardType.Joker,
-            baseValue: 0,
-            increase: 0,
-            decrease: 0,
-            maxValue: 0,
-            needCardCount: 0,
-            enhanceChips: 0,
-            enhanceMul: 0,
-            isActive: true,
-            conditionTypes: [],
-            conditionValues: [['']],
-            conditionOperators: [],
-            conditionNumericValues: [],
-            effectTimings: [],
-            effectTypes: [],
-            effectTypesOrigin: [],
-            effectValues: [['']],
-            effectOnCards: [],
-            effectUseRandomValue: [],
-            effectByCounts: [],
-            pokerHand: PokerHand.None,
-        };
+        return this.getCardById("joker_1")!;
+        // return {
+        //     id: 'dummy_card',
+        //     name: 'Dummy Card',
+        //     descriptionKo: 'Dummy card for fallback',
+        //     descriptionEn: 'Dummy card for fallback',
+        //     descriptionId: 'Dummy card for fallback',
+        //     price: 0,
+        //     roundProb1: 0,
+        //     roundProb2: 0,
+        //     roundProb3: 0,
+        //     roundProb4: 0,
+        //     roundProb5: 0,
+        //     sprite: 0,
+        //     type: SpecialCardType.Joker,
+        //     baseValue: 0,
+        //     increase: 0,
+        //     decrease: 0,
+        //     maxValue: 0,
+        //     needCardCount: 0,
+        //     enhanceChips: 0,
+        //     enhanceMul: 0,
+        //     isActive: true,
+        //     conditionTypes: [],
+        //     conditionValues: [['']],
+        //     conditionOperators: [],
+        //     conditionNumericValues: [],
+        //     effectTimings: [],
+        //     effectTypes: [],
+        //     effectTypesOrigin: [],
+        //     effectValues: [['']],
+        //     effectOnCards: [],
+        //     effectUseRandomValue: [],
+        //     effectByCounts: [],
+        //     pokerHand: PokerHand.None,
+        // };
     }
 
     // 기존 joker-cards.util.ts 함수들을 대체하는 메서드들
@@ -735,7 +737,7 @@ export class SpecialCardManagerService {
     // 슬롯별 확률 기반 카드 생성 헬퍼 메서드
     private getRandomCardForSlotByProbability(slotIndex: number, currentRound: number, usedJokerCardIds: Set<string>, newCards: SpecialCardData[]): SpecialCardData {
         // 슬롯 0, 1, 2: 조커 카드 (확률 기반)
-        if (slotIndex < 3) {
+        if (slotIndex < 3 || true) {
             const availableJokers = this.getAvailableJokersForRound(currentRound, usedJokerCardIds);
 
             if (availableJokers.length > 0) {
@@ -748,30 +750,8 @@ export class SpecialCardManagerService {
             }
         }
         // 슬롯 3: 행성 카드 (확률 기반)
-        else if (slotIndex === 3) {
-            const availablePlanets = this.getAvailablePlanetsForRound(currentRound);
+        else { }
 
-            if (availablePlanets.length > 0) {
-                return this.selectCardByProbability(availablePlanets, currentRound);
-            } else {
-                // 사용 가능한 행성이 없는 경우 더미 카드
-                return this.getDummyCard();
-            }
-        }
-        // 슬롯 4: 타로 카드 (확률 기반)
-        else if (slotIndex === 4) {
-            const availableTarots = this.getAvailableTarotsForRound(currentRound);
-
-            if (availableTarots.length > 0) {
-                return this.selectCardByProbability(availableTarots, currentRound);
-            } else {
-                // 사용 가능한 타로가 없는 경우 더미 카드
-                return this.getDummyCard();
-            }
-        }
-
-        // 기본값으로 더미 카드 반환
-        return this.getDummyCard();
     }
 
     // 슬롯별 랜덤 카드 생성 헬퍼 메서드 (기존 방식 - 호환성 유지)
@@ -823,6 +803,7 @@ export class SpecialCardManagerService {
             descriptionKo: 'Dummy card for fallback',
             descriptionEn: 'Dummy card for fallback',
             descriptionId: 'Dummy card for fallback',
+            descriptionTh: 'Dummy card for fallback',
             price: 0,
             roundProb1: 0,
             roundProb2: 0,
@@ -906,6 +887,7 @@ export class SpecialCardManagerService {
                     descriptionKo: dbCard.descriptionKo,
                     descriptionEn: dbCard.descriptionEn,
                     descriptionId: dbCard.descriptionId,
+                    descriptionTh: dbCard.descriptionTh,
                     price: dbCard.price,
                     roundProb1: dbCard.roundProb1 || 0,
                     roundProb2: dbCard.roundProb2 || 0,
@@ -940,6 +922,7 @@ export class SpecialCardManagerService {
                 newCard.descriptionKo = dbCard.descriptionKo;
                 newCard.descriptionEn = dbCard.descriptionEn;
                 newCard.descriptionId = dbCard.descriptionId;
+                newCard.descriptionTh = dbCard.descriptionTh;
                 newCard.price = dbCard.price;
                 newCard.roundProb1 = dbCard.roundProb1 || 0;
                 newCard.roundProb2 = dbCard.roundProb2 || 0;
@@ -1111,6 +1094,7 @@ export class SpecialCardManagerService {
                         descriptionKo: dbCard.descriptionKo,
                         descriptionEn: dbCard.descriptionEn,
                         descriptionId: dbCard.descriptionId,
+                        descriptionTh: dbCard.descriptionTh,
                         price: dbCard.price,
                         roundProb1: dbCard.roundProb1 || 0,
                         roundProb2: dbCard.roundProb2 || 0,

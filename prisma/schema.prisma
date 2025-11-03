@@ -99,6 +99,7 @@ model SpecialCard {
   descriptionId      String?  @db.Text
   descriptionKo      String?  @db.Text
   descriptionEn      String?  @db.Text
+  descriptionTh      String?  @db.Text
   effectValue1       String?
   effectValue2       String?
   conditionNumeric3  String?
@@ -165,9 +166,11 @@ model Challenge {
   nameKo        String
   nameEn        String
   nameId        String
+  nameTh        String
   descriptionKo String?  @db.Text
   descriptionEn String?  @db.Text
   descriptionId String?  @db.Text
+  descriptionTh String?  @db.Text
   targetCount   Int      @default(0)
   reward        Int?
   isActive      Boolean  @default(true)

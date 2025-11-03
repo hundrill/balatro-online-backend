@@ -34,6 +34,7 @@ export class ChallengeManagerService {
                     descriptionKo: challenge.descriptionKo || undefined,
                     descriptionEn: challenge.descriptionEn || undefined,
                     descriptionId: challenge.descriptionId || undefined,
+                    descriptionTh: challenge.descriptionTh || undefined,
                     targetCount: challenge.targetCount,
                     reward: challenge.reward || undefined,
                     currentCount: 0

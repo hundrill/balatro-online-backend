@@ -8,17 +8,50 @@ export class RedisService implements OnModuleDestroy {
 
   constructor() {
 
-    const redisOptions = {
-      host: process.env.REDIS_HOST || 'localhost',
-      port: parseInt(process.env.REDIS_PORT || '6379'),
+    let redisOptions: any = {
       maxRetriesPerRequest: 3,
       retryDelayOnFailover: 100,
-      enableReadyCheck: true,
-      lazyConnect: false,
-      // tls: {},
+      enableReadyCheck: false,
+      lazyConnect: true,
     };
 
-    this.client = new Redis(redisOptions);
+    // Railway에서는 REDIS_URL을 사용
+    if (process.env.REDIS_URL) {
+      this.client = new Redis(process.env.REDIS_URL, redisOptions);
+    } else {
+      // 로컬 개발용
+      redisOptions = {
+        host: process.env.REDIS_HOST || 'localhost',
+        port: parseInt(process.env.REDIS_PORT || '6379'),
+        maxRetriesPerRequest: 3,
+        retryDelayOnFailover: 100,
+        enableReadyCheck: false,
+        lazyConnect: true,
+      };
+
+      if (process.env.REDIS_PASSWORD) {
+        redisOptions.password = process.env.REDIS_PASSWORD;
+      }
+
+      this.client = new Redis(redisOptions);
+    }
+
+    // const isProduction = process.env.NODE_ENV === 'production';
+
+    // const redisOptions: any = {
+    //   host: process.env.REDIS_HOST || 'localhost',
+    //   port: parseInt(process.env.REDIS_PORT || '6379'),
+    //   maxRetriesPerRequest: 3,
+    //   retryDelayOnFailover: 100,
+    //   enableReadyCheck: true,
+    //   lazyConnect: false,
+    // };
+
+    // if (isProduction) {
+    //   redisOptions.tls = {};
+    // }
+
+    // this.client = new Redis(redisOptions);
 
     this.setupEventHandlers();
   }
