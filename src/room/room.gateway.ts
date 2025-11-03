@@ -376,11 +376,13 @@ export class RoomGateway
       }
       else {
         this.emitRoomResponse(roomId, handPlayRes);
-        if (roomState.round !== 5 || chipType === ChipType.GOLD) {
-          await this.sendShopResponse(roomId);
+
+        if (roomState.round === 3) {
+          console.log(`[startHandPlayResult] 3라운드 종료: roomId=${roomId}`);
+          await this.roomService.handleGameEnd(roomId);
         }
         else {
-          await this.roomService.handleGameEnd(roomId);
+          await this.sendShopResponse(roomId);
         }
       }
 
