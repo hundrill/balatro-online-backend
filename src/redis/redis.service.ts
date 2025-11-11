@@ -6,17 +6,42 @@ export class RedisService implements OnModuleDestroy {
   private readonly client: Redis;
   private readonly logger = new Logger(RedisService.name);
 
+  // constructor() {
+  //   const isProduction = process.env.NODE_ENV === 'production';
+
+  //   const redisOptions: any = {
+  //     host: process.env.REDIS_URL || 'localhost',
+  //     // port: parseInt(process.env.REDIS_PORT || '6379'),
+  //     maxRetriesPerRequest: 3,
+  //     retryDelayOnFailover: 100,
+  //     enableReadyCheck: true,
+  //     lazyConnect: false,
+  //   };
+  //   if (process.env.NODE_ENV === 'production') {
+  //     redisOptions.tls = {};
+  //   }
+  //   this.client = new Redis(redisOptions);
+
+  //   this.setupEventHandlers();
+  // }
+
   constructor() {
+
     const isProduction = process.env.NODE_ENV === 'production';
 
     const redisOptions: any = {
-      host: process.env.REDIS_URL || 'localhost',
-      port: parseInt(process.env.REDIS_PORT || '6379'),
+      host: 'tramway.proxy.rlwy.net',
+      port: 30543,
+      password: 'drFrZbgpsWkojXfEeUMnRFZDnHsJWOVC',
       maxRetriesPerRequest: 3,
       retryDelayOnFailover: 100,
       enableReadyCheck: true,
       lazyConnect: false,
     };
+
+    if (isProduction) {
+      redisOptions.tls = {};
+    }
 
     this.client = new Redis(redisOptions);
 
