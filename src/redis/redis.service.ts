@@ -40,7 +40,7 @@ export class RedisService implements OnModuleDestroy {
     };
 
     if (isProduction) {
-      redisOptions.tls = {};
+      // redisOptions.tls = {};
     }
 
     this.client = new Redis(redisOptions);
