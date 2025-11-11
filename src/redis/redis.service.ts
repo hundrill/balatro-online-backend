@@ -18,10 +18,6 @@ export class RedisService implements OnModuleDestroy {
       lazyConnect: false,
     };
 
-    if (isProduction) {
-      redisOptions.tls = {};
-    }
-
     this.client = new Redis(redisOptions);
 
     this.setupEventHandlers();
