@@ -59,6 +59,8 @@ export class HandContext {
     public playedCards: CardData[] = [];
     public unUsedCards: CardData[] = [];
     public currentCardData: CardData | null = null;
+    public redrawCardData: CardData[] = [];
+    public discardCardData: CardData[] = [];
     public multiplier: number = 1;
     public chips: number = 0;
     public pokerHand: PokerHand = PokerHand.None;

@@ -12,6 +12,9 @@ async function bootstrap() {
       logger: ['error', 'warn', 'log', 'debug', 'verbose'],
     });
 
+    // 프록시(로드 밸런서) 환경에서 Authorization 헤더를 올바르게 읽기 위해 trust proxy 설정 활성화
+    // app.getHttpAdapter().getInstance().set('trust proxy', true);
+
     // CORS 설정
     app.enableCors({
       origin: true,
@@ -22,7 +25,7 @@ async function bootstrap() {
     await app.listen(port);
 
     logger.log(`Balatro Online Backend is running on port ${port}`);
-    logger.log('Environment: ' + (process.env.NODE_ENV || 'development'));
+    logger.log('Environment: ' + process.env.NODE_ENV);
 
     // Graceful shutdown 설정
     const signals = ['SIGTERM', 'SIGINT'];

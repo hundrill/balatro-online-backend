@@ -73,6 +73,15 @@ export class AuthService {
       };
     }
 
+    const isConnected = await this.isUserConnected(userId);
+    if (isConnected) {
+      return {
+        success: false,
+        code: 1004,
+        message: 'Already connected from another location'
+      };
+    }
+
     const token = await this.generateToken(user);
 
     return {

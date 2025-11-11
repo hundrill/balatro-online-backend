@@ -19,6 +19,10 @@ export class DiscardResponseDto extends BaseSocketDto {
 
     @IsOptional()
     @IsArray()
+    newCards?: CardData[];
+
+    @IsOptional()
+    @IsArray()
     discarded?: CardData[];
 
     @IsInt()

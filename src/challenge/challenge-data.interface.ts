@@ -6,6 +6,7 @@ export interface ChallengeData {
     descriptionKo?: string;
     descriptionEn?: string;
     descriptionId?: string;
+    descriptionTh?: string;
     targetCount: number;
     reward?: number;
     currentCount: number;

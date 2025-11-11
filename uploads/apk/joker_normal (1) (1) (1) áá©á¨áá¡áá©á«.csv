@@ -1,0 +1,2 @@
+id,name,desc,basevalue,increase,decrease,maxvalue,timing_draw,timing_round_start,timing_hand_play,timing_scoring,timing_after_scoring,timing_fold,timing_round_clear,timing_tarot_card_use,timing_planet_card_use,roundProb_1,roundProb_2,roundProb_3,roundProb_4,roundProb_5,price,sprite,,
+1,조커 A,다이아몬드로 득점 시마다 배수가 <color=red>+2</color> 된다.,0,0,0,,,,,scoring_card_by_suite=diamond^add_mults=2,,,,,,100,100,100,100,100,2,0,,

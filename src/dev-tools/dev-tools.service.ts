@@ -484,6 +484,24 @@ export class DevToolsService implements OnModuleInit {
     // Joker CSV Import
     // =========================
     async importJokerCsv(buffer: Buffer) {
+        // const text = buffer.toString('utf8');
+        // const rows = this.parseCsv(text);
+
+        // if (rows.length === 0) {
+        //     return { success: false, message: '빈 CSV 입니다.' };
+        // }
+
+        // // 기존 스페셜카드 테이블 모두 삭제
+        // await this.prisma.specialCard.deleteMany({});
+        // this.logger.log('[DevTools] 기존 스페셜카드 데이터 모두 삭제 완료');
+
+        // const header = rows[0].map(h => h.trim());
+        // const dataRows = rows.slice(1);
+
+        // const warnings: string[] = [];
+        // const ops: any[] = [];
+        // let skipped = 0;
+
         const text = buffer.toString('utf8');
         const rows = this.parseCsv(text);
 
@@ -522,8 +540,8 @@ export class DevToolsService implements OnModuleInit {
                 continue;
             }
 
-            const rec = this.rowToRecord(header, row);
-            const idNum = (rec.id ?? '').toString().trim();
+            const jokerData = this.rowToRecord(header, row);
+            const idNum = (jokerData.id ?? '').toString().trim();
 
             if (!idNum) {
                 warnings.push('id 누락 행 스킵');
@@ -534,7 +552,7 @@ export class DevToolsService implements OnModuleInit {
             const cardId = idNum.startsWith('joker_') ? idNum : `joker_${idNum}`;
 
             // 새로운 파싱 서비스를 사용하여 효과 쌍 추출
-            const effectPairs = this.extractEffectPairs(rec, timingColumns, warnings, cardId);
+            const effectPairs = this.extractEffectPairs(jokerData, timingColumns);
 
             // 모든 조건-효과 쌍 필드 클리어
             const clearFields: any = {};
@@ -557,19 +575,19 @@ export class DevToolsService implements OnModuleInit {
             const createData: any = this.cleanUndefined({
                 id: cardId,
                 type: 'Joker',
-                name: rec.nameText,  // 임시로 주석 처리 (한글 깨짐 문제)
-                descriptionKo: rec.descText,  // 임시로 주석 처리 (한글 깨짐 문제)
-                price: this.parseIntSafe(rec.price),
-                roundProb1: this.parseIntSafe(rec.roundProb_1),
-                roundProb2: this.parseIntSafe(rec.roundProb_2),
-                roundProb3: this.parseIntSafe(rec.roundProb_3),
-                roundProb4: this.parseIntSafe(rec.roundProb_4),
-                roundProb5: this.parseIntSafe(rec.roundProb_5),
-                sprite: this.parseIntSafe(rec.sprite),
-                basevalue: this.parseFloatSafe(rec.basevalue),
-                increase: this.parseFloatSafe(rec.increase) || 0,
-                decrease: this.parseFloatSafe(rec.decrease) || 0,
-                maxvalue: this.parseIntSafe(rec.maxvalue) || 0,
+                name: jokerData.name,
+                descriptionKo: jokerData.desc,
+                price: this.parseIntSafe(jokerData.price),
+                roundProb1: this.parseIntSafe(jokerData.roundProb_1),
+                roundProb2: this.parseIntSafe(jokerData.roundProb_2),
+                roundProb3: this.parseIntSafe(jokerData.roundProb_3),
+                roundProb4: this.parseIntSafe(jokerData.roundProb_4),
+                roundProb5: this.parseIntSafe(jokerData.roundProb_5),
+                sprite: this.parseIntSafe(jokerData.sprite),
+                basevalue: this.parseFloatSafe(jokerData.basevalue),
+                increase: this.parseFloatSafe(jokerData.increase),
+                decrease: this.parseFloatSafe(jokerData.decrease),
+                maxvalue: this.parseFloatSafe(jokerData.maxvalue),
                 isActive: true,
                 // 모든 조건-효과 쌍 클리어 후 새로운 데이터 설정
                 ...clearFields,
@@ -582,19 +600,19 @@ export class DevToolsService implements OnModuleInit {
 
             // 기존 레코드 업데이트 데이터
             const updateData: any = this.cleanUndefined({
-                name: rec.nameText,  // 임시로 주석 처리 (한글 깨짐 문제)
-                descriptionKo: rec.descText,  // 임시로 주석 처리 (한글 깨짐 문제)
-                price: this.parseIntSafe(rec.price) || 0,
-                roundProb1: this.parseIntSafe(rec.roundProb_1) || 0,
-                roundProb2: this.parseIntSafe(rec.roundProb_2) || 0,
-                roundProb3: this.parseIntSafe(rec.roundProb_3) || 0,
-                roundProb4: this.parseIntSafe(rec.roundProb_4) || 0,
-                roundProb5: this.parseIntSafe(rec.roundProb_5) || 0,
-                sprite: this.parseIntSafe(rec.sprite) || 0,
-                basevalue: this.parseFloatSafe(rec.basevalue),
-                increase: this.parseFloatSafe(rec.increase) || 0,
-                decrease: this.parseFloatSafe(rec.decrease) || 0,
-                maxvalue: this.parseIntSafe(rec.maxvalue) || 0,
+                name: jokerData.name,  // 임시로 주석 처리 (한글 깨짐 문제)
+                descriptionKo: jokerData.desc,  // 임시로 주석 처리 (한글 깨짐 문제)
+                price: this.parseIntSafe(jokerData.price) || 0,
+                roundProb1: this.parseIntSafe(jokerData.roundProb_1) || 0,
+                roundProb2: this.parseIntSafe(jokerData.roundProb_2) || 0,
+                roundProb3: this.parseIntSafe(jokerData.roundProb_3) || 0,
+                roundProb4: this.parseIntSafe(jokerData.roundProb_4) || 0,
+                roundProb5: this.parseIntSafe(jokerData.roundProb_5) || 0,
+                sprite: this.parseIntSafe(jokerData.sprite) || 0,
+                basevalue: this.parseFloatSafe(jokerData.basevalue),
+                increase: this.parseFloatSafe(jokerData.increase),
+                decrease: this.parseFloatSafe(jokerData.decrease),
+                maxvalue: this.parseFloatSafe(jokerData.maxvalue),
                 // 모든 조건-효과 쌍 클리어 후 새로운 데이터 설정
                 ...clearFields,
                 ...this.buildEffectFields(effectPairs, 1),
@@ -633,7 +651,8 @@ export class DevToolsService implements OnModuleInit {
     /**
      * 새로운 파싱 서비스를 사용하여 효과 쌍 추출
      */
-    private extractEffectPairs(rec: any, timingColumns: string[], warnings: string[], cardId: string) {
+    private extractEffectPairs(jokerData: any, timingColumns: string[]) {
+        this.logger.warn(`[DevTools] extractEffectPairs invoked with data: ${JSON.stringify(jokerData)}`);
         const pairs: Array<{
             timing: string;
             effectType: string;
@@ -648,21 +667,27 @@ export class DevToolsService implements OnModuleInit {
         }> = [];
 
         for (const tcol of timingColumns) {
-            const raw = (rec[tcol] || '').trim();
+
+            const raw = (jokerData[tcol] || '').trim();
             if (!raw) continue;
 
-            const tokens = raw.split(',').map((s: string) => s.trim()).filter(Boolean);
+            // const raw = (jokerData.effect || '').trim();
+            // if (!raw) {
+            //     return pairs;
+            // }
+
+            const tokens = raw.split('|').map((s: string) => s.trim()).filter(Boolean);
 
             for (const tok of tokens) {
                 if (pairs.length >= 5) {
-                    warnings.push(`${cardId}: 효과 5개 초과, 무시 -> ${tok}`);
+                    this.logger.warn(`${jokerData.id}: 효과 5개 초과, 무시 -> ${tok}`);
                     break;
                 }
 
-                // this.logger.log(`[DevTools] 토큰 처리 중: ${cardId}, 쌍 ${pairs.length + 1}번째, 토큰: ${tok}`);
+                this.logger.log(`[DevTools] 토큰 처리 중: ${pairs.length + 1}번째, 토큰: ${tok}`);
 
                 // 새로운 파싱 서비스 사용 (CSV 레코드 전달)
-                let parsed = this.csvImporterService.parseToken(tok);
+                let parsed = this.csvImporterService.parseToken2(tok);
 
                 if (parsed) {
                     // 효과 값 설정
@@ -686,7 +711,7 @@ export class DevToolsService implements OnModuleInit {
 
                     // this.logger.log(`[DevTools] 쌍 ${pairs.length}번째 추가 완료:`, pairData);
                 } else {
-                    warnings.push(`${cardId}: 토큰 파싱 실패 -> ${tok}`);
+                    this.logger.warn(`${jokerData.id}: 토큰 파싱 실패 -> ${tok}`);
                 }
             }
 

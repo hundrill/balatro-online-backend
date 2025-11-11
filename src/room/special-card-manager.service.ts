@@ -15,6 +15,8 @@ export enum JokerEffectTiming {
     OnScoring = 'OnScoring',
     OnHandPlay = 'OnHandPlay',
     OnAfterScoring = 'OnAfterScoring',
+    OnRedraw = 'OnRedraw',
+    OnDiscard = 'OnDiscard',
 }
 
 // 효과 타입 정의 (클라이언트와 동일)
@@ -46,6 +48,7 @@ export enum OperatorType {
 
 export enum ConditionType {
     CardSuit,           // 카드 무늬
+    RedrawCardSuit,
     CardRank,           // 카드 숫자
     HandType,           // 핸드 종류
     UsedSuitCount,      // 사용된 특정 무늬 카드 개수
@@ -65,6 +68,7 @@ export enum ConditionType {
 function parseConditionType(value: string | null | undefined): ConditionType | undefined {
     switch (value) {
         case 'CardSuit': return ConditionType.CardSuit;
+        case 'RedrawCardSuit': return ConditionType.RedrawCardSuit;
         case 'CardRank': return ConditionType.CardRank;
         case 'HandType': return ConditionType.HandType;
         case 'UnUsedHandType': return ConditionType.UnUsedHandType;
@@ -141,6 +145,7 @@ export interface SpecialCardData {
     descriptionKo: string;
     descriptionEn: string;
     descriptionId: string;
+    descriptionTh: string;
     price: number;
     roundProb1: number;
     roundProb2: number;
@@ -218,6 +223,9 @@ export class ConditionEvaluator {
             case ConditionType.CardSuit:
                 return condition.value?.some(val => val && val !== '' && context.currentCardData?.suit.toString() === val);
 
+            case ConditionType.RedrawCardSuit:
+                return condition.value?.some(val => val && val !== '' && context.redrawCardData?.some(card => card.suit.toString() === val));
+
             case ConditionType.CardRank:
                 return condition.value?.some(val => val && val !== '' && context.currentCardData?.rank.toString() === val);
 
@@ -225,32 +233,28 @@ export class ConditionEvaluator {
                 return condition.value?.some(val => val && val !== '' && context.pokerHand.toString() === val);
 
             case ConditionType.UsedSuitCount:
-                return condition.value?.some(val => val && val !== '' &&
-                    this.compareNumeric(context.countSuitInUsedCards(this.getCardTypeFromString(val)), condition.operatorType, condition.numericValue));
+                return this.compareNumeric(context.countSuitInUsedCards(this.getCardTypeFromString(condition.value[0])), condition.operatorType, parseInt(condition.value[1]) || 0);
 
             case ConditionType.UsedCardCount:
-                return condition.value?.some(val => val && val !== '' &&
-                    this.compareNumeric(context.countNumberInUsedCards(parseInt(condition.value[0]) || 0), condition.operatorType, condition.numericValue));
+                return this.compareNumeric(context.countNumberInUsedCards(parseInt(condition.value[0]) || 0), condition.operatorType, parseInt(condition.value[1]) || 0);
 
             case ConditionType.UnUsedHandType:
                 return condition.value?.some(val => val && val !== '' && context.unUsedPokerHand.toString() === val);
 
             case ConditionType.UnUsedSuitCount:
-                return condition.value?.some(val => val && val !== '' &&
-                    this.compareNumeric(context.countSuitInUnUsedCards(this.getCardTypeFromString(val)), condition.operatorType, condition.numericValue));
+                return this.compareNumeric(context.countSuitInUnUsedCards(this.getCardTypeFromString(condition.value[0])), condition.operatorType, parseInt(condition.value[1]) || 0);
 
             case ConditionType.RemainingCardCount:
-                return condition.value?.some(val => val && val !== '' && this.compareNumeric(context.countNumberInRemainingDeck(parseInt(val) || 0), condition.operatorType, condition.numericValue));
-            // return this.compareNumeric(context.countNumberInRemainingDeck(parseInt(condition.value[0]) || 0), condition.operatorType, condition.numericValue);
+                return this.compareNumeric(context.countNumberInRemainingDeck(parseInt(condition.value[0]) || 0), condition.operatorType, parseInt(condition.value[1]) || 0);
 
             case ConditionType.RemainingDeck:
-                return this.compareNumeric(context.remainingDeck.length, condition.operatorType, condition.numericValue);
+                return this.compareNumeric(context.remainingDeck.length, condition.operatorType, parseInt(condition.value[0]) || 0);
 
             case ConditionType.TotalDeck:
-                return this.compareNumeric(context.totalDeck, condition.operatorType, condition.numericValue);
+                return this.compareNumeric(context.totalDeck, condition.operatorType, parseInt(condition.value[0]) || 0);
 
             case ConditionType.RemainingDiscards:
-                return this.compareNumeric(context.remainingDiscards, condition.operatorType, condition.numericValue);
+                return this.compareNumeric(context.remainingDiscards, condition.operatorType, parseInt(condition.value[0]) || 0);
 
             case ConditionType.Always:
                 return true;
@@ -289,35 +293,19 @@ export class EffectApplier {
 
         if (effect.effectByCount) {
             if (condition.type === ConditionType.UnUsedSuitCount) {
-                for (const val of condition.value) {
-                    if (val && val !== '') {
-                        totalCount += context.countSuitInUnUsedCards(this.getCardTypeFromString(val));
-                    }
-                }
+                totalCount += context.countSuitInUnUsedCards(this.getCardTypeFromString(condition.value[0]));
             } else if (condition.type === ConditionType.UsedCardCount) {
-                for (const val of condition.value) {
-                    if (val && val !== '') {
-                        totalCount += context.countNumberInUsedCards(parseInt(val) || 0);
-                    }
-                }
+                totalCount += context.countNumberInUsedCards(parseInt(condition.value[0]) || 0);
             } else if (condition.type === ConditionType.UsedSuitCount) {
-                for (const val of condition.value) {
-                    if (val && val !== '') {
-                        totalCount += context.countSuitInUsedCards(this.getCardTypeFromString(val));
-                    }
-                }
+                totalCount += context.countSuitInUsedCards(this.getCardTypeFromString(condition.value[0]));
             } else if (condition.type === ConditionType.RemainingDeck) {
                 totalCount = context.remainingDeck.length;
             } else if (condition.type === ConditionType.TotalDeck) {
-                totalCount = condition.numericValue - context.totalDeck;
+                totalCount = parseInt(condition.value[0]) || 0 - context.totalDeck;
             } else if (condition.type === ConditionType.RemainingDiscards) {
                 totalCount = context.remainingDiscards;
             } else if (condition.type === ConditionType.RemainingCardCount) {
-                for (const val of condition.value) {
-                    if (val && val !== '') {
-                        totalCount += context.countNumberInRemainingDeck(parseInt(val) || 0);
-                    }
-                }
+                totalCount += context.countNumberInRemainingDeck(parseInt(condition.value[0]) || 0);
             }
         }
 
@@ -664,41 +652,42 @@ export class SpecialCardManagerService {
 
     // 더미 카드 생성
     private getDummyCard(): SpecialCardData {
-        return {
-            id: 'dummy_card',
-            name: 'Dummy Card',
-            descriptionKo: 'Dummy card for fallback',
-            descriptionEn: 'Dummy card for fallback',
-            descriptionId: 'Dummy card for fallback',
-            price: 0,
-            roundProb1: 0,
-            roundProb2: 0,
-            roundProb3: 0,
-            roundProb4: 0,
-            roundProb5: 0,
-            sprite: 0,
-            type: SpecialCardType.Joker,
-            baseValue: 0,
-            increase: 0,
-            decrease: 0,
-            maxValue: 0,
-            needCardCount: 0,
-            enhanceChips: 0,
-            enhanceMul: 0,
-            isActive: true,
-            conditionTypes: [],
-            conditionValues: [['']],
-            conditionOperators: [],
-            conditionNumericValues: [],
-            effectTimings: [],
-            effectTypes: [],
-            effectTypesOrigin: [],
-            effectValues: [['']],
-            effectOnCards: [],
-            effectUseRandomValue: [],
-            effectByCounts: [],
-            pokerHand: PokerHand.None,
-        };
+        return this.getCardById("joker_1")!;
+        // return {
+        //     id: 'dummy_card',
+        //     name: 'Dummy Card',
+        //     descriptionKo: 'Dummy card for fallback',
+        //     descriptionEn: 'Dummy card for fallback',
+        //     descriptionId: 'Dummy card for fallback',
+        //     price: 0,
+        //     roundProb1: 0,
+        //     roundProb2: 0,
+        //     roundProb3: 0,
+        //     roundProb4: 0,
+        //     roundProb5: 0,
+        //     sprite: 0,
+        //     type: SpecialCardType.Joker,
+        //     baseValue: 0,
+        //     increase: 0,
+        //     decrease: 0,
+        //     maxValue: 0,
+        //     needCardCount: 0,
+        //     enhanceChips: 0,
+        //     enhanceMul: 0,
+        //     isActive: true,
+        //     conditionTypes: [],
+        //     conditionValues: [['']],
+        //     conditionOperators: [],
+        //     conditionNumericValues: [],
+        //     effectTimings: [],
+        //     effectTypes: [],
+        //     effectTypesOrigin: [],
+        //     effectValues: [['']],
+        //     effectOnCards: [],
+        //     effectUseRandomValue: [],
+        //     effectByCounts: [],
+        //     pokerHand: PokerHand.None,
+        // };
     }
 
     // 기존 joker-cards.util.ts 함수들을 대체하는 메서드들
@@ -735,7 +724,7 @@ export class SpecialCardManagerService {
     // 슬롯별 확률 기반 카드 생성 헬퍼 메서드
     private getRandomCardForSlotByProbability(slotIndex: number, currentRound: number, usedJokerCardIds: Set<string>, newCards: SpecialCardData[]): SpecialCardData {
         // 슬롯 0, 1, 2: 조커 카드 (확률 기반)
-        if (slotIndex < 3) {
+        if (slotIndex < 3 || true) {
             const availableJokers = this.getAvailableJokersForRound(currentRound, usedJokerCardIds);
 
             if (availableJokers.length > 0) {
@@ -748,30 +737,8 @@ export class SpecialCardManagerService {
             }
         }
         // 슬롯 3: 행성 카드 (확률 기반)
-        else if (slotIndex === 3) {
-            const availablePlanets = this.getAvailablePlanetsForRound(currentRound);
+        else { }
 
-            if (availablePlanets.length > 0) {
-                return this.selectCardByProbability(availablePlanets, currentRound);
-            } else {
-                // 사용 가능한 행성이 없는 경우 더미 카드
-                return this.getDummyCard();
-            }
-        }
-        // 슬롯 4: 타로 카드 (확률 기반)
-        else if (slotIndex === 4) {
-            const availableTarots = this.getAvailableTarotsForRound(currentRound);
-
-            if (availableTarots.length > 0) {
-                return this.selectCardByProbability(availableTarots, currentRound);
-            } else {
-                // 사용 가능한 타로가 없는 경우 더미 카드
-                return this.getDummyCard();
-            }
-        }
-
-        // 기본값으로 더미 카드 반환
-        return this.getDummyCard();
     }
 
     // 슬롯별 랜덤 카드 생성 헬퍼 메서드 (기존 방식 - 호환성 유지)
@@ -823,6 +790,7 @@ export class SpecialCardManagerService {
             descriptionKo: 'Dummy card for fallback',
             descriptionEn: 'Dummy card for fallback',
             descriptionId: 'Dummy card for fallback',
+            descriptionTh: 'Dummy card for fallback',
             price: 0,
             roundProb1: 0,
             roundProb2: 0,
@@ -906,6 +874,7 @@ export class SpecialCardManagerService {
                     descriptionKo: dbCard.descriptionKo,
                     descriptionEn: dbCard.descriptionEn,
                     descriptionId: dbCard.descriptionId,
+                    descriptionTh: dbCard.descriptionTh,
                     price: dbCard.price,
                     roundProb1: dbCard.roundProb1 || 0,
                     roundProb2: dbCard.roundProb2 || 0,
@@ -940,6 +909,7 @@ export class SpecialCardManagerService {
                 newCard.descriptionKo = dbCard.descriptionKo;
                 newCard.descriptionEn = dbCard.descriptionEn;
                 newCard.descriptionId = dbCard.descriptionId;
+                newCard.descriptionTh = dbCard.descriptionTh;
                 newCard.price = dbCard.price;
                 newCard.roundProb1 = dbCard.roundProb1 || 0;
                 newCard.roundProb2 = dbCard.roundProb2 || 0;
@@ -1111,6 +1081,7 @@ export class SpecialCardManagerService {
                         descriptionKo: dbCard.descriptionKo,
                         descriptionEn: dbCard.descriptionEn,
                         descriptionId: dbCard.descriptionId,
+                        descriptionTh: dbCard.descriptionTh,
                         price: dbCard.price,
                         roundProb1: dbCard.roundProb1 || 0,
                         roundProb2: dbCard.roundProb2 || 0,

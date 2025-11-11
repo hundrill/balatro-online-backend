@@ -11,12 +11,12 @@ import {
 } from '../common/exceptions/room.exception';
 
 import { CardData, createDeck, shuffle, createSpecificHand } from './deck.util';
-import { SpecialCardData } from './special-card-manager.service';
+import { JokerEffectTiming, SpecialCardData } from './special-card-manager.service';
 import { UserService } from '../user/user.service';
 import { PaytableService } from './paytable.service';
 import { HandEvaluatorService } from './hand-evaluator.service';
 import { SpecialCardManagerService } from './special-card-manager.service';
-import { CardType, PokerHandResult, PokerHand, RandomValue } from './poker-types';
+import { CardType, HandContext, PokerHandResult, PokerHand, RandomValue } from './poker-types';
 import { GameSettingsService } from '../common/services/game-settings.service';
 import { TranslationKeys } from '../common/translation-keys.enum';
 import { RoomDataDto } from './dto/room-list-response.dto';
@@ -826,7 +826,7 @@ export class RoomService {
       this.paytableService.resetAllUserData();
     }
 
-    // 샵 카드 5장 생성 (조커 3장, 행성 1장, 타로 1장) - 이미 등장한 조커카드 제외
+    // 샵 카드 5장 생성
     const shopCards = this.specialCardManagerService.getRandomShopCards(5, roomState.round, roomState.usedJokerCardIds, roomState.testJokerIds);
     roomState.shopCards = [...shopCards]; // 복사본 저장
 
@@ -956,7 +956,7 @@ export class RoomService {
     roomId: string,
     userId: string,
     cards: CardData[],
-  ): { newHand: CardData[]; discarded: CardData[]; remainingDiscards: number } {
+  ): { newHand: CardData[]; newCards: CardData[]; discarded: CardData[]; remainingDiscards: number } {
     // 버리기 횟수 증가
     const newCount = this.incrementUserDiscardCount(roomId, userId);
     const remainingDiscards = this.getRemainingDiscards(roomId, userId);
@@ -980,8 +980,26 @@ export class RoomService {
     roomState.hands.set(userId, [...hand]); // 복사본 저장
     roomState.decks.set(userId, [...deck]); // 복사본 저장
 
+    const ownedJokers = this.getUserOwnedCards(roomId, userId);
 
-    return { newHand: [...hand], discarded: [...discarded], remainingDiscards };
+    const context = new HandContext();
+    context.userId = userId;
+    context.playedCards = [];
+    context.unUsedCards = [];
+    context.currentCardData = null;
+    context.redrawCardData = [...newCards];
+    context.discardCardData = [...discarded];
+    context.multiplier = 1;
+    context.remainingDiscards = remainingDiscards;
+    context.remainingDeck = [...deck];
+    context.totalDeck = deck.length;
+    context.roundNumber = roomState.round;
+    context.randomValue = [];
+    context.ownedJokers = ownedJokers.map((joker) => joker.id);
+
+    this.specialCardManagerService.applyJokerEffects(JokerEffectTiming.OnRedraw, context, ownedJokers);
+
+    return { newHand: [...hand], newCards: [...newCards], discarded: [...discarded], remainingDiscards };
   }
 
   handPlayReady(roomId: string, userId: string, playCards: CardData[]): void {
@@ -1904,17 +1922,12 @@ export class RoomService {
     const roomState = this.getRoomState(roomId);
     const userIds = await this.getUserIdsInRoom(roomId);
 
-    // 1. 모든 사용자의 칩 정보를 DB에 저장
     for (const userId of userIds) {
+      // 모든 사용자의 칩 정보를 DB에 저장
       await this.saveUserChipsOnLeave(roomId, userId);
     }
 
-    // 2. SILVER 방에서 5라운드 완료 시 piggybank 챌린지 업데이트
-    if (roomState.chipSettings.chipType === ChipType.SILVER && roomState.round === 5) {
-      await this.updatePiggybankChallenges(userIds);
-    }
-
-    // 3. 게임 상태 초기화
+    // 게임 상태 초기화
     roomState.resetGameStateForNewGame();
     this.setAllUsersToWaiting(roomId, userIds);
     this.setRoomPhase(roomId, RoomPhase.WAITING);
@@ -1923,32 +1936,21 @@ export class RoomService {
   /**
    * SILVER 방에서 5라운드 완료 시 piggybank 챌린지들을 업데이트합니다.
    */
-  private async updatePiggybankChallenges(userIds: string[]): Promise<void> {
+  public async updateChallenge(userId: string, challengeId: string): Promise<void> {
     try {
-      const piggybankChallengeIds = ['PiggyBankPlay0', 'PiggyBankPlay1', 'PiggyBankPlay2', 'PiggyBankPlay3'];
+      const userProgress = await this.challengeService.getUserChallengeProgress(userId);
+      const progressData = userProgress.get(challengeId);
+      const challenge = this.challengeManagerService.getChallenge(challengeId);
 
-      for (const userId of userIds) {
-        for (const challengeId of piggybankChallengeIds) {
-          // 현재 진행도와 targetCount 확인
-          const userProgress = await this.challengeService.getUserChallengeProgress(userId);
-          const progressData = userProgress.get(challengeId);
-          const challenge = this.challengeManagerService.getChallenge(challengeId);
-
-          if (challenge && progressData) {
-            // targetCount를 넘지 않도록 제한
-            if (progressData.currentCount < challenge.targetCount) {
-              await this.challengeService.updateChallengeProgressOnly(userId, challengeId, 1);
-            }
-          } else if (challenge) {
-            // 진행도가 없는 경우 새로 생성 (currentCount = 1)
-            await this.challengeService.updateChallengeProgressOnly(userId, challengeId, 1);
-          }
+      if (challenge && progressData) {
+        // targetCount를 넘지 않도록 제한
+        if (progressData.currentCount < challenge.targetCount) {
+          await this.challengeService.updateChallengeProgressOnly(userId, challengeId, 1);
         }
       }
-
-      this.logger.log(`[RoomService] SILVER 방 5라운드 완료 - piggybank 챌린지 업데이트: userIds=${userIds.length}명, challenges=${piggybankChallengeIds.length}개`);
+      this.logger.log(`[RoomService] 챌린지 업데이트: userId=${userId}, challengeId=${challengeId}`);
     } catch (error) {
-      this.logger.error(`[RoomService] piggybank 챌린지 업데이트 실패`, error);
+      this.logger.error(`[RoomService] 챌린지 업데이트 실패`, error);
     }
   }
 
@@ -2803,6 +2805,10 @@ export class RoomService {
       if (playedHand.length > 0) {
         // 족보 판정 및 기본 점수 계산
         const handResult = this.handEvaluatorService.evaluate(userId, playedHand, fullHand);
+
+        if (handResult.pokerHand == PokerHand.Flush) {
+          await this.updateChallenge(userId, 'FlushHandPlay');
+        }
 
         // 조커 효과 적용 및 최종 점수 계산
         const ownedJokers = ownedCards[userId] || [];

@@ -69,8 +69,10 @@ interface SocketSession {
   cors: true,
   // pingInterval: 25000,
   // pingTimeout: 20000,
-  pingInterval: 60000 * 5 + 5000,
-  pingTimeout: 60000 * 5,
+  // pingInterval: 60000 * 5 + 5000,
+  // pingTimeout: 60000 * 5,
+  pingInterval: 60000 * 1 + 5000,
+  pingTimeout: 60000 * 1,
   transports: ['websocket']
   // transports: ['polling']
 })
@@ -336,16 +338,20 @@ export class RoomGateway
       // SILVER 방 보상 계산
       let chipReward = 0;
       let targetScore = 100;
-      if (chipType === ChipType.SILVER && roomState.round === 5) {
+      if (chipType === ChipType.SILVER && roomState.round === 3) {
+        const userId = playingUserIds[0]; // 1인용 게임이므로 첫 번째 유저        
         const totalScore = roomState.silverTotalScore;
         chipReward = 100;
         if (totalScore < targetScore) {
           chipReward = Math.floor(chipReward * (totalScore / targetScore));
         }
+        else {
+          await this.roomService.updateChallenge(userId, 'PiggyBankClear');
+        }
 
         // SILVER 방에서 chipReward가 계산되면 유저 칩 업데이트
         if (chipReward > 0) {
-          const userId = playingUserIds[0]; // 1인용 게임이므로 첫 번째 유저
+
           await this.roomService.updateUserChips(roomId, userId, chipReward);
 
           // roundResult의 finalChip 업데이트
@@ -374,12 +380,39 @@ export class RoomGateway
       }
       else {
         this.emitRoomResponse(roomId, handPlayRes);
-        if (roomState.round !== 5 || chipType === ChipType.GOLD) {
-          await this.sendShopResponse(roomId);
-        }
-        else {
+
+        if (roomState.round === 3) {
+          console.log(`[startHandPlayResult] 3라운드 종료: roomId=${roomId}`);
+
+          if (chipType !== ChipType.SILVER) {
+            for (const [uid, info] of Object.entries(result.roundResult)) {
+              await this.roomService.updateChallenge(uid, 'MultiGamePlay');
+              if (info && info.isWinner === 1) {
+                await this.roomService.updateChallenge(uid, 'MultiGameWin');
+              }
+            }
+          }
+
           await this.roomService.handleGameEnd(roomId);
         }
+        else {
+          await this.sendShopResponse(roomId);
+        }
+
+        // if (roomState.round !== 5 || chipType === ChipType.GOLD) {
+        //   await this.sendShopResponse(roomId);
+        // }
+        // else {
+        //   if (chipType !== ChipType.SILVER) {
+        //     for (const [uid, info] of Object.entries(result.roundResult)) {
+        //       await this.roomService.updateChallenge(uid, 'MultiGamePlay');
+        //       if (info && info.isWinner === 1) {
+        //         await this.roomService.updateChallenge(uid, 'MultiGameWin');
+        //       }
+        //     }
+        //   }
+        //   await this.roomService.handleGameEnd(roomId);
+        // }
       }
 
     } catch (error) {
@@ -986,7 +1019,7 @@ export class RoomGateway
         return;
       }
 
-      const { newHand, discarded, remainingDiscards } = this.roomService.discardAndDraw(
+      const { newHand, newCards, discarded, remainingDiscards } = this.roomService.discardAndDraw(
         roomId,
         userId,
         data.cards,
@@ -997,6 +1030,7 @@ export class RoomGateway
         userId,
         discardCount: data.cards.length,
         newHand,
+        newCards,
         discarded,
         remainingDiscards,
       });

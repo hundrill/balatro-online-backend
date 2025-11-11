@@ -7,16 +7,20 @@ export class RedisService implements OnModuleDestroy {
   private readonly logger = new Logger(RedisService.name);
 
   constructor() {
+    const isProduction = process.env.NODE_ENV === 'production';
 
-    const redisOptions = {
+    const redisOptions: any = {
       host: process.env.REDIS_HOST || 'localhost',
       port: parseInt(process.env.REDIS_PORT || '6379'),
       maxRetriesPerRequest: 3,
       retryDelayOnFailover: 100,
       enableReadyCheck: true,
       lazyConnect: false,
-      // tls: {},
     };
+
+    if (isProduction) {
+      redisOptions.tls = {};
+    }
 
     this.client = new Redis(redisOptions);
 
