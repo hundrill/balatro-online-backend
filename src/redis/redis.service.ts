@@ -10,7 +10,7 @@ export class RedisService implements OnModuleDestroy {
     const isProduction = process.env.NODE_ENV === 'production';
 
     const redisOptions: any = {
-      host: process.env.REDIS_HOST || 'localhost',
+      host: process.env.REDIS_URL || 'localhost',
       port: parseInt(process.env.REDIS_PORT || '6379'),
       maxRetriesPerRequest: 3,
       retryDelayOnFailover: 100,
