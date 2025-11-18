@@ -10,7 +10,7 @@ import {
 } from '@nestjs/websockets';
 import { Logger, OnModuleInit } from '@nestjs/common';
 import { Socket, Server } from 'socket.io';
-import { RoomService, ChipType } from './room.service';
+import { RoomService, ChipType, MAX_ROUND } from './room.service';
 import { UserService } from '../user/user.service';
 import { AuthService } from '../auth/auth.service';
 import { JwtService } from '@nestjs/jwt';
@@ -21,6 +21,7 @@ import { ReRollShopRequestDto } from './socket-dto/re-roll-shop-request.dto';
 import { BuyCardRequestDto } from './socket-dto/buy-card-request.dto';
 import { DiscardRequestDto } from './socket-dto/discard-request.dto';
 import { SellCardRequestDto } from './socket-dto/sell-card-request.dto';
+import { ChatRequestDto } from './socket-dto/chat-request.dto';
 import { ReorderJokersRequestDto } from './socket-dto/reorder-jokers-request.dto';
 import { ReorderJokersResponseDto } from './socket-dto/reorder-jokers-response.dto';
 import { JoinRoomRequestDto } from './socket-dto/join-room-request.dto';
@@ -38,6 +39,7 @@ import { LeaveRoomResponseDto } from './socket-dto/leave-room-response.dto';
 import { RoomUsersResponseDto, RoomUser } from './socket-dto/room-users-response.dto';
 import { StartGameResultDto } from './socket-dto/start-game-result.dto';
 import { HandPlayReadyResponseDto } from './socket-dto/hand-play-ready-response.dto';
+import { ChatResponseDto } from './socket-dto/chat-response.dto';
 import { NextRoundReadyResponseDto } from './socket-dto/next-round-ready-response.dto';
 import { ErrorResponseDto } from './socket-dto/error-response.dto';
 import { StartGameRequestDto } from './socket-dto/start-game-request.dto';
@@ -104,6 +106,52 @@ export class RoomGateway
 
   afterInit(server: any) {
     this.logger.log('WebSocket server initialized');
+  }
+
+  @SubscribeMessage(ChatRequestDto.requestEventName)
+  async handleChatRequest(
+    @MessageBody() data: ChatRequestDto,
+    @ConnectedSocket() client: Socket,
+  ) {
+    try {
+      const userId = this.validateUserRegistration(client);
+      if (!userId) return;
+
+      const roomId = this.getUserRoomId(client.id);
+      if (!roomId) {
+        this.logger.warn(`[handleChatRequest] socketId=${client.id}가 속한 방을 찾을 수 없습니다.`);
+        this.emitUserResponse(
+          client,
+          new ErrorResponseDto({
+            message: this.localizationService.getText(TranslationKeys.RoomNotFound, this.getUserLanguage(client))
+          }),
+        );
+        return;
+      }
+
+      const text = (data.text || '').trim();
+      if (!text) {
+        this.logger.warn(`[handleChatRequest] 빈 메시지: userId=${userId}, roomId=${roomId}`);
+        return;
+      }
+
+      const nickname = this.roomService.getUserNickname(roomId, userId);
+      const res = new ChatResponseDto({
+        userId,
+        nickname,
+        text,
+        timestamp: Date.now(),
+      });
+      this.emitRoomResponse(roomId, res);
+    } catch (error) {
+      this.logger.error(`[handleChatRequest] Error: socketId=${client.id}`, error);
+      this.emitUserResponse(
+        client,
+        new ErrorResponseDto({
+          message: this.localizationService.getText(TranslationKeys.ServerError, this.getUserLanguage(client))
+        }),
+      );
+    }
   }
 
   // === 유틸리티 메서드들 ===
@@ -178,10 +226,17 @@ export class RoomGateway
       const roomUsersResponse = await this.createRoomUsersResponseDto(roomId);
       this.emitRoomResponse(roomId, roomUsersResponse);
 
+      if (this.roomService.getPlayingUserIds(roomId).length == 1) {
+        if (this.roomService.canStartNextRound(roomId)) {
+          await this.startGameForRoom(roomId);
+        }
+      }
+
       // 마지막 플레이어 승리 처리
+      /*
       const lastPlayerWinResult = await this.roomService.handleLastPlayerWin(roomId);
       if (lastPlayerWinResult.success && lastPlayerWinResult.lastWinnerId) {
-        // 마지막 플레이어 승리인 경우 별도 응답 전송
+        // 마지막 플레이어 승리인 경우
         this.emitRoomResponse(
           roomId,
           new LastPlayerWinResponseDto({
@@ -192,6 +247,7 @@ export class RoomGateway
           })
         );
       }
+      */
 
     }
   }
@@ -322,15 +378,6 @@ export class RoomGateway
 
       const chipType = roomState.chipSettings.chipType;
 
-      // 5라운드 끝인 경우 베팅 라운드 시작 (GOLD 방만)
-      if (roomState.round === 5 && chipType === ChipType.GOLD) {
-
-        this.roomService.startBettingRound(roomId);
-        const bettingResponse = await this.roomService.createBettingResponse(roomId, true); // isFirst: true
-        this.emitRoomResponse(roomId, new BettingResponseDto(bettingResponse));
-        return;
-      }
-
       // 1-4라운드: 기존 로직
       const playingUserIds = this.roomService.getPlayingUserIds(roomId, this.getRoomUserIds(roomId));
       const result = await this.roomService.processHandPlayResult(roomId, playingUserIds);
@@ -362,7 +409,10 @@ export class RoomGateway
         }
       }
 
+      const isGameEnd = (roomState.round === MAX_ROUND || this.roomService.getPlayingUserIds(roomId).length <= 0);
+
       const handPlayRes = new HandPlayResultResponseDto({
+        isGameEnd: isGameEnd,
         roundResult: result.roundResult,
         round: roomState.round,
         silverReward: chipType === ChipType.SILVER ? chipReward : undefined,
@@ -370,49 +420,25 @@ export class RoomGateway
         silverTargetScore: chipType === ChipType.SILVER ? targetScore : undefined
       });
 
-      // 4라운드 끝: 베팅 라운드 시작 (GOLD 방만)
-      if (roomState.round === 4 && chipType === ChipType.GOLD) {
-        this.roomService.startBettingRound(roomId);
-        const bettingResponse = await this.roomService.createBettingResponse(roomId, true); // isFirst: true
+      this.emitRoomResponse(roomId, handPlayRes);
 
-        this.emitRoomResponse(roomId, handPlayRes);
-        this.emitRoomResponse(roomId, new BettingResponseDto(bettingResponse));
-      }
-      else {
-        this.emitRoomResponse(roomId, handPlayRes);
+      if (isGameEnd) {
+        console.log(`[startHandPlayResult] ${roomState.round}라운드 종료: roomId=${roomId}`);
 
-        if (roomState.round === 3) {
-          console.log(`[startHandPlayResult] 3라운드 종료: roomId=${roomId}`);
-
-          if (chipType !== ChipType.SILVER) {
-            for (const [uid, info] of Object.entries(result.roundResult)) {
-              await this.roomService.updateChallenge(uid, 'MultiGamePlay');
-              if (info && info.isWinner === 1) {
-                await this.roomService.updateChallenge(uid, 'MultiGameWin');
-              }
+        if (chipType !== ChipType.SILVER) {
+          for (const [uid, info] of Object.entries(result.roundResult)) {
+            await this.roomService.updateChallenge(uid, 'MultiGamePlay');
+            if (info && info.isWinner === 1) {
+              await this.roomService.updateChallenge(uid, 'MultiGameWin');
             }
           }
-
-          await this.roomService.handleGameEnd(roomId);
-        }
-        else {
-          await this.sendShopResponse(roomId);
         }
 
-        // if (roomState.round !== 5 || chipType === ChipType.GOLD) {
-        //   await this.sendShopResponse(roomId);
-        // }
-        // else {
-        //   if (chipType !== ChipType.SILVER) {
-        //     for (const [uid, info] of Object.entries(result.roundResult)) {
-        //       await this.roomService.updateChallenge(uid, 'MultiGamePlay');
-        //       if (info && info.isWinner === 1) {
-        //         await this.roomService.updateChallenge(uid, 'MultiGameWin');
-        //       }
-        //     }
-        //   }
-        //   await this.roomService.handleGameEnd(roomId);
-        // }
+        await this.roomService.handleGameEnd(roomId);
+      }
+      else {
+
+        await this.sendShopResponse(roomId);
       }
 
     } catch (error) {
@@ -449,10 +475,10 @@ export class RoomGateway
 
       const shopCardIds = this.roomService.getShopCards(roomId);
       const roomState = this.roomService.getRoomState(roomId);
-      let chipsRound = this.roomService.getRoundChips(roomId, true);
+      let chipsRound = 0;//this.roomService.getRoundChips(roomId, true);
       let chipsTable = this.roomService.getTableChips(roomId) - chipsRound;
 
-      if (roomState.round === 4) {
+      if (roomState.round === MAX_ROUND - 1) {
         chipsTable = 0;
         chipsRound = this.roomService.getTableChips(roomId);
       }
@@ -1019,7 +1045,7 @@ export class RoomGateway
         return;
       }
 
-      const { newHand, newCards, discarded, remainingDiscards } = this.roomService.discardAndDraw(
+      const { newHand, discarded, remainingDiscards } = this.roomService.discardAndDraw(
         roomId,
         userId,
         data.cards,
@@ -1030,19 +1056,11 @@ export class RoomGateway
         userId,
         discardCount: data.cards.length,
         newHand,
-        newCards,
         discarded,
         remainingDiscards,
       });
       this.emitUserResponse(client, res);
 
-      // 상대방에게는 discardCount만 전송
-      const otherRes = new DiscardResponseDto({
-        userId,
-        discardCount: data.cards.length,
-        remainingDiscards,
-      });
-      this.emitRoomResponseExceptUser(roomId, userId, otherRes);
     } catch (error) {
       this.logger.error(
         `[handleDiscard] Error: socketId=${client.id}, data=${JSON.stringify(data)}`,
@@ -1130,6 +1148,7 @@ export class RoomGateway
     @MessageBody() data: NextRoundReadyRequestDto,
     @ConnectedSocket() client: Socket,
   ) {
+    console.log(`[handleNextRoundReadyRequest] data=${JSON.stringify(data)}`);
     try {
       const userId = this.validateUserRegistration(client);
       if (!userId) return;
@@ -1145,17 +1164,55 @@ export class RoomGateway
         return;
       }
 
+      let refundChips = 0;
 
-      this.roomService.setNextRoundReady(roomId, userId);
+      if (data.isGiveUp) {
+        this.roomService.setUserStatus(roomId, userId, 'waiting');
+
+        const seedPayment = this.roomService.getUserSeedMoneyPayment(roomId, userId);
+        refundChips = seedPayment?.payment ?? 0;
+
+        if (refundChips > 0) {
+          const refundSuccess = await this.roomService.updateUserChips(roomId, userId, refundChips);
+
+          if (refundSuccess) {
+            this.roomService.updateSeedMoneyPayment(roomId, userId, refundChips);
+            this.logger.log(`[handleNextRoundReadyRequest] GiveUp refund processed: roomId=${roomId}, userId=${userId}, refundChips=${refundChips}`);
+          } else {
+            this.logger.warn(`[handleNextRoundReadyRequest] Failed to refund giveUp payment: roomId=${roomId}, userId=${userId}, refundChips=${refundChips}`);
+          }
+        }
+      } else {
+        await this.roomService.setNextRoundReady(roomId, userId);
+      }
+
+      const userChips = await this.roomService.getUserChips(roomId, userId);
+      const finalChips = userChips?.chips ?? 0;
+
+      const isGameEnd = this.roomService.getPlayingUserIds(roomId).length == 0;
 
       this.emitRoomResponse(
         roomId,
-        new NextRoundReadyResponseDto({ userId }),
+        new NextRoundReadyResponseDto({
+          userId,
+          isGiveUp: data.isGiveUp,
+          isGameEnd,
+          refundChips: refundChips || undefined,
+          finalChips,
+        }),
       );
 
-      if (this.roomService.canStartNextRound(roomId)) {
-        await this.startGameForRoom(roomId);
+      if (isGameEnd) {
+
+        await this.roomService.handleGameEnd(roomId);
+
       }
+      else {
+        if (this.roomService.canStartNextRound(roomId)) {
+          await this.startGameForRoom(roomId);
+        }
+      }
+
     } catch (error) {
       this.emitUserResponse(
         client,
@@ -1208,17 +1265,6 @@ export class RoomGateway
           planetCardIds: result.planetCardIds, // tarot_10용 행성 카드 ID 리스트
         });
         this.emitUserResponse(client, buyerResponse);
-
-        // 다른 유저들에게는 firstDeckCards와 planetCardIds 없이 응답
-        const otherUsersResponse = new BuyCardResponseDto({
-          success: true,
-          userId: userId,
-          cardId: data.cardId,
-          funds: result.funds ?? 0,
-          message: this.localizationService.getText(TranslationKeys.CardPurchaseCompleted, this.getUserLanguage(client)),
-          planetCardIds: result.planetCardIds, // tarot_10용 행성 카드 ID 리스트
-        });
-        this.emitRoomResponseExceptUser(roomId, userId, otherUsersResponse);
 
       } else {
         this.logger.warn(
@@ -1286,7 +1332,7 @@ export class RoomGateway
           soldCardId: result.soldCardId,
           funds: result.funds ?? 0,
         });
-        this.emitRoomResponse(roomId, res);
+        this.emitUserResponse(client, res);
       } else {
         this.logger.warn(
           `[handleSellCard] 판매 실패: userId=${userId}, cardId=${data.cardId}, message=${result.message}`,
@@ -1376,14 +1422,6 @@ export class RoomGateway
       });
       this.emitUserResponse(client, userRes);
 
-      // 다른 유저들에게는 funds 업데이트만 전송
-      const otherUsersRes = new ReRollShopResponseDto({
-        success: true,
-        cardIds: [], // 빈 배열
-        userId: userId,
-        funds: updatedUserChips.funds,
-      });
-      this.emitRoomResponseExceptUser(roomId, userId, otherUsersRes);
     } catch (error) {
       this.logger.error(
         `[handleReRollShop] Error in reRollShop: socketId=${client.id}`,
@@ -1433,12 +1471,11 @@ export class RoomGateway
 
       if (result.success) {
 
-        // 성공 시 모든 유저에게 알림
         const res = new ReorderJokersResponseDto({
           userId: result.userId!,
           jokerIds: result.jokerIds!,
         });
-        this.emitRoomResponse(roomId, res);
+        this.emitUserResponse(client, res);
       } else {
         this.logger.warn(
           `[handleReorderJokers] 순서 변경 실패: userId=${userId}, message=${result.message}`,
@@ -1466,77 +1503,6 @@ export class RoomGateway
         jokerIds: [],
       });
       this.emitUserResponse(client, res);
-    }
-  }
-
-
-
-  // === 베팅 응답 처리 ===
-  @SubscribeMessage(BettingRequestDto.requestEventName)
-  async handleBettingRequest(
-    @MessageBody() data: BettingRequestDto,
-    @ConnectedSocket() client: Socket,
-  ) {
-    try {
-      const userId = this.validateUserRegistration(client);
-      if (!userId) return;
-
-      const roomId = this.getUserRoomId(client.id);
-      if (!roomId) {
-        this.logger.warn(`[handleBettingRequest] socketId=${client.id}가 속한 방을 찾을 수 없습니다.`);
-        return;
-      }
-
-      // 베팅 차례 확인
-      const roomState = this.roomService.getRoomState(roomId);
-      if (roomState.bettingState.currentUser !== userId) {
-        this.logger.warn(`[handleBettingRequest] 베팅 차례가 아닌 유저의 요청 무시: userId=${userId}, currentUser=${roomState.bettingState.currentUser}`);
-        return;
-      }
-
-      // 베팅 처리
-      const result = await this.roomService.processBetting(roomId, userId, data.bettingType);
-
-      // 베팅 결과 전송
-      this.emitRoomResponse(roomId, new BettingResultDto(result));
-
-      // 마지막 플레이어 승리 처리
-      const lastPlayerWinResult = await this.roomService.handleLastPlayerWin(roomId);
-
-      if (lastPlayerWinResult.success && lastPlayerWinResult.lastWinnerId) {
-        // 마지막 플레이어 승리인 경우 별도 응답 전송
-        this.emitRoomResponse(
-          roomId,
-          new LastPlayerWinResponseDto({
-            lastWinnerId: lastPlayerWinResult.lastWinnerId,
-            chipsGain: lastPlayerWinResult.chipsGain || 0,
-            originalChipsGain: lastPlayerWinResult.originalChipsGain || 0,
-            finalChips: lastPlayerWinResult.finalChips || 0,
-          })
-        );
-      }
-      else {
-        // 다음 베팅 유저 설정
-        const nextUser = this.roomService.setNextBettingUser(roomId);
-
-        if (nextUser && !this.roomService.isBettingRoundComplete(roomId)) {
-          // 다음 유저에게 베팅 요청
-          const bettingResponse = await this.roomService.createBettingResponse(roomId, false); // isFirst: false
-          this.emitRoomResponse(roomId, new BettingResponseDto(bettingResponse));
-        } else {
-          // 베팅 라운드 완료
-          const roomState = this.roomService.getRoomState(roomId);
-
-          if (roomState.round === 5) {
-            await this.processHandPlayResultAfterBetting(roomId);
-          } else {
-            await this.sendShopResponse(roomId);
-          }
-        }
-      }
-
-    } catch (error) {
-      this.logger.error(`[handleBettingRequest] Error`, error);
     }
   }
 
@@ -1576,16 +1542,6 @@ export class RoomGateway
       resultCards: result.resultCards
     });
     this.emitUserResponse(client, requesterResponse);
-
-    // 다른 유저들에게는 카드 정보 없이 응답
-    const otherUsersResponse = new UseSpecialCardResponseDto({
-      success: result.success,
-      message: this.localizationService.getText(result.message as TranslationKeys, this.getUserLanguage(client)),
-      userId: userId,
-      cardId: data.cardId,
-      // selectedCards와 resultCards 제외
-    });
-    this.emitRoomResponseExceptUser(roomId, userId, otherUsersResponse);
   }
 
   // === 인증 ===

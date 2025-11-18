@@ -1,4 +1,5 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
+import { MAX_PLAYERS } from '../constants/room.constants';
 
 @Injectable()
 export class RoomValidator {
@@ -29,8 +30,8 @@ export class RoomValidator {
       );
     }
 
-    if (maxPlayers < 2 || maxPlayers > 8) {
-      throw new BadRequestException('Max players must be between 2 and 8');
+    if (maxPlayers < 2 || maxPlayers > MAX_PLAYERS) {
+      throw new BadRequestException(`Max players must be between 2 and ${MAX_PLAYERS}`);
     }
   }
 

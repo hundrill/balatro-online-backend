@@ -20,6 +20,7 @@ export enum CardType {
     Diamonds = 'Diamonds',
     Hearts = 'Hearts',
     Spades = 'Spades',
+    Any = 'Any',
 }
 
 // 카드 값 enum
@@ -77,7 +78,7 @@ export class HandContext {
 
     // 사용하지 않은 카드 중 특정 무늬의 개수를 반환
     countSuitInUnUsedCards(suit: CardType): number {
-        return this.unUsedCards.filter(card => card.suit === suit).length;
+        return this.unUsedCards.filter(card => card.suit === suit || suit === CardType.Any).length;
     }
 
     countNumberInUnUsedCards(number: number): number {
@@ -85,84 +86,16 @@ export class HandContext {
     }
 
     // 남은 덱에서 특정 숫자(랭크)의 카드가 몇 개 있는지 반환
-    countNumberInRemainingDeck(number: number): number {
+    countNumberInDeckCardRemainCount(number: number): number {
         return this.remainingDeck.filter(card => card.rank === number).length;
     }
 
-    // 족보에 사용한 카드 중 Ace가 몇 개인지 반환
-    // countAcesInUsedCards(): number {
-    //     return this.playedCards.filter(card => card.rank === 1).length;
-    // }
-
     // 족보에 사용한 카드 중 특정 무늬가 몇 개인지 반환
     countSuitInUsedCards(suit: CardType): number {
-        return this.playedCards.filter(card => card.suit === suit).length;
+        return this.playedCards.filter(card => card.suit === suit || suit === CardType.Any).length;
     }
 
     countNumberInUsedCards(number: number): number {
         return this.playedCards.filter(card => card.rank === number).length;
-    }
-
-    // 족보에 사용한 카드가 count장이고, 모든 카드의 무늬가 인자와 같으면 true 반환
-    isUsedCardsOfSuitCount(suit: CardType, count: number): boolean {
-        if (!this.playedCards || this.playedCards.length !== count) {
-            return false;
-        }
-        for (const card of this.playedCards) {
-            if (card.suit !== suit) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    // 현재 카드가 짝수 랭크인지 확인
-    isCurrentCardDataEvenRank(): boolean {
-        if (!this.currentCardData) return false;
-        return this.currentCardData.rank % 2 === 0;
-    }
-
-    // Pair 관련 체크 함수들
-    hasPairInPlayedCards(): boolean {
-        return this.isPairHand(this.pokerHand);
-    }
-
-    hasPairInUnUsedCards(): boolean {
-        return this.isPairHand(this.unUsedPokerHand);
-    }
-
-    // Triple 관련 체크 함수들
-    hasTripleInPlayedCards(): boolean {
-        return this.isTripleHand(this.pokerHand);
-    }
-
-    hasTripleInUnUsedCards(): boolean {
-        return this.isTripleHand(this.unUsedPokerHand);
-    }
-
-    // 주어진 족보가 pair를 포함하는지 확인하는 헬퍼 메서드
-    private isPairHand(hand: PokerHand): boolean {
-        switch (hand) {
-            case PokerHand.OnePair:
-            case PokerHand.TwoPair:
-            case PokerHand.ThreeOfAKind:
-            case PokerHand.FullHouse:
-            case PokerHand.FourOfAKind:
-                return true;
-            default:
-                return false;
-        }
-    }
-
-    // 주어진 족보가 triple을 포함하는지 확인하는 헬퍼 메서드
-    private isTripleHand(hand: PokerHand): boolean {
-        switch (hand) {
-            case PokerHand.ThreeOfAKind:
-            case PokerHand.FullHouse:
-            case PokerHand.FourOfAKind:
-                return true;
-            default:
-                return false;
-        }
     }
 } 

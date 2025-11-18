@@ -620,11 +620,11 @@ export class CardsController {
                                         <option value="UsedCardCount">카드 개수</option>
                                         <option value="UnUsedHandType">미사용 카드 핸드</option>
                                         <option value="UnUsedSuitCount">미사용 카드 무늬 개수</option>
-                                        <option value="RemainingCardCount">미사용 카드 개수</option>
+                                        <option value="DeckCardByNumberCount">미사용 카드 개수</option>
                                         <option value="DeckCardCount">덱 안에 카드 개수</option>
-                                        <option value="RemainingDeck">남은 덱 카드 개수</option>
-                                        <option value="TotalDeck">전체 덱 카드 개수</option>
-                                        <option value="RemainingDiscards">남은 버리기 횟수</option>
+                                        <option value="DeckCardRemainCount">남은 덱 카드 개수</option>
+                                        <option value="MaxDeckSize">전체 덱 카드 개수</option>
+                                        <option value="DiscardRemainCount">남은 버리기 횟수</option>
                                         <option value="Always">항상 참</option>
                                     </select>
                                 </div>
@@ -693,7 +693,7 @@ export class CardsController {
                                         <option value="MulMultiplier">배수 곱하기</option>
                                         <option value="AddChips">칩 추가</option>
                                         <option value="MulChips">칩 곱하기</option>
-                                        <option value="GrowBaseValue">기본값 성장</option>
+                                        <option value="IncreaseBaseValue">기본값 성장</option>
                                         <option value="DecrementBaseValue">기본값 감소</option>
                                         <option value="GrowCardChips">카드 칩스 성장</option>
                                     </select>
@@ -732,11 +732,11 @@ export class CardsController {
                                         <option value="UsedCardCount">카드 개수</option>
                                         <option value="UnUsedHandType">미사용 카드 핸드</option>
                                         <option value="UnUsedSuitCount">미사용 카드 무늬 개수</option>
-                                        <option value="RemainingCardCount">미사용 카드 개수</option>
+                                        <option value="DeckCardByNumberCount">미사용 카드 개수</option>
                                         <option value="DeckCardCount">덱 안에 카드 개수</option>
-                                        <option value="RemainingDeck">남은 덱 카드 개수</option>
-                                        <option value="TotalDeck">전체 덱 카드 개수</option>
-                                        <option value="RemainingDiscards">남은 버리기 횟수</option>
+                                        <option value="DeckCardRemainCount">남은 덱 카드 개수</option>
+                                        <option value="MaxDeckSize">전체 덱 카드 개수</option>
+                                        <option value="DiscardRemainCount">남은 버리기 횟수</option>
                                         <option value="Always">항상 참</option>
                                     </select>
                                 </div>
@@ -803,7 +803,7 @@ export class CardsController {
                                         <option value="MulMultiplier">배수 곱하기</option>
                                         <option value="AddChips">칩 추가</option>
                                         <option value="MulChips">칩 곱하기</option>
-                                        <option value="GrowBaseValue">기본값 성장</option>
+                                        <option value="IncreaseBaseValue">기본값 성장</option>
                                         <option value="DecrementBaseValue">기본값 감소</option>
                                         <option value="GrowCardChips">카드 칩스 성장</option>
                                     </select>
@@ -843,11 +843,11 @@ export class CardsController {
                                         <option value="UsedCardCount">카드 개수</option>
                                         <option value="UnUsedHandType">미사용 카드 핸드</option>
                                         <option value="UnUsedSuitCount">미사용 카드 무늬 개수</option>
-                                        <option value="RemainingCardCount">미사용 카드 개수</option>
+                                        <option value="DeckCardByNumberCount">미사용 카드 개수</option>
                                         <option value="DeckCardCount">덱 안에 카드 개수</option>
-                                        <option value="RemainingDeck">남은 덱 카드 개수</option>
-                                        <option value="TotalDeck">전체 덱 카드 개수</option>
-                                        <option value="RemainingDiscards">남은 버리기 횟수</option>
+                                        <option value="DeckCardRemainCount">남은 덱 카드 개수</option>
+                                        <option value="MaxDeckSize">전체 덱 카드 개수</option>
+                                        <option value="DiscardRemainCount">남은 버리기 횟수</option>
                                         <option value="Always">항상 참</option>
                                     </select>
                                 </div>
@@ -914,7 +914,7 @@ export class CardsController {
                                         <option value="MulMultiplier">배수 곱하기</option>
                                         <option value="AddChips">칩 추가</option>
                                         <option value="MulChips">칩 곱하기</option>
-                                        <option value="GrowBaseValue">기본값 성장</option>
+                                        <option value="IncreaseBaseValue">기본값 성장</option>
                                         <option value="DecrementBaseValue">기본값 감소</option>
                                         <option value="GrowCardChips">카드 칩스 성장</option>
                                     </select>
@@ -954,11 +954,11 @@ export class CardsController {
                                         <option value="UsedCardCount">카드 개수</option>
                                         <option value="UnUsedHandType">미사용 카드 핸드</option>
                                         <option value="UnUsedSuitCount">미사용 카드 무늬 개수</option>
-                                        <option value="RemainingCardCount">미사용 카드 개수</option>
+                                        <option value="DeckCardByNumberCount">미사용 카드 개수</option>
                                         <option value="DeckCardCount">덱 안에 카드 개수</option>
-                                        <option value="RemainingDeck">남은 덱 카드 개수</option>
-                                        <option value="TotalDeck">전체 덱 카드 개수</option>
-                                        <option value="RemainingDiscards">남은 버리기 횟수</option>
+                                        <option value="DeckCardRemainCount">남은 덱 카드 개수</option>
+                                        <option value="MaxDeckSize">전체 덱 카드 개수</option>
+                                        <option value="DiscardRemainCount">남은 버리기 횟수</option>
                                         <option value="Always">항상 참</option>
                                     </select>
                                 </div>
@@ -1025,7 +1025,7 @@ export class CardsController {
                                         <option value="MulMultiplier">배수 곱하기</option>
                                         <option value="AddChips">칩 추가</option>
                                         <option value="MulChips">칩 곱하기</option>
-                                        <option value="GrowBaseValue">기본값 성장</option>
+                                        <option value="IncreaseBaseValue">기본값 성장</option>
                                         <option value="DecrementBaseValue">기본값 감소</option>
                                         <option value="GrowCardChips">카드 칩스 성장</option>
                                     </select>
@@ -1065,11 +1065,11 @@ export class CardsController {
                                         <option value="UsedCardCount">카드 개수</option>
                                         <option value="UnUsedHandType">미사용 카드 핸드</option>
                                         <option value="UnUsedSuitCount">미사용 카드 무늬 개수</option>
-                                        <option value="RemainingCardCount">미사용 카드 개수</option>
+                                        <option value="DeckCardByNumberCount">미사용 카드 개수</option>
                                         <option value="DeckCardCount">덱 안에 카드 개수</option>
-                                        <option value="RemainingDeck">남은 덱 카드 개수</option>
-                                        <option value="TotalDeck">전체 덱 카드 개수</option>
-                                        <option value="RemainingDiscards">남은 버리기 횟수</option>
+                                        <option value="DeckCardRemainCount">남은 덱 카드 개수</option>
+                                        <option value="MaxDeckSize">전체 덱 카드 개수</option>
+                                        <option value="DiscardRemainCount">남은 버리기 횟수</option>
                                         <option value="Always">항상 참</option>
                                     </select>
                                 </div>
@@ -1136,7 +1136,7 @@ export class CardsController {
                                         <option value="MulMultiplier">배수 곱하기</option>
                                         <option value="AddChips">칩 추가</option>
                                         <option value="MulChips">칩 곱하기</option>
-                                        <option value="GrowBaseValue">기본값 성장</option>
+                                        <option value="IncreaseBaseValue">기본값 성장</option>
                                         <option value="DecrementBaseValue">기본값 감소</option>
                                         <option value="GrowCardChips">카드 칩스 성장</option>
                                     </select>
@@ -1438,7 +1438,7 @@ export class CardsController {
                 document.getElementById('effect-value-1').value = card.effectValue1;
             } else {
                 // 기존 로직: 효과 타입에 따라 적절한 값 로드
-                if (card.effectType1 === 'GrowBaseValue') {
+                if (card.effectType1 === 'IncreaseBaseValue') {
                     document.getElementById('effect-value-1').value = card.increase !== null && card.increase !== undefined ? card.increase : '';
                 } else if (card.effectType1 === 'DecrementBaseValue') {
                     document.getElementById('effect-value-1').value = card.decrease !== null && card.decrease !== undefined ? card.decrease : '';
@@ -1531,7 +1531,7 @@ export class CardsController {
                 const effectValue1 = document.getElementById('effect-value-1').value ? parseFloat(document.getElementById('effect-value-1').value) : null;
                 const effectType1 = document.getElementById('effect-type-1').value;
                 
-                if (effectType1 === 'GrowBaseValue') {
+                if (effectType1 === 'IncreaseBaseValue') {
                     updateData.increase = effectValue1;
                 } else if (effectType1 === 'DecrementBaseValue') {
                     updateData.decrease = effectValue1;
@@ -1560,7 +1560,7 @@ export class CardsController {
                 
                 // 쌍 2에 데이터가 있을 때만 저장
                 if (effectType2 && effectValue2 !== null) {
-                    if (effectType2 === 'GrowBaseValue') {
+                    if (effectType2 === 'IncreaseBaseValue') {
                         updateData.increase = effectValue2;
                     } else if (effectType2 === 'DecrementBaseValue') {
                         updateData.decrease = effectValue2;
@@ -1755,7 +1755,7 @@ export class CardsController {
             const effectValue = document.getElementById('effect-value-'+pairNumber);
             
             // 효과 타입에 따라 적절한 값을 로드
-            if (effectType === 'GrowBaseValue') {
+            if (effectType === 'IncreaseBaseValue') {
                 // 기본값 성장은 increase 값 사용
                 effectValue.value = '';
             } else if (effectType === 'DecrementBaseValue') {
@@ -1820,7 +1820,7 @@ export class CardsController {
                     break;
                     
                 case 'UsedCardCount':
-                case 'RemainingCardCount':
+                case 'DeckCardByNumberCount':
                     // 카드 개수 조건들은 값(카드 숫자), 연산자, 숫자 값 필요
                     conditionValue.disabled = false;
                     conditionOperator.disabled = false;
@@ -1828,9 +1828,9 @@ export class CardsController {
                     break;
                     
                 case 'DeckCardCount':
-                case 'RemainingDeck':
-                case 'TotalDeck':
-                case 'RemainingDiscards':
+                case 'DeckCardRemainCount':
+                case 'MaxDeckSize':
+                case 'DiscardRemainCount':
                     // 숫자 조건들은 연산자와 숫자 값 필요
                     conditionValue.disabled = true;
                     break;
@@ -1852,12 +1852,12 @@ export class CardsController {
                 'UnUsedHandType': '미사용 핸드',
                 'UnUsedSuitCount': '미사용 무늬 수',
                 'UsedCardCount': '사용된 카드',
-                'RemainingCardCount': '미사용 카드',
+                'DeckCardByNumberCount': '미사용 카드',
                 'DeckCardCount': '덱 안에 카드',
-                'RemainingDeck': '남은 덱',
-                'TotalDeck': '전체 덱',
+                'DeckCardRemainCount': '남은 덱',
+                'MaxDeckSize': '전체 덱',
                 'UsedSuitCount': '사용된 무늬 수',
-                'RemainingDiscards': '남은 버리기',
+                'DiscardRemainCount': '남은 버리기',
                 'IsEvenCard': '짝수 카드',
                 'IsOddCard': '홀수 카드',
                 'Always': '항상 참'
@@ -1904,7 +1904,7 @@ export class CardsController {
                 'MulMultiplier': '배수×',
                 'AddChips': '칩+',
                 'MulChips': '칩×',
-                'GrowBaseValue': '기본값↑',
+                'IncreaseBaseValue': '기본값↑',
                 'DecrementBaseValue': '기본값↓',
                 'GrowCardChips': '카드칩스↑'
             };
@@ -2032,7 +2032,7 @@ export class CardsController {
                     document.getElementById('effect-value-' + pairNumber).value = card['effectValue' + pairNumber];
                 } else {
                     // 기존 로직: 효과 타입에 따라 적절한 값 로드
-                    if (card['effectType' + pairNumber] === 'GrowBaseValue') {
+                    if (card['effectType' + pairNumber] === 'IncreaseBaseValue') {
                         document.getElementById('effect-value-' + pairNumber).value = card.increase !== null && card.increase !== undefined ? card.increase : '';
                     } else if (card['effectType' + pairNumber] === 'DecrementBaseValue') {
                         document.getElementById('effect-value-' + pairNumber).value = card.decrease !== null && card.decrease !== undefined ? card.decrease : '';

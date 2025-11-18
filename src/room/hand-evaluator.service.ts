@@ -8,6 +8,7 @@ import { SpecialCardData } from './special-card-manager.service';
 export class HandEvaluatorService {
     constructor(private readonly paytableService: PaytableService) { }
 
+    /*
     evaluate(userId: string, playCards: CardData[], fullCards: CardData[]): PokerHandResult {
         if (!playCards || playCards.length < 1) {
             return new PokerHandResult(
@@ -88,6 +89,115 @@ export class HandEvaluatorService {
 
         // High Card - 가장 높은 카드 1장만 사용
         // 카드를 rank 기준으로 내림차순 정렬하여 가장 높은 카드를 찾음
+        const sortedCards = [...playCards].sort((a, b) => b.rank - a.rank);
+        usedCards.push(sortedCards[0]);
+        return this.makeResult(userId, PokerHand.HighCard, usedCards, fullCards);
+    }
+    */
+
+    evaluate(userId: string, playCards: CardData[], fullCards: CardData[]): PokerHandResult {
+        // CardData, CardValue, PokerHand, PokerHandResult 등은 외부에서 정의된 타입입니다.
+        // this.isStraight, this.makeResult, this.addCardsByValue, this.addCardsByValues, this.addAllCards는 헬퍼 메서드입니다.
+
+        if (!playCards || playCards.length < 1) {
+            return new PokerHandResult(
+                PokerHand.None,
+                0,
+                0,
+                [],
+                [],
+                PokerHand.None
+            );
+        }
+
+        // 한 번만 계산하여 재사용
+        const values = playCards.map(c => c.rank as CardValue).sort((a, b) => a - b);
+        const suits = playCards.map(c => c.suit); // CardType (Suit)
+
+        // 값별 그룹화 (같은 값의 카드 개수로 정렬)
+        const valueGroups = new Map<CardValue, number>();
+        values.forEach(value => {
+            valueGroups.set(value, (valueGroups.get(value) || 0) + 1);
+        });
+        const groups = Array.from(valueGroups.entries())
+            .sort((a, b) => b[1] - a[1]); // 개수 내림차순 정렬
+
+        // =========================================================
+        // [!!! 수정된 부분: AnySuit (만능 무늬) 고려 !!!]
+        // =========================================================
+        let isFlush = false;
+        // 플러시는 일반적으로 5장의 카드에서만 판정되지만, 발라트로에서는 5장 이상을 낼 수도 있습니다.
+        if (playCards.length >= 5) {
+            // 만능 무늬(예: CardType.AnySuit)가 아닌 실제 무늬들만 추출합니다.
+            // CardType.AnySuit은 외부에서 정의된 만능 무늬 값이라고 가정합니다.
+            const nonAnySuits = suits.filter(s => s !== CardType.Any); // 'AnySuit'는 해당 ENUM/상수 값으로 변경해야 합니다.
+
+            if (nonAnySuits.length <= 1) {
+                // 1) 모든 카드가 AnySuit이거나 (nonAnySuits.length === 0),
+                // 2) AnySuit이 아닌 카드가 1장 이하일 경우
+                // -> 플러시 성립 (모두 같은 무늬로 간주될 수 있음)
+                isFlush = true;
+            } else {
+                // AnySuit이 아닌 카드가 2장 이상일 경우, 이 카드들의 무늬가 모두 같아야 플러시 성립
+                if (new Set(nonAnySuits).size === 1) {
+                    isFlush = true;
+                }
+            }
+        }
+        // =========================================================
+
+        const isStraight = this.isStraight(values);
+        const usedCards: CardData[] = [];
+
+        // Straight Flush
+        if (isFlush && isStraight) {
+            this.addAllCards(playCards, usedCards);
+            return this.makeResult(userId, PokerHand.StraightFlush, usedCards, fullCards);
+        }
+
+        // Four of a Kind
+        if (groups[0] && groups[0][1] === 4) {
+            this.addCardsByValue(playCards, groups[0][0], usedCards);
+            return this.makeResult(userId, PokerHand.FourOfAKind, usedCards, fullCards);
+        }
+
+        // Full House
+        if (groups[0] && groups[0][1] === 3 && groups[1] && groups[1][1] === 2) {
+            this.addCardsByValues(playCards, groups[0][0], groups[1][0], usedCards);
+            return this.makeResult(userId, PokerHand.FullHouse, usedCards, fullCards);
+        }
+
+        // Flush
+        if (isFlush) {
+            this.addAllCards(playCards, usedCards);
+            return this.makeResult(userId, PokerHand.Flush, usedCards, fullCards);
+        }
+
+        // Straight
+        if (isStraight) {
+            this.addAllCards(playCards, usedCards);
+            return this.makeResult(userId, PokerHand.Straight, usedCards, fullCards);
+        }
+
+        // Three of a Kind
+        if (groups[0] && groups[0][1] === 3) {
+            this.addCardsByValue(playCards, groups[0][0], usedCards);
+            return this.makeResult(userId, PokerHand.ThreeOfAKind, usedCards, fullCards);
+        }
+
+        // Two Pair
+        if (groups[0] && groups[0][1] === 2 && groups[1] && groups[1][1] === 2) {
+            this.addCardsByValues(playCards, groups[0][0], groups[1][0], usedCards);
+            return this.makeResult(userId, PokerHand.TwoPair, usedCards, fullCards);
+        }
+
+        // One Pair
+        if (groups[0] && groups[0][1] === 2) {
+            this.addCardsByValue(playCards, groups[0][0], usedCards);
+            return this.makeResult(userId, PokerHand.OnePair, usedCards, fullCards);
+        }
+
+        // High Card - 가장 높은 카드 1장만 사용
         const sortedCards = [...playCards].sort((a, b) => b.rank - a.rank);
         usedCards.push(sortedCards[0]);
         return this.makeResult(userId, PokerHand.HighCard, usedCards, fullCards);

@@ -232,7 +232,7 @@ export class CardUpdateDto {
     // 기존 필드들 (하위 호환성 유지)
     @IsString()
     @IsOptional()
-    timing_draw?: string;
+    timing_redraw?: string;
 
     @IsString()
     @IsOptional()
@@ -252,7 +252,7 @@ export class CardUpdateDto {
 
     @IsString()
     @IsOptional()
-    timing_fold?: string;
+    timing_discard?: string;
 
     @IsString()
     @IsOptional()

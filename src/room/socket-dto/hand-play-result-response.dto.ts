@@ -21,11 +21,13 @@ export interface RoundResult {
     remainingSevens: number;
     nickname: string;
     randomValue: RandomValue[];
+    isServival: boolean;
 }
 
 export class HandPlayResultResponseDto extends BaseSocketDto {
     override responseEventName = 'HandPlayResultResponse';
 
+    isGameEnd: boolean;
     roundResult: Record<string, RoundResult>;
     round: number;
     silverReward?: number;        // SILVER 방 획득보상 (칩)

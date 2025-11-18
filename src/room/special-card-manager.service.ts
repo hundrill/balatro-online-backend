@@ -27,13 +27,15 @@ export enum EffectType {
     AddChips,
     MulChips,
 
-    GrowBaseValue,
+    IncreaseBaseValue,
     DecrementBaseValue,
 
     GrowCardChips,
     GrowCardMultiplier,
 
     CopyLeftJoker,
+
+    ChangeSuit,
 }
 
 // 연산자 타입 정의
@@ -49,6 +51,7 @@ export enum OperatorType {
 export enum ConditionType {
     CardSuit,           // 카드 무늬
     RedrawCardSuit,
+    DiscardCardSuit,
     CardRank,           // 카드 숫자
     HandType,           // 핸드 종류
     UsedSuitCount,      // 사용된 특정 무늬 카드 개수
@@ -57,10 +60,10 @@ export enum ConditionType {
     UnUsedHandType,     // 미사용 카드 핸드 종류
     UnUsedSuitCount,    // 미사용 카드 특정 무늬 개수
 
-    RemainingCardCount, // 남은 덱에 카드 숫자 개수
-    RemainingDeck,      // 남은 덱 카드 개수
-    TotalDeck,          // 전체 덱 카드 개수
-    RemainingDiscards,  // 남은 버리기 횟수
+    DeckCardByNumberCount, // 남은 덱에 카드 숫자 개수
+    DeckCardRemainCount,      // 남은 덱 카드 개수
+    MaxDeckSize,          // 전체 덱 카드 개수
+    DiscardRemainCount,  // 남은 버리기 횟수
     Always              // 항상 참
 }
 
@@ -69,16 +72,17 @@ function parseConditionType(value: string | null | undefined): ConditionType | u
     switch (value) {
         case 'CardSuit': return ConditionType.CardSuit;
         case 'RedrawCardSuit': return ConditionType.RedrawCardSuit;
+        case 'DiscardCardSuit': return ConditionType.DiscardCardSuit;
         case 'CardRank': return ConditionType.CardRank;
         case 'HandType': return ConditionType.HandType;
         case 'UnUsedHandType': return ConditionType.UnUsedHandType;
         case 'UnUsedSuitCount': return ConditionType.UnUsedSuitCount;
         case 'UsedCardCount': return ConditionType.UsedCardCount;
-        case 'RemainingCardCount': return ConditionType.RemainingCardCount;
-        case 'RemainingDeck': return ConditionType.RemainingDeck;
-        case 'TotalDeck': return ConditionType.TotalDeck;
+        case 'DeckCardByNumberCount': return ConditionType.DeckCardByNumberCount;
+        case 'DeckCardRemainCount': return ConditionType.DeckCardRemainCount;
+        case 'MaxDeckSize': return ConditionType.MaxDeckSize;
         case 'UsedSuitCount': return ConditionType.UsedSuitCount;
-        case 'RemainingDiscards': return ConditionType.RemainingDiscards;
+        case 'DiscardRemainCount': return ConditionType.DiscardRemainCount;
         case 'Always': return ConditionType.Always;
         default: return undefined;
     }
@@ -90,9 +94,10 @@ function parseEffectType(value: string | null | undefined): EffectType | undefin
         case 'MulMultiplier': return EffectType.MulMultiplier;
         case 'AddChips': return EffectType.AddChips;
         case 'MulChips': return EffectType.MulChips;
-        case 'GrowBaseValue': return EffectType.GrowBaseValue;
+        case 'IncreaseBaseValue': return EffectType.IncreaseBaseValue;
         case 'DecrementBaseValue': return EffectType.DecrementBaseValue;
         case 'GrowCardChips': return EffectType.GrowCardChips;
+        case 'ChangeSuit': return EffectType.ChangeSuit;
         case 'GrowCardMultiplier': return EffectType.GrowCardMultiplier;
         case 'CopyLeftJoker': return EffectType.CopyLeftJoker;
         default: return undefined;
@@ -116,6 +121,8 @@ function parseJokerEffectTiming(value: string | null | undefined): JokerEffectTi
         case 'OnScoring': return JokerEffectTiming.OnScoring;
         case 'OnHandPlay': return JokerEffectTiming.OnHandPlay;
         case 'OnAfterScoring': return JokerEffectTiming.OnAfterScoring;
+        case 'OnRedraw': return JokerEffectTiming.OnRedraw;
+        case 'OnDiscard': return JokerEffectTiming.OnDiscard;
         default: return undefined;
     }
 }
@@ -202,6 +209,7 @@ export class ConditionEvaluator {
             case "Diamonds": return CardType.Diamonds;
             case "Clubs": return CardType.Clubs;
             case "Spades": return CardType.Spades;
+            case "Any": return CardType.Any;
             default: return CardType.Hearts;
         }
     }
@@ -221,10 +229,9 @@ export class ConditionEvaluator {
 
         switch (condition.type) {
             case ConditionType.CardSuit:
-                return condition.value?.some(val => val && val !== '' && context.currentCardData?.suit.toString() === val);
-
             case ConditionType.RedrawCardSuit:
-                return condition.value?.some(val => val && val !== '' && context.redrawCardData?.some(card => card.suit.toString() === val));
+            case ConditionType.DiscardCardSuit:
+                return condition.value?.some(val => val && val !== '' && context.currentCardData?.suit.toString() === val || context.currentCardData?.suit === CardType.Any);
 
             case ConditionType.CardRank:
                 return condition.value?.some(val => val && val !== '' && context.currentCardData?.rank.toString() === val);
@@ -233,27 +240,76 @@ export class ConditionEvaluator {
                 return condition.value?.some(val => val && val !== '' && context.pokerHand.toString() === val);
 
             case ConditionType.UsedSuitCount:
-                return this.compareNumeric(context.countSuitInUsedCards(this.getCardTypeFromString(condition.value[0])), condition.operatorType, parseInt(condition.value[1]) || 0);
+                {
+                    const totalCount = condition.value
+                        .map(value => context.countSuitInUsedCards(this.getCardTypeFromString(value)))
+                        .reduce((sum, currentCount) => sum + currentCount, 0);
 
+                    const compareValue = condition.numericValue || 0;
+
+                    return this.compareNumeric(
+                        totalCount || 0,
+                        condition.operatorType,
+                        compareValue
+                    );
+                }
             case ConditionType.UsedCardCount:
-                return this.compareNumeric(context.countNumberInUsedCards(parseInt(condition.value[0]) || 0), condition.operatorType, parseInt(condition.value[1]) || 0);
+                {
+                    const totalCount = condition.value
+                        .map(value =>
+                            context.countNumberInUsedCards(parseInt(value)))
+
+                        .reduce((sum, currentCount) => sum + currentCount, 0);
+
+                    const compareValue = condition.numericValue || 0;
+
+                    return this.compareNumeric(
+                        totalCount || 0,
+                        condition.operatorType,
+                        compareValue
+                    );
+                }
+
 
             case ConditionType.UnUsedHandType:
                 return condition.value?.some(val => val && val !== '' && context.unUsedPokerHand.toString() === val);
 
             case ConditionType.UnUsedSuitCount:
-                return this.compareNumeric(context.countSuitInUnUsedCards(this.getCardTypeFromString(condition.value[0])), condition.operatorType, parseInt(condition.value[1]) || 0);
+                {
+                    const totalCount = condition.value
+                        .map(value => context.countSuitInUnUsedCards(this.getCardTypeFromString(value)))
+                        .reduce((sum, currentCount) => sum + currentCount, 0);
 
-            case ConditionType.RemainingCardCount:
-                return this.compareNumeric(context.countNumberInRemainingDeck(parseInt(condition.value[0]) || 0), condition.operatorType, parseInt(condition.value[1]) || 0);
+                    const compareValue = condition.numericValue || 0;
 
-            case ConditionType.RemainingDeck:
+                    return this.compareNumeric(
+                        totalCount || 0,
+                        condition.operatorType,
+                        compareValue
+                    );
+                }
+            case ConditionType.DeckCardByNumberCount:
+
+                {
+                    const totalCount = condition.value
+                        .map(value => context.countNumberInDeckCardRemainCount(parseInt(value)))
+                        .reduce((sum, currentCount) => sum + currentCount, 0);
+
+                    const compareValue = condition.numericValue || 0;
+
+                    return this.compareNumeric(
+                        totalCount || 0,
+                        condition.operatorType,
+                        compareValue
+                    );
+                }
+            case ConditionType.DeckCardRemainCount:
                 return this.compareNumeric(context.remainingDeck.length, condition.operatorType, parseInt(condition.value[0]) || 0);
 
-            case ConditionType.TotalDeck:
+            case ConditionType.MaxDeckSize:
                 return this.compareNumeric(context.totalDeck, condition.operatorType, parseInt(condition.value[0]) || 0);
 
-            case ConditionType.RemainingDiscards:
+            case ConditionType.DiscardRemainCount:
                 return this.compareNumeric(context.remainingDiscards, condition.operatorType, parseInt(condition.value[0]) || 0);
 
             case ConditionType.Always:
@@ -284,6 +340,7 @@ export class EffectApplier {
             case "Diamonds": return CardType.Diamonds;
             case "Clubs": return CardType.Clubs;
             case "Spades": return CardType.Spades;
+            case "Any": return CardType.Any;
             default: return CardType.Hearts;
         }
     }
@@ -298,14 +355,14 @@ export class EffectApplier {
                 totalCount += context.countNumberInUsedCards(parseInt(condition.value[0]) || 0);
             } else if (condition.type === ConditionType.UsedSuitCount) {
                 totalCount += context.countSuitInUsedCards(this.getCardTypeFromString(condition.value[0]));
-            } else if (condition.type === ConditionType.RemainingDeck) {
+            } else if (condition.type === ConditionType.DeckCardRemainCount) {
                 totalCount = context.remainingDeck.length;
-            } else if (condition.type === ConditionType.TotalDeck) {
+            } else if (condition.type === ConditionType.MaxDeckSize) {
                 totalCount = parseInt(condition.value[0]) || 0 - context.totalDeck;
-            } else if (condition.type === ConditionType.RemainingDiscards) {
+            } else if (condition.type === ConditionType.DiscardRemainCount) {
                 totalCount = context.remainingDiscards;
-            } else if (condition.type === ConditionType.RemainingCardCount) {
-                totalCount += context.countNumberInRemainingDeck(parseInt(condition.value[0]) || 0);
+            } else if (condition.type === ConditionType.DeckCardByNumberCount) {
+                totalCount += context.countNumberInDeckCardRemainCount(parseInt(condition.value[0]) || 0);
             }
         }
 
@@ -346,13 +403,19 @@ export class EffectApplier {
                 }
                 break;
 
+            case EffectType.ChangeSuit:
+                if (context.currentCardData) {
+                    context.currentCardData.changeSuit(this.getCardTypeFromString(effect.effectValue[0]));
+                }
+                break;
+
             case EffectType.GrowCardMultiplier:
                 if (context.currentCardData && context.userId && paytableService) {
                     paytableService.enhanceCardMultiplier(context.userId, context.currentCardData, applyValue);
                 }
                 break;
 
-            case EffectType.GrowBaseValue:
+            case EffectType.IncreaseBaseValue:
                 cardData.baseValue += applyValue;
                 break;
 

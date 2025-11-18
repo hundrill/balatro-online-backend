@@ -116,8 +116,8 @@ export class CsvImporterService {
 
         const parts = effect.split('^');
 
-        if (parts.length < 2 || parts.length > 3) {
-            this.logger.warn(`새 토큰 파싱 실패: ${effect} (^ 구분자로 분리된 부분이 2개 또는 3개가 아님: ${parts.length}개)`);
+        if (parts.length != 2) {
+            this.logger.warn(`새 토큰 파싱 실패: ${effect} (^ 구분자로 분리된 부분이 2개가 아님: ${parts.length}개)`);
             return null;
         }
 
@@ -128,76 +128,98 @@ export class CsvImporterService {
 
         const conditionPart = parts[0];
         const effectPart = parts[1];
-        const timingPart = parts[2] ?? '';
-
-        const operatorPriority = ['!=', '>=', '<=', '>', '<', '='];
 
         let conditionType = 'Unknown';
         const conditionValues: string[] = [];
         const conditionNumericValue: number[] = [];
         let conditionOperatorType: string | null = null;
-        let timingKeyword = 'timing_scoring';
 
+        const operatorList = ['!=', '>=', '<=', '>', '<', '='];
         const trimmed = conditionPart.trim();
 
-        let keyword = trimmed;
-        let operatorSymbol = '';
-        let conditionValue = '';
+        let keyword: string = trimmed;
+        let operatorSymbol: string = '';
+        let conditionValue: string = '';
 
-        for (const op of operatorPriority) {
-            const index = trimmed.indexOf(op);
-            if (index > -1) {
-                operatorSymbol = op;
-                keyword = trimmed.substring(0, index).trim();
-                conditionValue = trimmed.substring(index + op.length).trim();
-                break;
+        let firstIndex = -1;
+        let firstOperator: string | null = null;
+
+        for (const op of operatorList) {
+            const opIndex = trimmed.indexOf(op);
+
+            if (opIndex !== -1 && (firstIndex === -1 || opIndex < firstIndex)) {
+                firstIndex = opIndex;
+                firstOperator = op;
             }
+        }
+
+        if (firstOperator && firstIndex !== -1) {
+            keyword = trimmed.substring(0, firstIndex).trim();
+            conditionValue = trimmed.substring(firstIndex + firstOperator.length).trim();
+        }
+        let lastIndex = -1;
+        let lastOperator: string | null = null;
+
+        for (const op of operatorList) {
+            const opIndex = trimmed.lastIndexOf(op);
+
+            if (opIndex !== -1 && opIndex > lastIndex) {
+                lastIndex = opIndex;
+                lastOperator = op;
+            }
+        }
+        operatorSymbol = lastOperator || '';
+        if (operatorSymbol) {
+            conditionOperatorType = this.mapOperator(operatorSymbol);
         }
 
         conditionType = this.mapConditionType(keyword);
 
-        const conditionValueParts = conditionValue.split('/').map(part => part.trim()).filter(part => part.length > 0);
+        const regexPattern = new RegExp(`(${operatorList.join('|')})`);
+        const condParts = conditionValue.split(regexPattern, 3).map(part => part.trim());
+        const firstPart = condParts[0] || "";
+        const secondPart = condParts.length > 2 ? condParts[2] : "";
+
+        const conditionValueParts = firstPart.split('/').map(part => part.trim()).filter(part => part.length > 0);
         if (conditionValueParts.length > 0) {
             for (const part of conditionValueParts) {
 
                 if (keyword.includes('include_rank')) {
 
-                    conditionValues.push(this.mapConditionValue(part.toLowerCase()));
+                    conditionValues.push(this.mapValue(part.toLowerCase()));
 
                     if (part === 'onepair') {
-                        conditionValues.push(this.mapConditionValue('twopair'));
-                        conditionValues.push(this.mapConditionValue('triple'));
-                        conditionValues.push(this.mapConditionValue('fourcard'));
-                        conditionValues.push(this.mapConditionValue('fullhouse'));
+                        conditionValues.push(this.mapValue('twopair'));
+                        conditionValues.push(this.mapValue('triple'));
+                        conditionValues.push(this.mapValue('fourcard'));
+                        conditionValues.push(this.mapValue('fullhouse'));
                     }
                     else if (part === 'triple') {
-                        conditionValues.push(this.mapConditionValue('fourcard'));
-                        conditionValues.push(this.mapConditionValue('fullhouse'));
+                        conditionValues.push(this.mapValue('fourcard'));
+                        conditionValues.push(this.mapValue('fullhouse'));
                     }
                     else if (part === 'straight') {
-                        conditionValues.push(this.mapConditionValue('straightflush'));
+                        conditionValues.push(this.mapValue('straightflush'));
                     }
                     else if (part === 'flush') {
-                        conditionValues.push(this.mapConditionValue('straightflush'));
+                        conditionValues.push(this.mapValue('straightflush'));
                     }
                 }
                 else {
-                    const mapped = this.mapConditionValue(part.toLowerCase());
+                    const mapped = this.mapValue(part.toLowerCase());
                     conditionValues.push(mapped);
-                    // const numericCandidate = Number(part);
-                    // if (!Number.isNaN(numericCandidate)) {
-                    //     conditionNumericValue.push(numericCandidate);
-                    // }
                 }
-            }
-
-            if (operatorSymbol) {
-                conditionOperatorType = this.mapOperator(operatorSymbol);
             }
         }
 
-        if (timingPart.trim()) {
-            timingKeyword = timingPart.trim();
+        const conditionValueSecondParts = secondPart.split('/').map(part => part.trim()).filter(part => part.length > 0);
+        if (conditionValueSecondParts.length > 0) {
+            for (const part of conditionValueSecondParts) {
+                const numericCandidate = Number(part);
+                if (!Number.isNaN(numericCandidate)) {
+                    conditionNumericValue.push(numericCandidate);
+                }
+            }
         }
 
         this.logger.log(`[DevTools] conditionType: ${conditionType}, conditionValues: ${JSON.stringify(conditionValues)}, conditionOperatorType: ${conditionOperatorType}, basevalue: ${basevalue}, increase: ${increase}, decrease: ${decrease}, maxvalue: ${maxvalue}`);
@@ -227,15 +249,8 @@ export class CsvImporterService {
                             .filter(part => part.length > 0)
                     );
                 } else {
-                    effectValue.push(rawEffectValue);
-
-                    if (effectType === 'GrowBaseValue') {
-                        increase = parseFloat(rawEffectValue);
-                    } else if (effectType === 'DecrementBaseValue') {
-                        decrease = parseFloat(rawEffectValue);
-                    } else {
-                        basevalue = parseFloat(rawEffectValue);
-                    }
+                    // effectValue.push(rawEffectValue);
+                    effectValue.push(this.mapValue(rawEffectValue));
                 }
             }
         }
@@ -271,8 +286,10 @@ export class CsvImporterService {
                 return 'GrowCardChips';
             case 'increase_mults':
                 return 'GrowCardMultiplier';
+            case 'change_suit':
+                return 'ChangeSuit';
             case 'increase_basevalue':
-                return 'GrowBaseValue';
+                return 'IncreaseBaseValue';
             case 'decrease_basevalue':
                 return 'DecrementBaseValue';
             case 'subtract_chips':
@@ -291,16 +308,16 @@ export class CsvImporterService {
             'scoring_card_by_number': 'CardRank',
             'handplay_used_card_by_rank': 'HandType',
             'handplay_used_card_include_rank': 'HandType',
-            'handplay_used_card_by_suite': 'UsedSuitCount',
+            'handplay_used_card_by_suite_count': 'UsedSuitCount',
             'handplay_unused_card_include_rank': 'UnUsedHandType',
-            'handplay_unused_card_by_suite': 'UnUsedSuitCount',
-            'other_handplay_used_card_include_rank': 'OtherHandTypeCount',
-            'other_handplay_used_card_by_suite': 'OtherUsedSuitCount',
-            'deck_card_by_number': 'RemainingCardCount',
-            'deck_card_remain': 'RemainingDeck',
-            'remain_discard': 'RemainingDiscards',
-            'redraw_card_by_suite': 'RedrawCardSuit',
+            'handplay_unused_card_by_suite_count': 'UnUsedSuitCount',
+            'other_handplay_used_card_include_rank_count': 'OtherHandTypeCount',
+            'other_handplay_used_card_by_suite_count': 'OtherUsedSuitCount',
+            'deck_card_by_number_count': 'DeckCardByNumberCount',
+            'deck_card_remain_count': 'DeckCardRemainCount',
+            'remain_discard_count': 'DiscardRemainCount',
             'discard_card_by_suite': 'DiscardCardSuit',
+            'redraw_card_by_suite': 'RedrawCardSuit',
             'no_condition': 'Always',
         };
         return map[keyword] ?? 'Unknown';
@@ -318,13 +335,14 @@ export class CsvImporterService {
     //     return result;
     // }
 
-    private mapConditionValue(value: string): string {
+    private mapValue(value: string): string {
         // 무늬 매핑
         const suitMap: Record<string, string> = {
             'diamond': 'Diamonds',
             'heart': 'Hearts',
             'spade': 'Spades',
-            'club': 'Clubs'
+            'club': 'Clubs',
+            'any': 'Any'
         };
 
         // 숫자 매핑
@@ -355,6 +373,7 @@ export class CsvImporterService {
         // 매핑되지 않으면 원본 반환
         return value;
     }
+
 
     // private parseCountCondition(conditionValues: string): { operator: string; numericValue: number } | null {
 

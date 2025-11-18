@@ -1,6 +1,22 @@
 import { CardType, PokerHand } from './poker-types';
 
-export type CardData = { suit: CardType; rank: number; id: number };
+export type CardData = {
+  suit: CardType;
+  rank: number;
+  id: number;
+  changeSuit(newSuit: CardType): void;
+};
+
+export function createCardData(suit: CardType, rank: number, id: number): CardData {
+  return {
+    suit,
+    rank,
+    id,
+    changeSuit(newSuit: CardType) {
+      this.suit = newSuit;
+    },
+  };
+}
 
 export function createDeck(): CardData[] {
   const suits = [CardType.Clubs, CardType.Diamonds, CardType.Hearts, CardType.Spades];
@@ -8,7 +24,7 @@ export function createDeck(): CardData[] {
   let id = 0;
   for (const suit of suits) {
     for (let rank = 1; rank <= 13; rank++) {
-      deck.push({ suit, rank, id: id++ });
+      deck.push(createCardData(suit, rank, id++));
     }
   }
   return deck;
@@ -31,98 +47,98 @@ export function createSpecificHand(pokerHand: PokerHand): CardData[] {
   switch (pokerHand) {
     case PokerHand.FourOfAKind:
       return [
-        { suit: CardType.Spades, rank: 7, id: id++ },
-        { suit: CardType.Hearts, rank: 7, id: id++ },
-        { suit: CardType.Diamonds, rank: 7, id: id++ },
-        { suit: CardType.Clubs, rank: 7, id: id++ },
-        { suit: CardType.Spades, rank: 2, id: id++ },
-        { suit: CardType.Hearts, rank: 3, id: id++ },
-        { suit: CardType.Diamonds, rank: 4, id: id++ },
-        { suit: CardType.Clubs, rank: 5, id: id++ }
+        createCardData(CardType.Spades, 7, id++),
+        createCardData(CardType.Hearts, 7, id++),
+        createCardData(CardType.Diamonds, 7, id++),
+        createCardData(CardType.Clubs, 7, id++),
+        createCardData(CardType.Spades, 2, id++),
+        createCardData(CardType.Hearts, 3, id++),
+        createCardData(CardType.Diamonds, 4, id++),
+        createCardData(CardType.Clubs, 5, id++),
       ];
 
     case PokerHand.FullHouse:
       return [
-        { suit: CardType.Spades, rank: 8, id: id++ },
-        { suit: CardType.Hearts, rank: 8, id: id++ },
-        { suit: CardType.Diamonds, rank: 8, id: id++ },
-        { suit: CardType.Clubs, rank: 9, id: id++ },
-        { suit: CardType.Spades, rank: 9, id: id++ },
-        { suit: CardType.Hearts, rank: 2, id: id++ },
-        { suit: CardType.Diamonds, rank: 3, id: id++ },
-        { suit: CardType.Clubs, rank: 4, id: id++ }
+        createCardData(CardType.Spades, 8, id++),
+        createCardData(CardType.Hearts, 8, id++),
+        createCardData(CardType.Diamonds, 8, id++),
+        createCardData(CardType.Clubs, 9, id++),
+        createCardData(CardType.Spades, 9, id++),
+        createCardData(CardType.Hearts, 2, id++),
+        createCardData(CardType.Diamonds, 3, id++),
+        createCardData(CardType.Clubs, 4, id++),
       ];
 
     case PokerHand.Flush:
       return [
-        { suit: CardType.Spades, rank: 2, id: id++ },
-        { suit: CardType.Spades, rank: 5, id: id++ },
-        { suit: CardType.Spades, rank: 7, id: id++ },
-        { suit: CardType.Spades, rank: 9, id: id++ },
-        { suit: CardType.Spades, rank: 11, id: id++ },
-        { suit: CardType.Hearts, rank: 3, id: id++ },
-        { suit: CardType.Diamonds, rank: 4, id: id++ },
-        { suit: CardType.Clubs, rank: 6, id: id++ }
+        createCardData(CardType.Spades, 2, id++),
+        createCardData(CardType.Spades, 5, id++),
+        createCardData(CardType.Spades, 7, id++),
+        createCardData(CardType.Spades, 9, id++),
+        createCardData(CardType.Spades, 11, id++),
+        createCardData(CardType.Hearts, 3, id++),
+        createCardData(CardType.Diamonds, 4, id++),
+        createCardData(CardType.Clubs, 6, id++),
       ];
 
     case PokerHand.Straight:
       return [
-        { suit: CardType.Spades, rank: 5, id: id++ },
-        { suit: CardType.Hearts, rank: 6, id: id++ },
-        { suit: CardType.Diamonds, rank: 7, id: id++ },
-        { suit: CardType.Clubs, rank: 8, id: id++ },
-        { suit: CardType.Spades, rank: 9, id: id++ },
-        { suit: CardType.Hearts, rank: 2, id: id++ },
-        { suit: CardType.Diamonds, rank: 3, id: id++ },
-        { suit: CardType.Clubs, rank: 4, id: id++ }
+        createCardData(CardType.Spades, 5, id++),
+        createCardData(CardType.Hearts, 6, id++),
+        createCardData(CardType.Diamonds, 7, id++),
+        createCardData(CardType.Clubs, 8, id++),
+        createCardData(CardType.Spades, 9, id++),
+        createCardData(CardType.Hearts, 2, id++),
+        createCardData(CardType.Diamonds, 3, id++),
+        createCardData(CardType.Clubs, 4, id++),
       ];
 
     case PokerHand.ThreeOfAKind:
       return [
-        { suit: CardType.Spades, rank: 10, id: id++ },
-        { suit: CardType.Hearts, rank: 10, id: id++ },
-        { suit: CardType.Diamonds, rank: 10, id: id++ },
-        { suit: CardType.Clubs, rank: 2, id: id++ },
-        { suit: CardType.Spades, rank: 3, id: id++ },
-        { suit: CardType.Hearts, rank: 4, id: id++ },
-        { suit: CardType.Diamonds, rank: 5, id: id++ },
-        { suit: CardType.Clubs, rank: 6, id: id++ }
+        createCardData(CardType.Spades, 10, id++),
+        createCardData(CardType.Hearts, 10, id++),
+        createCardData(CardType.Diamonds, 10, id++),
+        createCardData(CardType.Clubs, 2, id++),
+        createCardData(CardType.Spades, 3, id++),
+        createCardData(CardType.Hearts, 4, id++),
+        createCardData(CardType.Diamonds, 5, id++),
+        createCardData(CardType.Clubs, 6, id++),
       ];
 
     case PokerHand.TwoPair:
       return [
-        { suit: CardType.Spades, rank: 11, id: id++ },
-        { suit: CardType.Hearts, rank: 11, id: id++ },
-        { suit: CardType.Diamonds, rank: 12, id: id++ },
-        { suit: CardType.Clubs, rank: 12, id: id++ },
-        { suit: CardType.Spades, rank: 2, id: id++ },
-        { suit: CardType.Hearts, rank: 3, id: id++ },
-        { suit: CardType.Diamonds, rank: 4, id: id++ },
-        { suit: CardType.Clubs, rank: 5, id: id++ }
+        createCardData(CardType.Spades, 11, id++),
+        createCardData(CardType.Hearts, 11, id++),
+        createCardData(CardType.Diamonds, 12, id++),
+        createCardData(CardType.Clubs, 12, id++),
+        createCardData(CardType.Spades, 2, id++),
+        createCardData(CardType.Hearts, 3, id++),
+        createCardData(CardType.Diamonds, 4, id++),
+        createCardData(CardType.Clubs, 5, id++),
       ];
 
     case PokerHand.OnePair:
       return [
-        { suit: CardType.Spades, rank: 13, id: id++ },
-        { suit: CardType.Hearts, rank: 13, id: id++ },
-        { suit: CardType.Diamonds, rank: 2, id: id++ },
-        { suit: CardType.Clubs, rank: 3, id: id++ },
-        { suit: CardType.Spades, rank: 4, id: id++ },
-        { suit: CardType.Hearts, rank: 5, id: id++ },
-        { suit: CardType.Diamonds, rank: 6, id: id++ },
-        { suit: CardType.Clubs, rank: 7, id: id++ }
+        createCardData(CardType.Spades, 13, id++),
+        createCardData(CardType.Hearts, 13, id++),
+        createCardData(CardType.Diamonds, 2, id++),
+        createCardData(CardType.Clubs, 3, id++),
+        createCardData(CardType.Spades, 4, id++),
+        createCardData(CardType.Hearts, 5, id++),
+        createCardData(CardType.Diamonds, 6, id++),
+        createCardData(CardType.Clubs, 7, id++),
       ];
 
     case PokerHand.StraightFlush:
       return [
-        { suit: CardType.Spades, rank: 6, id: id++ },
-        { suit: CardType.Spades, rank: 7, id: id++ },
-        { suit: CardType.Spades, rank: 8, id: id++ },
-        { suit: CardType.Spades, rank: 9, id: id++ },
-        { suit: CardType.Spades, rank: 10, id: id++ },
-        { suit: CardType.Hearts, rank: 2, id: id++ },
-        { suit: CardType.Diamonds, rank: 3, id: id++ },
-        { suit: CardType.Clubs, rank: 4, id: id++ }
+        createCardData(CardType.Spades, 6, id++),
+        createCardData(CardType.Spades, 7, id++),
+        createCardData(CardType.Spades, 8, id++),
+        createCardData(CardType.Spades, 9, id++),
+        createCardData(CardType.Spades, 10, id++),
+        createCardData(CardType.Hearts, 2, id++),
+        createCardData(CardType.Diamonds, 3, id++),
+        createCardData(CardType.Clubs, 4, id++),
       ];
 
     default:

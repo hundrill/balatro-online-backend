@@ -10,7 +10,7 @@ import {
   RedisConnectionException,
 } from '../common/exceptions/room.exception';
 
-import { CardData, createDeck, shuffle, createSpecificHand } from './deck.util';
+import { CardData, createDeck, shuffle, createSpecificHand, createCardData } from './deck.util';
 import { JokerEffectTiming, SpecialCardData } from './special-card-manager.service';
 import { UserService } from '../user/user.service';
 import { PaytableService } from './paytable.service';
@@ -28,6 +28,9 @@ import { BettingResponseDto } from './socket-dto/betting-response.dto';
 import { StartGameResponseDto } from './socket-dto/start-game-response.dto';
 import { ChallengeService } from '../challenge/challenge.service';
 import { ChallengeManagerService } from '../challenge/challenge-manager.service';
+
+const MAX_PLAYERS = 20;
+export const MAX_ROUND = 10;
 
 // RoomState 인터페이스 정의
 interface RoomState {
@@ -59,7 +62,7 @@ interface RoomState {
   userStatusMap: Map<string, 'waiting' | 'playing'>; // userId -> status
   userSeedMoneyPayments: Map<string, SeedPayment>; // userId -> payment
   roundMaxPrizes: number[]; // [1라운드, 2라운드, 3라운드, 4라운드, 5라운드]
-  userTotalDeckCardsMap: Map<string, number>; // userId -> 초기 덱 총 카드 개수
+  userMaxDeckSizeCardsMap: Map<string, number>; // userId -> 초기 덱 총 카드 개수
   userNicknameMap: Map<string, string>; // userId -> nickname
   bettingState: BettingState; // 베팅 상태
   testJokerIds: string[]; // 테스트 조커 ID 5개
@@ -141,8 +144,8 @@ export class RoomService {
       discardCountMap: new Map(),
       userStatusMap: new Map(),
       userSeedMoneyPayments: new Map(),
-      roundMaxPrizes: [1, 2, 3, 4, 5],
-      userTotalDeckCardsMap: new Map(),
+      roundMaxPrizes: Array.from({ length: MAX_ROUND }, (_, i) => i + 1),
+      userMaxDeckSizeCardsMap: new Map(),
       userNicknameMap: new Map(),
       testJokerIds: ['', '', '', '', ''], // 테스트 조커 ID 초기화
       silverTotalScore: 0, // SILVER 방용 총 스코어 초기화
@@ -181,8 +184,8 @@ export class RoomService {
         this.discardCountMap.clear();
         this.userStatusMap.clear();
         this.userSeedMoneyPayments.clear();
-        this.roundMaxPrizes = [1, 2, 3, 4, 5];
-        this.userTotalDeckCardsMap.clear();
+        this.roundMaxPrizes = Array.from({ length: MAX_ROUND }, (_, i) => i + 1);
+        this.userMaxDeckSizeCardsMap.clear();
         this.userNicknameMap.clear();
         // this.testJokerIds = ['', '', '', '', '']; // 테스트 조커 ID 초기화 - 게임 리셋 시에는 유지
         this.silverTotalScore = 0; // SILVER 방용 총 스코어 초기화
@@ -267,6 +270,9 @@ export class RoomService {
       if (chipType === ChipType.SILVER) {
         maxPlayers = 1;
         seedAmount = 100;
+      }
+      else {
+        maxPlayers = MAX_PLAYERS;
       }
       let finalChipType = chipType;
       let finalSeedAmount = seedAmount;
@@ -368,8 +374,7 @@ export class RoomService {
           };
         }
       } else {
-        // Gold 방: 기존 로직 적용
-        const maxPlayers = parseInt(room.maxPlayers || '4', 10);
+        const maxPlayers = parseInt(room.maxPlayers || MAX_PLAYERS.toString(), 10);
         if (currentPlayers >= maxPlayers) throw new RoomFullException(roomId);
 
         // 🆕 입장 제한 머니 검증
@@ -466,7 +471,7 @@ export class RoomService {
               const roomData: RoomDataDto = {
                 roomId: room.roomId,
                 name: room.name,
-                maxPlayers: parseInt(room.maxPlayers || '4', 10),
+                maxPlayers: parseInt(room.maxPlayers || MAX_PLAYERS.toString(), 10),
                 players: parseInt(room.players || '0', 10), // Redis에 저장된 players 값 사용
                 status: room.status || 'waiting',
                 createdAt: parseInt(room.createdAt || '0', 10),
@@ -956,10 +961,10 @@ export class RoomService {
     roomId: string,
     userId: string,
     cards: CardData[],
-  ): { newHand: CardData[]; newCards: CardData[]; discarded: CardData[]; remainingDiscards: number } {
+  ): { newHand: CardData[]; discarded: CardData[]; remainingDiscards: number } {
     // 버리기 횟수 증가
     const newCount = this.incrementUserDiscardCount(roomId, userId);
-    const remainingDiscards = this.getRemainingDiscards(roomId, userId);
+    const remainingDiscards = this.getDiscardRemainCount(roomId, userId);
 
     const roomState = this.getRoomState(roomId);
     const hand = roomState.hands.get(userId);
@@ -997,9 +1002,19 @@ export class RoomService {
     context.randomValue = [];
     context.ownedJokers = ownedJokers.map((joker) => joker.id);
 
-    this.specialCardManagerService.applyJokerEffects(JokerEffectTiming.OnRedraw, context, ownedJokers);
+    const result = { newHand: [...hand], discarded: [...discarded], remainingDiscards };
 
-    return { newHand: [...hand], newCards: [...newCards], discarded: [...discarded], remainingDiscards };
+    for (let i = 0; i < discarded.length; i++) {
+      context.currentCardData = discarded[i];
+      this.specialCardManagerService.applyJokerEffects(JokerEffectTiming.OnDiscard, context, ownedJokers);
+    }
+
+    for (let i = 0; i < newCards.length; i++) {
+      context.currentCardData = newCards[i];
+      this.specialCardManagerService.applyJokerEffects(JokerEffectTiming.OnRedraw, context, ownedJokers);
+    }
+
+    return result;
   }
 
   handPlayReady(roomId: string, userId: string, playCards: CardData[]): void {
@@ -1771,7 +1786,7 @@ export class RoomService {
 
     const remainingDeck = [...deck]; // 덱의 모든 카드 정보를 복사
     const remainingSevens = deck.filter(card => card.rank === 7).length;
-    const totalDeck = this.getUserTotalDeckCards(roomId, userId);
+    const totalDeck = this.getUserMaxDeckSizeCards(roomId, userId);
 
     return { remainingDeck, remainingSevens, totalDeck };
   }
@@ -1779,9 +1794,9 @@ export class RoomService {
   /**
    * 유저의 초기 덱 총 카드 개수를 가져옵니다.
    */
-  getUserTotalDeckCards(roomId: string, userId: string): number {
+  getUserMaxDeckSizeCards(roomId: string, userId: string): number {
     const roomState = this.getRoomState(roomId);
-    return roomState.userTotalDeckCardsMap.get(userId) || 0;
+    return roomState.userMaxDeckSizeCardsMap.get(userId) || 0;
   }
 
   // === [5] discardCountMap 관리 메서드들 ===
@@ -1803,7 +1818,7 @@ export class RoomService {
   }
 
   // 유저의 남은 버리기 횟수 계산
-  getRemainingDiscards(roomId: string, userId: string): number {
+  getDiscardRemainCount(roomId: string, userId: string): number {
     const currentCount = this.getUserDiscardCount(roomId, userId);
     return Math.max(0, 4 - currentCount);
   }
@@ -1878,8 +1893,8 @@ export class RoomService {
    * 라운드별 최대 상금을 설정합니다.
    */
   setRoundMaxPrizes(roomId: string, maxPrizes: number[]): void {
-    if (maxPrizes.length !== 5) {
-      throw new Error('라운드별 최대 상금은 5개(1~5라운드)여야 합니다.');
+    if (maxPrizes.length !== MAX_ROUND) {
+      throw new Error(`라운드별 최대 상금은 ${MAX_ROUND}개(1~${MAX_ROUND}라운드)여야 합니다.`);
     }
     this.getRoomState(roomId).roundMaxPrizes = [...maxPrizes];
   }
@@ -1889,17 +1904,17 @@ export class RoomService {
    */
   getRoundMaxPrize(roomId: string, round: number): number {
 
-    const roomState = this.getRoomState(roomId);
-    if (round < 1 || round > 5) {
-      // 기본값: 라운드 번호 그대로 반환 (1, 2, 3, 4, 5)
-      return round;
-    }
+    // const roomState = this.getRoomState(roomId);
+    // if (round < 1 || round > MAX_ROUND) {
+    //   return round;
+    // }
 
-    const baseMaxPrize = roomState.roundMaxPrizes[round - 1];
+    // const baseMaxPrize = roomState.roundMaxPrizes[round - 1];
 
-    const totalMaxPrize = baseMaxPrize;
+    // const totalMaxPrize = baseMaxPrize;
 
-    return totalMaxPrize;
+    // return totalMaxPrize;
+    return 0;
   }
 
   /**
@@ -2030,7 +2045,7 @@ export class RoomService {
       this.getRoomState(roomId).roundMaxPrizes = roundPrizes;
     } catch (error) {
       // 오류 발생 시 기본값 사용
-      this.getRoomState(roomId).roundMaxPrizes = [1, 2, 3, 4, 5];
+      this.getRoomState(roomId).roundMaxPrizes = Array.from({ length: MAX_ROUND }, (_, i) => i + 1);
       this.logger.error(`[initializeRoundMaxPrizes] 오류 발생, 기본값 사용: roomId=${roomId}`, error);
     }
   }
@@ -2156,21 +2171,17 @@ export class RoomService {
       switch (cardId) {
         case 'tarot_1':
           // 선택한 카드의 숫자가 1 상승
-          resultCards = cards.map(card => ({
-            id: card.id,
-            suit: card.suit,
-            rank: Math.min(card.rank + 1, 13) // 최대 13 (K)
-          }));
+          resultCards = cards.map(card =>
+            createCardData(card.suit, Math.min(card.rank + 1, 13), card.id)
+          );
           this.logger.log(`\x1b[32m  ⬆️  tarot_1 적용: ${cards.map(c => `${c.suit}_${c.rank} → ${c.suit}_${Math.min(c.rank + 1, 13)}`).join(', ')}\x1b[0m`);
           break;
 
         case 'tarot_2':
           // 선택한 카드의 숫자가 2 증가
-          resultCards = cards.map(card => ({
-            id: card.id,
-            suit: card.suit,
-            rank: Math.min(card.rank + 2, 13) // 최대 13 (K)
-          }));
+          resultCards = cards.map(card =>
+            createCardData(card.suit, Math.min(card.rank + 2, 13), card.id)
+          );
           this.logger.log(`\x1b[31m  ⬇️  tarot_2 적용: ${cards.map(c => `${c.suit}_${c.rank} → ${c.suit}_${Math.max(c.rank - 2, 1)}`).join(', ')}\x1b[0m`);
           break;
 
@@ -2186,11 +2197,7 @@ export class RoomService {
             selectedCards.push(...randomCards);
 
             // 결과 카드는 모두 스페이드로 변경
-            resultCards = randomCards.map(card => ({
-              ...card,
-              id: card.id,
-              suit: CardType.Spades
-            }));
+            resultCards = randomCards.map(card => createCardData(CardType.Spades, card.rank, card.id));
 
             this.logger.log(`\x1b[33m  🎲 tarot_3 무작위 선택: ${randomCards.map(c => `${c.suit}_${c.rank}`).join(', ')}\x1b[0m`);
             this.logger.log(`\x1b[34m  ♠️  tarot_3 결과: ${resultCards.map(c => `${c.suit}_${c.rank}`).join(', ')}\x1b[0m`);
@@ -2201,38 +2208,22 @@ export class RoomService {
           break;
 
         case 'tarot_4':
-          resultCards = cards.map(card => ({
-            ...card,
-            id: card.id,
-            suit: CardType.Hearts
-          }));
+          resultCards = cards.map(card => createCardData(CardType.Hearts, card.rank, card.id));
           this.logger.log(`\x1b[34m  ♠️  tarot_4 적용: ${cards.map(c => `${c.suit}_${c.rank} → Spades_${c.rank}`).join(', ')}\x1b[0m`);
           break;
 
         case 'tarot_5':
-          resultCards = cards.map(card => ({
-            ...card,
-            id: card.id,
-            suit: CardType.Diamonds
-          }));
+          resultCards = cards.map(card => createCardData(CardType.Diamonds, card.rank, card.id));
           this.logger.log(`\x1b[36m  ♦️  tarot_5 적용: ${cards.map(c => `${c.suit}_${c.rank} → Diamonds_${c.rank}`).join(', ')}\x1b[0m`);
           break;
 
         case 'tarot_6':
-          resultCards = cards.map(card => ({
-            ...card,
-            id: card.id,
-            suit: CardType.Spades
-          }));
+          resultCards = cards.map(card => createCardData(CardType.Spades, card.rank, card.id));
           this.logger.log(`\x1b[31m  ♥️  tarot_6 적용: ${cards.map(c => `${c.suit}_${c.rank} → Hearts_${c.rank}`).join(', ')}\x1b[0m`);
           break;
 
         case 'tarot_7':
-          resultCards = cards.map(card => ({
-            ...card,
-            id: card.id,
-            suit: CardType.Clubs
-          }));
+          resultCards = cards.map(card => createCardData(CardType.Clubs, card.rank, card.id));
           this.logger.log(`\x1b[32m  ♣️  tarot_7 적용: ${cards.map(c => `${c.suit}_${c.rank} → Clubs_${c.rank}`).join(', ')}\x1b[0m`);
           break;
 
@@ -2392,6 +2383,12 @@ export class RoomService {
         const playedHand = allHandPlayCards.get(userId) || [];
         const finalScore = userScores[userId] || 0;
 
+        let isServival = true;
+
+        if (finalScore < 10) {
+          isServival = false;
+        }
+
         // 승자별 분배 금액 계산
         let chipsGain = 0;
         let isWinner = -1;
@@ -2399,7 +2396,7 @@ export class RoomService {
         // 현재 라운드의 최대 상금 가져오기
         const roundNumber = this.getRound(roomId);
         let roundMaxPrize = this.getRoundMaxPrize(roomId, roundNumber);
-        if (roundNumber === 5) {
+        if (roundNumber === MAX_ROUND) {
           roundMaxPrize = this.getTableChips(roomId);
         }
 
@@ -2546,8 +2543,7 @@ export class RoomService {
         const updateSuccess = await this.updateUserChips(
           roomId,
           userId,
-          chipsGain,
-          // fundsGain
+          chipsGain
         );
 
         if (!updateSuccess) {
@@ -2579,6 +2575,7 @@ export class RoomService {
           `최종(chips=${finalUpdatedChips.chips})`
         );
 
+
         // 유저 닉네임 가져오기 (저장된 닉네임 사용)
         const nickname = this.getUserNickname(roomId, userId);
 
@@ -2598,10 +2595,11 @@ export class RoomService {
           finalFunds: finalUpdatedChips.funds,
           remainingDiscards,
           remainingDeck: remainingDeck,
-          totalDeck: this.getUserTotalDeckCards(roomId, userId),
+          totalDeck: this.getUserMaxDeckSizeCards(roomId, userId),
           remainingSevens,
           nickname: nickname,
           randomValue: randomValueMap[userId],
+          isServival: isServival
         };
       }
 
@@ -2626,6 +2624,16 @@ export class RoomService {
           `[processHandPlayResult] SILVER 방 총 스코어 업데이트: ` +
           `라운드점수=${roundTotalScore}, 누적총점=${roomState.silverTotalScore}, roomId=${roomId}`
         );
+      }
+      else {
+
+        // 탈락 유져 처리
+        for (const [uid, info] of Object.entries(roundResult)) {
+
+          if (!roundResult[uid].isServival) {
+            this.setUserStatus(roomId, uid, 'waiting');
+          }
+        }
       }
 
       return {
@@ -2907,11 +2915,11 @@ export class RoomService {
     let totalDeckCards = 0;
     if (gameState && gameState.decks.has(userId)) {
       totalDeckCards = (gameState.decks.get(userId)?.length || 0) + 8; // 덱 카드 + 핸드 카드 8장
-      this.getRoomState(roomId).userTotalDeckCardsMap.set(userId, totalDeckCards);
+      this.getRoomState(roomId).userMaxDeckSizeCardsMap.set(userId, totalDeckCards);
     }
 
     // 현재 라운드에서 획득 가능한 판돈 계산
-    const chipsRound = this.getRoundChips(roomId, false);
+    const chipsRound = 0;//this.getRoundChips(roomId, false);
 
     // 실제 테이블 칩 계산 (시드머니 납부 기록에서) 후 라운드머니로 나간것 빼기
     const chipsTable = this.getTableChips(roomId) - chipsRound;
@@ -2961,7 +2969,7 @@ export class RoomService {
   getRoundChips(roomId: string, isNextRound: boolean) {
     const round = isNextRound ? this.getRound(roomId) + 1 : this.getRound(roomId);
 
-    if (round >= 5) {
+    if (round >= MAX_ROUND) {
       return this.getTableChips(roomId);
     }
 
@@ -2977,46 +2985,26 @@ export class RoomService {
     return chipsRound;
   }
 
-  // === 유저별 게임 상태 관리 메서드들 ===
-
-  /**
-   * 유저의 게임 상태를 설정합니다.
-   */
   setUserStatus(roomId: string, userId: string, status: 'waiting' | 'playing'): void {
     this.getRoomState(roomId).userStatusMap.set(userId, status);
   }
 
-  /**
-   * 유저의 게임 상태를 가져옵니다.
-   */
   getUserStatus(roomId: string, userId: string): 'waiting' | 'playing' | undefined {
     return this.getRoomState(roomId).userStatusMap.get(userId);
   }
 
-  /**
-   * 모든 유저의 게임 상태를 가져옵니다.
-   */
   getAllUserStatuses(roomId: string): Map<string, 'waiting' | 'playing'> {
     return this.getRoomState(roomId).userStatusMap;
   }
 
-  /**
-   * 유저가 playing 상태인지 확인합니다.
-   */
   isUserPlaying(roomId: string, userId: string): boolean {
     return this.getUserStatus(roomId, userId) === 'playing';
   }
 
-  /**
-   * 유저가 waiting 상태인지 확인합니다.
-   */
   isUserWaiting(roomId: string, userId: string): boolean {
     return this.getUserStatus(roomId, userId) === 'waiting';
   }
 
-  /**
-   * 방의 모든 유저 상태를 waiting으로 설정합니다.
-   */
   setAllUsersToWaiting(roomId: string, userIds: string[]): void {
     const roomState = this.getRoomState(roomId);
     userIds.forEach(userId => {
@@ -3024,9 +3012,6 @@ export class RoomService {
     });
   }
 
-  /**
-   * 방의 모든 유저 상태를 playing으로 설정합니다.
-   */
   setAllUsersToPlaying(roomId: string, userIds: string[]): void {
     const roomState = this.getRoomState(roomId);
     userIds.forEach(userId => {
@@ -3214,7 +3199,7 @@ export class RoomService {
   startBettingRound(roomId: string): void {
     const roomState = this.getRoomState(roomId);
     const playingUsers = this.getPlayingUserIds(roomId);
-    const initialTableChips = this.getRoundMaxPrize(roomId, 5) * playingUsers.length;
+    const initialTableChips = this.getRoundMaxPrize(roomId, MAX_ROUND) * playingUsers.length;
 
     // 모든 유저의 초기 콜머니를 0으로 설정
     const userCallChips = new Map();

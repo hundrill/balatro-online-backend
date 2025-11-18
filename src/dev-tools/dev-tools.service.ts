@@ -517,12 +517,12 @@ export class DevToolsService implements OnModuleInit {
         const dataRows = rows.slice(1);
 
         const timingColumns = [
-            'timing_draw',
+            'timing_redraw',
             'timing_round_start',
             'timing_hand_play',
             'timing_scoring',
             'timing_after_scoring',
-            'timing_fold',
+            'timing_discard',
             'timing_round_clear',
             'timing_tarot_card_use',
             'timing_planet_card_use',
@@ -759,13 +759,13 @@ export class DevToolsService implements OnModuleInit {
      */
     private normalizeTiming(col: string): string {
         const timingMap: Record<string, string> = {
-            'timing_draw': 'Draw',
-            'timing_round_start': 'RoundStart',
+            'timing_redraw': 'OnRedraw',
             'timing_hand_play': 'OnHandPlay',
             'timing_scoring': 'OnScoring',
             'timing_after_scoring': 'OnAfterScoring',
-            'timing_fold': 'Fold',
             'timing_round_clear': 'OnAfterScoring',
+            'timing_discard': 'OnDiscard',
+            'timing_round_start': 'RoundStart',
             'timing_tarot_card_use': 'TarotCardUse',
             'timing_planet_card_use': 'PlanetCardUse',
         };
