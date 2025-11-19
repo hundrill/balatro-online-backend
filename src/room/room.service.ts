@@ -109,6 +109,71 @@ export class RoomService {
     this.gameStates.delete(roomId);
   }
 
+  evaluateMissionSuccess(
+    missionId: number,
+    context: {
+      finalScore: number;
+      userId: string;
+      roomId: string;
+      remainingDiscards: number;
+      playedHand: CardData[];
+      fullHand: CardData[];
+      allHandPlayCards: Map<string, CardData[]>;
+      userScores: Record<string, number>;
+    }
+  ): boolean {
+    const usedDiscards = Math.max(0, 4 - context.remainingDiscards);
+    const evaluatedHand = context.playedHand.length > 0
+      ? this.handEvaluatorService.evaluate(context.userId, context.playedHand, context.fullHand)
+      : null;
+    const handRank = evaluatedHand?.pokerHand ?? PokerHand.None;
+    const playerIds = Array.from(context.allHandPlayCards.keys());
+
+    switch (missionId) {
+      case 1:
+        return context.finalScore >= 200;
+      case 2:
+        return (
+          handRank === PokerHand.TwoPair &&
+          usedDiscards <= 2
+        );
+      case 3:
+        return handRank === PokerHand.Flush;
+      case 4:
+        return handRank === PokerHand.FullHouse;
+      case 5:
+        return context.finalScore >= 1000;
+      case 6:
+        return (
+          handRank === PokerHand.Flush &&
+          context.playedHand.length > 0 &&
+          context.playedHand.every(card => card.suit === CardType.Diamonds)
+        );
+      case 7: {
+        let flushCount = 0;
+        for (const uid of playerIds) {
+          const hand = context.allHandPlayCards.get(uid) || [];
+          if (hand.length === 0) continue;
+
+          const result = this.handEvaluatorService.evaluate(uid, hand, this.getUserHand(context.roomId, uid));
+          if (result?.pokerHand === PokerHand.Flush) {
+            flushCount += 1;
+          }
+          if (flushCount >= 3) break;
+        }
+        return flushCount >= 3;
+      }
+      case 8:
+        return handRank === PokerHand.FourOfAKind;
+      case 9:
+        return playerIds.reduce((sum, uid) => sum + (context.userScores[uid] || 0), 0) >= 5000;
+      case 10:
+        return context.finalScore <= 10;
+      default:
+        return false;
+    }
+  }
+
   // RoomState 유틸리티 메서드들
   public getRoomState(roomId: string): RoomState {
     if (!this.gameStates.has(roomId)) {
@@ -343,6 +408,30 @@ export class RoomService {
         error instanceof Error ? error.message : String(error),
       );
     }
+  }
+
+  async findJoinableRoom(targetChipType: ChipType = ChipType.GOLD): Promise<string | null> {
+    const client = this.redisService.getClient();
+    const roomSetKey = targetChipType === ChipType.GOLD ? 'rooms:gold' : 'rooms:silver';
+    const roomIds = await client.smembers(roomSetKey);
+
+    for (const roomId of roomIds) {
+      const roomKey = `room:${roomId}`;
+      const room = await client.hgetall(roomKey);
+      if (!room || !room.roomId) continue;
+
+      const status = room.status || 'waiting';
+      if (status !== 'waiting') continue;
+
+      const maxPlayers = parseInt(room.maxPlayers || MAX_PLAYERS.toString(), 10);
+      const currentPlayers = parseInt(room.players || '0', 10);
+
+      if (currentPlayers < maxPlayers) {
+        return roomId;
+      }
+    }
+
+    return null;
   }
 
   async joinRoom(roomId: string, userId: string): Promise<{ success: boolean; message?: string; chipType?: ChipType; timeLimit?: number }> {
@@ -2373,21 +2462,28 @@ export class RoomService {
         const { remainingDeck, remainingSevens } = this.getUserDeckInfo(roomId, userId);
 
         let remainingDiscards = 4;
+        let usedDiscards = 0;
         const discardUserMap = this.getDiscardCountMap(roomId);
         if (discardUserMap) {
-          const used = discardUserMap.get(userId) ?? 0;
-          remainingDiscards = 4 - used;
+          usedDiscards = discardUserMap.get(userId) ?? 0;
+          remainingDiscards = Math.max(0, 4 - usedDiscards);
         }
 
         const fullHand = this.getUserHand(roomId, userId);
         const playedHand = allHandPlayCards.get(userId) || [];
         const finalScore = userScores[userId] || 0;
 
-        let isServival = true;
-
-        if (finalScore < 10) {
-          isServival = false;
-        }
+        const missionContext = {
+          finalScore,
+          userId,
+          roomId,
+          remainingDiscards,
+          playedHand,
+          fullHand,
+          allHandPlayCards,
+          userScores,
+        };
+        const isServival = this.evaluateMissionSuccess(roomState.round, missionContext);
 
         // 승자별 분배 금액 계산
         let chipsGain = 0;
@@ -2611,18 +2707,12 @@ export class RoomService {
 
       // SILVER 방일 때 총 스코어 업데이트
       if (roomState.chipSettings.chipType === ChipType.SILVER) {
-        // 모든 유저의 점수를 총 스코어에 더함
-        let roundTotalScore = 0;
-        for (const userId of userIds) {
-          const userScore = userScores[userId] || 0;
-          roundTotalScore += userScore;
-        }
-
-        roomState.silverTotalScore += roundTotalScore;
+        const silverRoundScore = userIds.reduce((sum, uid) => sum + (userScores[uid] || 0), 0);
+        roomState.silverTotalScore += silverRoundScore;
 
         this.logger.log(
           `[processHandPlayResult] SILVER 방 총 스코어 업데이트: ` +
-          `라운드점수=${roundTotalScore}, 누적총점=${roomState.silverTotalScore}, roomId=${roomId}`
+          `라운드점수=${silverRoundScore}, 누적총점=${roomState.silverTotalScore}, roomId=${roomId}`
         );
       }
       else {
@@ -2709,7 +2799,9 @@ export class RoomService {
     currentRound: number
   ): Promise<number> {
     // 모든 유저의 점수를 기준으로 순위 결정 (동률 처리 포함)
-    const allUserScores = userIds.map(uid => ({ userId: uid, score: userScores[uid] || 0 }));
+    const allUserScores = userIds
+      .filter(uid => this.isUserPlaying(roomId, uid))
+      .map(uid => ({ userId: uid, score: userScores[uid] || 0 }));
     const sortedUsers: Array<{ userId: string; score: number; rank?: number }> = allUserScores
       .sort((a, b) => b.score - a.score) // 점수 내림차순 정렬
       .slice(0, 4); // 상위 4명만
@@ -2786,6 +2878,7 @@ export class RoomService {
 
       // 게임 설정에서 버리기 남은 횟수에 따른 지급 funds 값 가져오기
       let totalDiscardFunds = 0;
+      /* 주석 제거 하지 말 것
       if (remainingDiscards > 0) {
         const discardRemainingFunds = await this.gameSettingsService.getDiscardRemainingFunds();
         totalDiscardFunds = discardRemainingFunds * remainingDiscards;
@@ -2796,6 +2889,7 @@ export class RoomService {
           `유저=${userId}, 남은버리기=${remainingDiscards}, 기본값=${discardRemainingFunds}, 지급funds=${totalDiscardFunds}`
         );
       }
+      */
 
       discardFundsMap[userId] = totalDiscardFunds;
 

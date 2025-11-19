@@ -739,9 +739,27 @@ export class RoomGateway
         return;
       }
 
+      let targetRoomId: string | null = data.roomId ?? null;
+
+      if (!targetRoomId) {
+        targetRoomId = await this.roomService.findJoinableRoom(ChipType.GOLD);
+
+        if (!targetRoomId) {
+          this.logger.warn('[handleJoinRoom] No available rooms for auto-matching');
+          this.emitUserResponse(
+            client,
+            new JoinRoomResponseDto({
+              success: false,
+              message: this.localizationService.getText(TranslationKeys.RoomNotFound, this.getUserLanguage(client))
+            }),
+          );
+          return;
+        }
+      }
+
       try {
         // RoomService를 통해 방에 입장 (Redis players 값 업데이트)
-        const joinResult = await this.roomService.joinRoom(data.roomId, userId);
+        const joinResult = await this.roomService.joinRoom(targetRoomId, userId);
 
         // 🆕 입장 결과 확인
         if (!joinResult.success) {
@@ -757,12 +775,12 @@ export class RoomGateway
         }
 
         // 성공했을 때만 Socket.IO 방 참가 및 세션 업데이트
-        await client.join(data.roomId);
+        await client.join(targetRoomId);
 
         // 세션 업데이트 (userId는 이미 있으므로 roomId만 업데이트)
         const session = this.socketSessions.get(client.id);
         if (session) {
-          session.roomId = data.roomId;
+          session.roomId = targetRoomId;
         }
 
         this.emitUserResponse(client, new JoinRoomResponseDto({
@@ -773,7 +791,7 @@ export class RoomGateway
       } catch (error) {
         // RoomService 입장 실패 시 에러 응답
         this.logger.error(
-          `[handleJoinRoom] RoomService joinRoom failed: socketId=${client.id}, userId=${userId}, roomId=${data.roomId}`,
+          `[handleJoinRoom] RoomService joinRoom failed: socketId=${client.id}, userId=${userId}, roomId=${targetRoomId}`,
           (error as Error).stack,
         );
         this.emitUserResponse(
@@ -786,14 +804,14 @@ export class RoomGateway
         return;
       }
 
-      const roomUsersResponse = await this.createRoomUsersResponseDto(data.roomId);
+      const roomUsersResponse = await this.createRoomUsersResponseDto(targetRoomId);
 
-      this.emitRoomResponse(data.roomId, roomUsersResponse);
+      this.emitRoomResponse(targetRoomId, roomUsersResponse);
 
     } catch (error) {
       const userId = this.getUserId(client.id);
       this.logger.error(
-        `[handleJoinRoom] Error in joinRoom: socketId=${client.id}, userId=${userId}, roomId=${data.roomId}`,
+        `[handleJoinRoom] Error in joinRoom: socketId=${client.id}, userId=${userId}`,
         (error as Error).stack,
       );
       this.emitUserResponse(
@@ -1199,6 +1217,7 @@ export class RoomGateway
           isGameEnd,
           refundChips: refundChips || undefined,
           finalChips,
+          tableChips: this.roomService.getTableChips(roomId),
         }),
       );
 

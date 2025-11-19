@@ -7,6 +7,7 @@ export class NextRoundReadyResponseDto extends BaseSocketDto {
     isGameEnd?: boolean;
     refundChips?: number;
     finalChips?: number;
+    tableChips?: number;
     constructor(init?: Partial<NextRoundReadyResponseDto>) {
         super();
         Object.assign(this, init);

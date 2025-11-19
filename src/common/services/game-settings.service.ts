@@ -62,19 +62,12 @@ export class GameSettingsService {
      */
     async getRoundRankFunds(round: number, rank: number): Promise<number> {
         const roundRankFundsRaw = await this.getSetting<string>('roundRankFunds');
-        // this.logger.log(`[GameSettings] getRoundRankFunds 호출: round=${round}, rank=${rank}`);
-        // this.logger.log(`[GameSettings] 원본 roundRankFunds:`, roundRankFundsRaw);
-        // this.logger.log(`[GameSettings] 원본 타입:`, typeof roundRankFundsRaw);
-
         const roundRankFunds = JSON.parse(roundRankFundsRaw);
-        // this.logger.log(`[GameSettings] 파싱된 roundRankFunds:`, roundRankFunds);
-        // this.logger.log(`[GameSettings] 파싱된 타입:`, typeof roundRankFunds);
-        // this.logger.log(`[GameSettings] 파싱된 키들:`, Object.keys(roundRankFunds));
-        // this.logger.log(`[GameSettings] 찾는 키: "${round.toString()}"`);
-        // this.logger.log(`[GameSettings] 해당 라운드 데이터:`, roundRankFunds[round.toString()]);
         const result = roundRankFunds[round.toString()]?.[rank.toString()] || 0;
-        this.logger.log(`[GameSettings] 최종 반환값: ${result}`);
-        return result;
+
+        // this.logger.log(`[GameSettings] 최종 반환값: ${result}`);
+        // return result;
+        return 4;
     }
 
     /**
